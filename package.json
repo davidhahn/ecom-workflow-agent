@@ -1,0 +1,9 @@
+{
+  "name": "ecom-workflow-agent",
+  "private": true,
+  "packageManager": "pnpm@10.25.0",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "codegen": "pnpm --filter shared run codegen"
+  }
+}

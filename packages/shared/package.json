@@ -1,0 +1,12 @@
+{
+  "name": "shared",
+  "version": "0.0.0",
+  "private": true,
+  "types": "src/generated.ts",
+  "scripts": {
+    "codegen": "openapi-typescript http://localhost:8000/openapi.json -o src/generated.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
+  }
+}
