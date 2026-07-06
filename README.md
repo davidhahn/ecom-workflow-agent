@@ -46,6 +46,17 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
+## Database
+
+Apply migrations and load fixture data (from `apps/api`, with Postgres up and `.env` configured):
+
+```bash
+poetry run alembic upgrade head
+poetry run python -m app.db.seed
+```
+
+Schema is defined via SQLAlchemy models under `apps/api/app/db/models.py`; migrations live in `apps/api/alembic/versions/`. `seed.py` is re-runnable — it truncates and reseeds the six Part 1 tables (customers, products, orders, order_items, refunds, support_tickets) with deterministic fixture data.
+
 ## Running the apps
 
 ```bash
