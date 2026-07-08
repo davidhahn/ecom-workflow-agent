@@ -67,7 +67,7 @@ poetry run uvicorn app.main:app --reload --port 8000
 pnpm --filter web dev
 ```
 
-The API exposes a health check at `GET /health` and its OpenAPI spec at `/openapi.json`.
+The API exposes a health check at `GET /health`, its OpenAPI spec at `/openapi.json`, and the SQL analysis path at `POST /query/sql` (`{"question": "..."}`) — see `apps/api/README.md` for the four safety layers it runs a proposed query through before executing it.
 
 ## Codegen: OpenAPI → TypeScript
 
