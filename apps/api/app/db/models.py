@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Text, func
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, Text, func, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -23,6 +23,12 @@ class Customer(Base):
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (
+        CheckConstraint(
+            "category IN ('Electronics','Apparel','Home','Grocery','Office','Clearance','Final Sale')",
+            name="category_check",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     sku: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
@@ -91,6 +97,9 @@ class Refund(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False)
     requested_at: Mapped[object] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
+    )
+    evidence_submitted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
     )
 
 

@@ -18,7 +18,7 @@ Items returned under the `changed_mind` reason code must be returned within 14 d
 
 Items returned under the `damaged_shipping` reason code have no time limit for return. A refund request under the `damaged_shipping` reason code requires supporting photo evidence before the refund can be processed.
 
-<!-- TODO: clarify — the Part 1 refunds schema has no field to store or reference photo evidence. The photo-evidence requirement for `damaged_shipping` refunds cannot currently be verified structurally; it needs either a schema addition (e.g. an evidence URL column) or a defined out-of-band evidence store before it can be enforced. -->
+Evidence is tracked structurally as `refunds.evidence_submitted` (boolean) — this confirms evidence was provided, not that the evidence is valid; validity review is a manual/out-of-scope step for Part 1.
 
 ## Wrong Item Shipped
 
@@ -38,9 +38,9 @@ When only some units of a multi-quantity order line are being returned, the refu
 
 ## Final-Sale Exclusion
 
-Items in a `clearance` or `final_sale` product category are not eligible for a refund. An item in a `clearance` or `final_sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.
+Items in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.
 
-<!-- TODO: clarify — `products.category` in the Part 1 schema is unconstrained free text (no CHECK constraint enumerating allowed values), so there is no governed way to reliably identify `clearance` or `final_sale` items today. This rule needs either a CHECK constraint on `products.category` or a separate boolean flag column before it can be enforced structurally. -->
+`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.
 
 ## Shipping Cost Non-Refundable
 

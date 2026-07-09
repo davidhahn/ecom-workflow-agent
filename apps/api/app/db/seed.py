@@ -84,6 +84,10 @@ PRODUCT_ROWS = [
     ("Dark Roast Coffee Beans 12oz", "Grocery", 1299),
     ("Wireless Keyboard", "Office", 3999),
     ("Ergonomic Desk Chair", "Office", 15999),
+    # edge case: final-sale exclusion (refund_policy.md rule 9) needs
+    # products in these categories to test against
+    ("Discontinued Bluetooth Speaker", "Clearance", 2999),
+    ("Last-Season Winter Jacket", "Final Sale", 8999),
 ]
 
 products = []
@@ -155,6 +159,25 @@ multi_item_untouched_b = add_item(multi_order_id, product_by_name["USB-C Chargin
 policy_order_id = add_order(ANCHOR - timedelta(days=200), customer_index=1, status="delivered")
 policy_violation_item = add_item(policy_order_id, product_by_name["Ergonomic Desk Chair"], 1)
 
+# --- edge case: damaged_shipping refunds with evidence_submitted variation
+#     (refund_policy.md rule 4's photo-evidence requirement hangs off this
+#     column; the orchestrator's enforcement logic is a later step, this is
+#     just the data it needs to evaluate against) ---------------------------
+evidence_true_order_1 = add_order(ANCHOR - timedelta(days=25), customer_index=7, status="delivered")
+evidence_true_item_1 = add_item(evidence_true_order_1, product_by_name["Ceramic Coffee Mug"], 1)
+
+evidence_true_order_2 = add_order(ANCHOR - timedelta(days=18), customer_index=8, status="delivered")
+evidence_true_item_2 = add_item(evidence_true_order_2, product_by_name["Memory Foam Pillow"], 1)
+
+evidence_false_order = add_order(ANCHOR - timedelta(days=12), customer_index=9, status="delivered")
+evidence_false_item = add_item(evidence_false_order, product_by_name["Cotton Bath Towel Set"], 1)
+
+# --- edge case: refund attempt against a Clearance/Final Sale product under
+#     a non-exempt reason code (refund_policy.md rule 9 only exempts
+#     defective and wrong_item -- changed_mind is not exempt) --------------
+final_sale_order_id = add_order(ANCHOR - timedelta(days=10), customer_index=10, status="delivered")
+final_sale_item = add_item(final_sale_order_id, product_by_name["Last-Season Winter Jacket"], 1)
+
 # --- high refund-rate products: 5 orders each, most items refunded --------
 high_refund_items: dict[str, list[uuid.UUID]] = {p["name"]: [] for p in HIGH_REFUND_PRODUCTS}
 for product in HIGH_REFUND_PRODUCTS:
@@ -210,6 +233,7 @@ def add_refund(
     reason: str,
     status: str,
     requested_at: datetime,
+    evidence_submitted: bool = False,
 ) -> None:
     refunds.append(
         {
@@ -219,6 +243,7 @@ def add_refund(
             "reason": reason,
             "status": status,
             "requested_at": requested_at,
+            "evidence_submitted": evidence_submitted,
         }
     )
 
@@ -249,6 +274,46 @@ add_refund(
     "changed_mind",
     "approved",
     order_lookup(policy_order_id)["order_date"] + timedelta(days=60),
+)
+
+# damaged_shipping refunds with photo evidence submitted (approvable)
+for item_id, order_id in [
+    (evidence_true_item_1, evidence_true_order_1),
+    (evidence_true_item_2, evidence_true_order_2),
+]:
+    _item = item_lookup(item_id)
+    add_refund(
+        item_id,
+        _item["quantity"] * _item["unit_price_cents"],
+        "damaged_shipping",
+        "approved",
+        order_lookup(order_id)["order_date"] + timedelta(days=4),
+        evidence_submitted=True,
+    )
+
+# damaged_shipping refund WITHOUT photo evidence -- the case the
+# orchestrator's enforcement logic (not yet built) needs to reject or flag
+_item = item_lookup(evidence_false_item)
+add_refund(
+    evidence_false_item,
+    _item["quantity"] * _item["unit_price_cents"],
+    "damaged_shipping",
+    "pending",
+    order_lookup(evidence_false_order)["order_date"] + timedelta(days=3),
+    evidence_submitted=False,
+)
+
+# final-sale exclusion test case: changed_mind is not an exempt reason code
+# (only defective/wrong_item are, per refund_policy.md rule 9) -- this is
+# the row that should get blocked once the orchestrator enforces the rule
+_item = item_lookup(final_sale_item)
+add_refund(
+    final_sale_item,
+    _item["quantity"] * _item["unit_price_cents"],
+    "changed_mind",
+    "pending",
+    order_lookup(final_sale_order_id)["order_date"] + timedelta(days=5),
+    evidence_submitted=False,
 )
 
 # high refund-rate products: 4 of 5 items refunded (approved), within policy
