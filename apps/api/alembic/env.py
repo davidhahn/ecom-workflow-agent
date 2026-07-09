@@ -9,6 +9,7 @@ from alembic import context
 
 from app.db.models import Base
 from app.db import audit_models  # noqa: F401 — registers QueryAuditLog on Base.metadata
+from app.db import rag_models  # noqa: F401 — registers PolicyChunk on Base.metadata
 
 load_dotenv()
 

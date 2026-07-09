@@ -32,3 +32,19 @@ The role/grant migration requires `OPS_AGENT_DB_PASSWORD` to be set in `.env` be
 4. **Audit log** (`app/query/audit.py` → `query_audit_log` table) — every attempt is logged regardless of outcome: the question, generated SQL, stated intent, and per-layer pass/fail.
 
 Known gap, intentionally not built here: no row-level security or multi-tenant isolation — every caller sees the same rows subject to the column restrictions above.
+
+## RAG query path
+
+`POST /query/rag` (`{"question": "...", "k": 3}`) does top-k cosine similarity search over `docs/policies/*.md` and returns raw chunks — no LLM-generated answer, no groundedness check, no orchestrator yet. See `app/rag/`:
+
+- **Chunking** (`app/rag/chunking.py`) — one chunk per H2 section (one numbered rule for `refund_policy.md`, one heading for `shipping_policy.md`/`support_playbook.md`), not fixed-size or semantic chunking. `source_doc` and `rule_number` are preserved as metadata.
+- **Embeddings** (`app/rag/embeddings.py`) — local `sentence-transformers` (`BAAI/bge-m3`), no external embedding API; see the comment above the model init for why, and when to revisit it.
+- **Storage** — `policy_chunks` table (`content`, `embedding vector(1024)`, `source_doc`, `rule_number`), no ANN index at this corpus size (~17 rows) — see `DECISIONS.md` #8.
+
+Ingest (re-runnable — truncates and reinserts every time):
+
+```bash
+poetry run python -m app.rag.ingest
+```
+
+**Verification test (yours to run, not automated here):** query `"what's our policy on damaged shipments?"` and confirm rule 4 (damaged in shipping) ranks above rule 3 (changed mind) despite both mentioning timeframes; separately, query something that should surface rule 9 (clearance items) and confirm rules 2 and/or 5 appear somewhere in the top-3 — that's the actual test of whether `k=3` does the cross-reference job the policy doc's own text claims it does.
