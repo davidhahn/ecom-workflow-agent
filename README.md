@@ -67,7 +67,7 @@ poetry run uvicorn app.main:app --reload --port 8000
 pnpm --filter web dev
 ```
 
-The API exposes a health check at `GET /health`, its OpenAPI spec at `/openapi.json`, the SQL analysis path at `POST /query/sql` (`{"question": "..."}`), and the RAG retrieval path at `POST /query/rag` (`{"question": "...", "k": 3}`) — see `apps/api/README.md` for both. RAG needs its policy corpus ingested first: `poetry run python -m app.rag.ingest` (from `apps/api`).
+The API exposes a health check at `GET /health`, its OpenAPI spec at `/openapi.json`, the SQL analysis path at `POST /query/sql`, the RAG retrieval path at `POST /query/rag`, and two orchestrator flows built on top of both: `POST /query/analyze` (combined SQL + RAG with a structural groundedness check) and `POST /refund/evaluate` (natural-language refund request → decision, no DB mutation) — see `apps/api/README.md` for all four. RAG needs its policy corpus ingested first: `poetry run python -m app.rag.ingest` (from `apps/api`).
 
 ## Codegen: OpenAPI → TypeScript
 

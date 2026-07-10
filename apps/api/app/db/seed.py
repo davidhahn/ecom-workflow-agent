@@ -298,7 +298,7 @@ add_refund(
     evidence_false_item,
     _item["quantity"] * _item["unit_price_cents"],
     "damaged_shipping",
-    "pending",
+    "denied",
     order_lookup(evidence_false_order)["order_date"] + timedelta(days=3),
     evidence_submitted=False,
 )

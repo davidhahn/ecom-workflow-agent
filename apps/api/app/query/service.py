@@ -5,7 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.query.audit import record_attempt
-from app.query.claude_client import ClaudeProposalError, propose_sql
+from app.query.claude_client import ClaudeProposalError, ProposedQuery, propose_sql
 from app.query.db_readonly import readonly_engine
 from app.query.schemas import SqlQueryResponse
 from app.query.validation import (
@@ -38,8 +38,6 @@ def _get_estimated_cost(sql: str) -> float:
 
 
 def run_sql_query(question: str) -> SqlQueryResponse:
-    layer_outcomes: dict = {}
-
     try:
         proposed = propose_sql(question)
     except ClaudeProposalError as e:
@@ -53,7 +51,19 @@ def run_sql_query(question: str) -> SqlQueryResponse:
         )
         return SqlQueryResponse(status="error", rejection_reason=str(e))
 
-    layer_outcomes["claude_proposal"] = {"passed": True}
+    return execute_proposed_query(question, proposed)
+
+
+def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryResponse:
+    """Runs an already-proposed (query, intent) pair through layers 1-4.
+
+    Split out from run_sql_query so callers that already have a Claude-
+    generated query in hand — e.g. the /query/analyze orchestrator, which
+    gets run_sql_query's tool call as part of its own tool loop — can reuse
+    the exact same safety pipeline without a second, redundant Claude call
+    to re-derive the same query.
+    """
+    layer_outcomes: dict = {"claude_proposal": {"passed": True}}
 
     # Layer 1 — static AST validation
     try:
