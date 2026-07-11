@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from typing import Any
 
 import anthropic
 from dotenv import load_dotenv
@@ -29,6 +30,11 @@ Schema:
 class ProposedQuery:
     query: str
     intent: str
+    # Anthropic response.usage from the call that produced this proposal —
+    # None when constructed manually (e.g. from a tool call already made
+    # elsewhere, as /query/analyze does), since there's no second Claude
+    # call to attribute usage to in that case.
+    usage: Any = None
 
 
 class ClaudeProposalError(Exception):
@@ -67,4 +73,4 @@ def propose_sql(question: str) -> ProposedQuery:
             f"run_sql_query tool call missing required fields: {tool_use.input}"
         )
 
-    return ProposedQuery(query=query, intent=intent)
+    return ProposedQuery(query=query, intent=intent, usage=response.usage)

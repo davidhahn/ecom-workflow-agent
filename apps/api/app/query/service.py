@@ -1,9 +1,12 @@
 import json
 import time
+import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
+from app.observability.logger import request_log_span
 from app.query.audit import record_attempt
 from app.query.claude_client import ClaudeProposalError, ProposedQuery, propose_sql
 from app.query.db_readonly import readonly_engine
@@ -24,6 +27,12 @@ _INSUFFICIENT_PRIVILEGE = "42501"
 _QUERY_CANCELED = "57014"
 
 
+@dataclass
+class ExecutedQuery:
+    response: SqlQueryResponse
+    audit_id: uuid.UUID
+
+
 def _pg_sqlstate(exc: Exception) -> str | None:
     orig = getattr(exc, "orig", None)
     return getattr(orig, "sqlstate", None)
@@ -38,23 +47,31 @@ def _get_estimated_cost(sql: str) -> float:
 
 
 def run_sql_query(question: str) -> SqlQueryResponse:
-    try:
-        proposed = propose_sql(question)
-    except ClaudeProposalError as e:
-        record_attempt(
-            question=question,
-            generated_sql=None,
-            stated_intent=None,
-            status="error",
-            layer_outcomes={"claude_proposal": {"passed": False, "reason": str(e)}},
-            rejection_reason=str(e),
-        )
-        return SqlQueryResponse(status="error", rejection_reason=str(e))
+    with request_log_span("sql", question) as log:
+        try:
+            proposed = propose_sql(question)
+        except ClaudeProposalError as e:
+            audit_id = record_attempt(
+                question=question,
+                generated_sql=None,
+                stated_intent=None,
+                status="error",
+                layer_outcomes={"claude_proposal": {"passed": False, "reason": str(e)}},
+                rejection_reason=str(e),
+            )
+            log.sql_query_audit_id = audit_id
+            response = SqlQueryResponse(status="error", rejection_reason=str(e))
+            log.output = response.model_dump(mode="json")
+            return response
 
-    return execute_proposed_query(question, proposed)
+        log.add_usage(proposed.usage)
+        executed = execute_proposed_query(question, proposed)
+        log.sql_query_audit_id = executed.audit_id
+        log.output = executed.response.model_dump(mode="json")
+        return executed.response
 
 
-def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryResponse:
+def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQuery:
     """Runs an already-proposed (query, intent) pair through layers 1-4.
 
     Split out from run_sql_query so callers that already have a Claude-
@@ -70,7 +87,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
         statement = validate_ast(proposed.query)
     except SqlRejected as e:
         layer_outcomes["layer1_ast"] = {"passed": False, "reason": e.reason}
-        record_attempt(
+        audit_id = record_attempt(
             question=question,
             generated_sql=proposed.query,
             stated_intent=proposed.intent,
@@ -78,8 +95,11 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
             layer_outcomes=layer_outcomes,
             rejection_reason=e.reason,
         )
-        return SqlQueryResponse(
-            status="rejected", sql_executed=proposed.query, rejection_reason=e.reason
+        return ExecutedQuery(
+            response=SqlQueryResponse(
+                status="rejected", sql_executed=proposed.query, rejection_reason=e.reason
+            ),
+            audit_id=audit_id,
         )
     layer_outcomes["layer1_ast"] = {"passed": True}
 
@@ -95,7 +115,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
         if sqlstate == _INSUFFICIENT_PRIVILEGE:
             reason = f"database denied access while planning the query: {e.orig}"
             layer_outcomes["layer3_db"] = {"passed": False, "reason": reason}
-            record_attempt(
+            audit_id = record_attempt(
                 question=question,
                 generated_sql=final_sql,
                 stated_intent=proposed.intent,
@@ -103,12 +123,15 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
                 layer_outcomes=layer_outcomes,
                 rejection_reason=reason,
             )
-            return SqlQueryResponse(
-                status="rejected", sql_executed=final_sql, rejection_reason=reason
+            return ExecutedQuery(
+                response=SqlQueryResponse(
+                    status="rejected", sql_executed=final_sql, rejection_reason=reason
+                ),
+                audit_id=audit_id,
             )
         reason = f"failed to plan query: {e}"
         layer_outcomes["layer2_cost"] = {"passed": False, "reason": reason}
-        record_attempt(
+        audit_id = record_attempt(
             question=question,
             generated_sql=final_sql,
             stated_intent=proposed.intent,
@@ -116,8 +139,11 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
             layer_outcomes=layer_outcomes,
             rejection_reason=reason,
         )
-        return SqlQueryResponse(
-            status="error", sql_executed=final_sql, rejection_reason=reason
+        return ExecutedQuery(
+            response=SqlQueryResponse(
+                status="error", sql_executed=final_sql, rejection_reason=reason
+            ),
+            audit_id=audit_id,
         )
 
     try:
@@ -128,7 +154,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
             "reason": e.reason,
             "estimated_cost": estimated_cost,
         }
-        record_attempt(
+        audit_id = record_attempt(
             question=question,
             generated_sql=final_sql,
             stated_intent=proposed.intent,
@@ -137,11 +163,14 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
             rejection_reason=e.reason,
             estimated_cost=estimated_cost,
         )
-        return SqlQueryResponse(
-            status="rejected",
-            sql_executed=final_sql,
-            rejection_reason=e.reason,
-            estimated_cost=estimated_cost,
+        return ExecutedQuery(
+            response=SqlQueryResponse(
+                status="rejected",
+                sql_executed=final_sql,
+                rejection_reason=e.reason,
+                estimated_cost=estimated_cost,
+            ),
+            audit_id=audit_id,
         )
     layer_outcomes["layer2_cost"] = {"passed": True, "estimated_cost": estimated_cost}
 
@@ -166,7 +195,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
             reason = f"query execution failed: {e}"
             status = "error"
         layer_outcomes["layer3_db"] = {"passed": False, "reason": reason}
-        record_attempt(
+        audit_id = record_attempt(
             question=question,
             generated_sql=final_sql,
             stated_intent=proposed.intent,
@@ -176,12 +205,15 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
             execution_time_ms=execution_time_ms,
             estimated_cost=estimated_cost,
         )
-        return SqlQueryResponse(
-            status=status,
-            sql_executed=final_sql,
-            rejection_reason=reason,
-            execution_time_ms=execution_time_ms,
-            estimated_cost=estimated_cost,
+        return ExecutedQuery(
+            response=SqlQueryResponse(
+                status=status,
+                sql_executed=final_sql,
+                rejection_reason=reason,
+                execution_time_ms=execution_time_ms,
+                estimated_cost=estimated_cost,
+            ),
+            audit_id=audit_id,
         )
 
     execution_time_ms = int((time.perf_counter() - start) * 1000)
@@ -190,7 +222,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
     layer_outcomes["layer3_db"] = {"passed": True}
     layer_outcomes["layer4_audit"] = {"passed": True}
 
-    record_attempt(
+    audit_id = record_attempt(
         question=question,
         generated_sql=final_sql,
         stated_intent=proposed.intent,
@@ -201,12 +233,15 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> SqlQueryRe
         estimated_cost=estimated_cost,
     )
 
-    return SqlQueryResponse(
-        status="success",
-        sql_executed=final_sql,
-        rows=rows,
-        row_count=row_count,
-        truncated=truncated,
-        execution_time_ms=execution_time_ms,
-        estimated_cost=estimated_cost,
+    return ExecutedQuery(
+        response=SqlQueryResponse(
+            status="success",
+            sql_executed=final_sql,
+            rows=rows,
+            row_count=row_count,
+            truncated=truncated,
+            execution_time_ms=execution_time_ms,
+            estimated_cost=estimated_cost,
+        ),
+        audit_id=audit_id,
     )

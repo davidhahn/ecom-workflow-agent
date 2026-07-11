@@ -4,9 +4,10 @@ import os
 import anthropic
 from dotenv import load_dotenv
 
+from app.observability.logger import request_log_span
 from app.query.claude_client import DEFAULT_MODEL, ProposedQuery
 from app.query.schema_context import build_schema_context
-from app.query.service import execute_proposed_query
+from app.query.service import ExecutedQuery, execute_proposed_query
 from app.query.tool_spec import RUN_SQL_QUERY_TOOL
 from app.rag.service import query_rag
 from app.rag.schemas import RagChunkResult
@@ -44,10 +45,9 @@ def _run_search_policy_tool(tool_input: dict) -> list[RagChunkResult]:
     return rag_response.chunks
 
 
-def _run_run_sql_query_tool(question: str, tool_input: dict) -> dict:
+def _run_run_sql_query_tool(question: str, tool_input: dict) -> ExecutedQuery:
     proposed = ProposedQuery(query=tool_input["query"], intent=tool_input["intent"])
-    sql_response = execute_proposed_query(question, proposed)
-    return sql_response.model_dump(mode="json")
+    return execute_proposed_query(question, proposed)
 
 
 def _build_sources(chunks: list[RagChunkResult]) -> list[SourceRef]:
@@ -63,61 +63,70 @@ def _build_sources(chunks: list[RagChunkResult]) -> list[SourceRef]:
 
 
 def analyze(question: str) -> AnalyzeResponse:
-    client = anthropic.Anthropic()
-    model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
-    system = SYSTEM_PROMPT.format(schema=build_schema_context())
+    with request_log_span("analyze", question) as log:
+        client = anthropic.Anthropic()
+        model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+        system = SYSTEM_PROMPT.format(schema=build_schema_context())
 
-    messages: list[dict] = [{"role": "user", "content": question}]
-    sql_used = False
-    rag_used = False
-    retrieved_chunks: list[RagChunkResult] = []
+        messages: list[dict] = [{"role": "user", "content": question}]
+        sql_used = False
+        rag_used = False
+        retrieved_chunks: list[RagChunkResult] = []
 
-    response = None
-    for _ in range(MAX_TOOL_ITERATIONS):
-        response = client.messages.create(
-            model=model,
-            max_tokens=2048,
-            system=system,
-            tools=[RUN_SQL_QUERY_TOOL, SEARCH_POLICY_TOOL],
-            messages=messages,
+        response = None
+        for _ in range(MAX_TOOL_ITERATIONS):
+            response = client.messages.create(
+                model=model,
+                max_tokens=2048,
+                system=system,
+                tools=[RUN_SQL_QUERY_TOOL, SEARCH_POLICY_TOOL],
+                messages=messages,
+            )
+            log.add_usage(response.usage)
+            messages.append({"role": "assistant", "content": response.content})
+
+            if response.stop_reason != "tool_use":
+                break
+
+            tool_results = []
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+                if block.name == "run_sql_query":
+                    sql_used = True
+                    executed = _run_run_sql_query_tool(question, block.input)
+                    log.sql_query_audit_id = executed.audit_id
+                    result = executed.response.model_dump(mode="json")
+                    tool_results.append(
+                        {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)}
+                    )
+                elif block.name == "search_policy":
+                    rag_used = True
+                    chunks = _run_search_policy_tool(block.input)
+                    retrieved_chunks.extend(chunks)
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": json.dumps([c.model_dump() for c in chunks]),
+                        }
+                    )
+            messages.append({"role": "user", "content": tool_results})
+
+        answer = next((b.text for b in response.content if b.type == "text"), "") if response else ""
+
+        grounded, ungrounded_claims = check_groundedness(answer, retrieved_chunks)
+        log.grounded = grounded
+        if retrieved_chunks:
+            log.rag_chunks_retrieved = [c.model_dump(mode="json") for c in retrieved_chunks]
+
+        result = AnalyzeResponse(
+            answer=answer,
+            sql_used=sql_used,
+            rag_used=rag_used,
+            grounded=grounded,
+            ungrounded_claims=ungrounded_claims,
+            sources=_build_sources(retrieved_chunks),
         )
-        messages.append({"role": "assistant", "content": response.content})
-
-        if response.stop_reason != "tool_use":
-            break
-
-        tool_results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            if block.name == "run_sql_query":
-                sql_used = True
-                result = _run_run_sql_query_tool(question, block.input)
-                tool_results.append(
-                    {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)}
-                )
-            elif block.name == "search_policy":
-                rag_used = True
-                chunks = _run_search_policy_tool(block.input)
-                retrieved_chunks.extend(chunks)
-                tool_results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps([c.model_dump() for c in chunks]),
-                    }
-                )
-        messages.append({"role": "user", "content": tool_results})
-
-    answer = next((b.text for b in response.content if b.type == "text"), "") if response else ""
-
-    grounded, ungrounded_claims = check_groundedness(answer, retrieved_chunks)
-
-    return AnalyzeResponse(
-        answer=answer,
-        sql_used=sql_used,
-        rag_used=rag_used,
-        grounded=grounded,
-        ungrounded_claims=ungrounded_claims,
-        sources=_build_sources(retrieved_chunks),
-    )
+        log.output = result.model_dump(mode="json")
+        return result

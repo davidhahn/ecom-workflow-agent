@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from app.observability.logger import request_log_span
 from app.orchestrator.refund_evaluator import evaluate_refund, resolve_order_item
 from app.orchestrator.refund_extraction import ExtractionError, extract_refund_request
 from app.orchestrator.schemas import RefundEvaluateResponse
@@ -26,68 +27,79 @@ def _partial_fields(
 
 
 def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
-    try:
-        extraction = extract_refund_request(request_text)
-    except ExtractionError as e:
-        return RefundEvaluateResponse(
-            status=COULD_NOT_PROCESS,
-            rule_applied=None,
-            reasoning=f"Could not extract a refund request from the text: {e}",
-            extracted_fields={},
+    with request_log_span("refund_evaluate", request_text) as log:
+        try:
+            extraction = extract_refund_request(request_text)
+        except ExtractionError as e:
+            response = RefundEvaluateResponse(
+                status=COULD_NOT_PROCESS,
+                rule_applied=None,
+                reasoning=f"Could not extract a refund request from the text: {e}",
+                extracted_fields={},
+            )
+            log.output = response.model_dump(mode="json")
+            return response
+
+        log.add_usage(extraction.usage)
+
+        if not extraction.reason_confident:
+            response = RefundEvaluateResponse(
+                status=COULD_NOT_PROCESS,
+                rule_applied=None,
+                reasoning=(
+                    "Could not confidently map the request text to one of the four "
+                    "reason codes (defective, wrong_item, changed_mind, "
+                    "damaged_shipping); refusing to guess."
+                ),
+                extracted_fields=_partial_fields(
+                    extraction.product_identifier,
+                    extraction.customer_identifier,
+                    extraction.reason,
+                    extraction.evidence_submitted,
+                ),
+            )
+            log.output = response.model_dump(mode="json")
+            return response
+
+        resolved = resolve_order_item(extraction.product_identifier, extraction.customer_identifier)
+        if resolved is None:
+            detail = f"product '{extraction.product_identifier}'"
+            if extraction.customer_identifier:
+                detail += f" and customer '{extraction.customer_identifier}'"
+            response = RefundEvaluateResponse(
+                status=COULD_NOT_PROCESS,
+                rule_applied=None,
+                reasoning=f"Could not resolve an order item matching {detail} against the database.",
+                extracted_fields=_partial_fields(
+                    extraction.product_identifier,
+                    extraction.customer_identifier,
+                    extraction.reason,
+                    extraction.evidence_submitted,
+                ),
+            )
+            log.output = response.model_dump(mode="json")
+            return response
+
+        evaluation = evaluate_refund(
+            order_item_id=resolved.order_item_id,
+            reason=extraction.reason,
+            evidence_submitted=extraction.evidence_submitted,
+            requested_at=datetime.now(timezone.utc),
         )
 
-    if not extraction.reason_confident:
-        return RefundEvaluateResponse(
-            status=COULD_NOT_PROCESS,
-            rule_applied=None,
-            reasoning=(
-                "Could not confidently map the request text to one of the four "
-                "reason codes (defective, wrong_item, changed_mind, "
-                "damaged_shipping); refusing to guess."
-            ),
-            extracted_fields=_partial_fields(
-                extraction.product_identifier,
-                extraction.customer_identifier,
-                extraction.reason,
-                extraction.evidence_submitted,
-            ),
+        fields = _partial_fields(
+            extraction.product_identifier,
+            extraction.customer_identifier,
+            extraction.reason,
+            extraction.evidence_submitted,
         )
+        fields["order_item_id"] = str(resolved.order_item_id)
 
-    resolved = resolve_order_item(extraction.product_identifier, extraction.customer_identifier)
-    if resolved is None:
-        detail = f"product '{extraction.product_identifier}'"
-        if extraction.customer_identifier:
-            detail += f" and customer '{extraction.customer_identifier}'"
-        return RefundEvaluateResponse(
-            status=COULD_NOT_PROCESS,
-            rule_applied=None,
-            reasoning=f"Could not resolve an order item matching {detail} against the database.",
-            extracted_fields=_partial_fields(
-                extraction.product_identifier,
-                extraction.customer_identifier,
-                extraction.reason,
-                extraction.evidence_submitted,
-            ),
+        response = RefundEvaluateResponse(
+            status=evaluation.status,
+            rule_applied=evaluation.rule_applied,
+            reasoning=evaluation.reasoning,
+            extracted_fields=fields,
         )
-
-    evaluation = evaluate_refund(
-        order_item_id=resolved.order_item_id,
-        reason=extraction.reason,
-        evidence_submitted=extraction.evidence_submitted,
-        requested_at=datetime.now(timezone.utc),
-    )
-
-    fields = _partial_fields(
-        extraction.product_identifier,
-        extraction.customer_identifier,
-        extraction.reason,
-        extraction.evidence_submitted,
-    )
-    fields["order_item_id"] = str(resolved.order_item_id)
-
-    return RefundEvaluateResponse(
-        status=evaluation.status,
-        rule_applied=evaluation.rule_applied,
-        reasoning=evaluation.reasoning,
-        extracted_fields=fields,
-    )
+        log.output = response.model_dump(mode="json")
+        return response

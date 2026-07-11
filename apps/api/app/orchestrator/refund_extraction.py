@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from typing import Any
 
 import anthropic
 from dotenv import load_dotenv
@@ -79,6 +80,7 @@ class ExtractionResult:
     reason_confident: bool
     reason: str
     evidence_submitted: bool
+    usage: Any = None
 
 
 class ExtractionError(Exception):
@@ -113,6 +115,7 @@ def extract_refund_request(request_text: str) -> ExtractionResult:
             reason_confident=data["reason_confident"],
             reason=data["reason"],
             evidence_submitted=data["evidence_submitted"],
+            usage=response.usage,
         )
     except KeyError as e:
         raise ExtractionError(
