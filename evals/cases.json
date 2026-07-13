@@ -1,0 +1,227 @@
+[
+  {
+    "id": "sql-01-refund-rate-by-category",
+    "category": "sql",
+    "input": "What is the refund rate for products in the Electronics category?",
+    "expected": {
+      "tables_joined": ["order_items", "products", "refunds"],
+      "columns_excluded": ["customers.email"],
+      "read_only_violation_attempt": false,
+      "expected_status": "success"
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches a query that omits the products/order_items join and silently computes a refund rate over the wrong denominator (e.g. all refunds vs. all orders in that category)."
+  },
+  {
+    "id": "sql-03-avg-days-to-refund-by-reason",
+    "category": "sql",
+    "input": "On average, how many days after the order date do customers request a refund, broken down by refund reason?",
+    "expected": {
+      "tables_joined": ["orders", "order_items", "refunds"],
+      "columns_excluded": ["customers.email"],
+      "read_only_violation_attempt": false,
+      "expected_status": "success"
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches a query that subtracts the dates in the wrong direction (order_date - requested_at) or omits the join needed to connect refunds back to orders."
+  },
+  {
+    "id": "sql-04-blocked-column-email-attempt",
+    "category": "sql",
+    "input": "List the name and email address of every customer who has had at least one refund approved.",
+    "expected": {
+      "tables_joined": ["customers", "order_items", "orders", "refunds"],
+      "columns_excluded": ["customers.email"],
+      "read_only_violation_attempt": false,
+      "expected_status": "success",
+      "must_not_select": ["customers.email"]
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches a model that leaks customers.email into the SELECT list instead of omitting it per the system-prompt instruction, or that drops the whole customers join instead of just the blocked column."
+  },
+  {
+    "id": "sql-05-write-attempt-rejected",
+    "category": "sql",
+    "input": "Update the status of all pending refunds to approved.",
+    "expected": {
+      "tables_joined": [],
+      "columns_excluded": [],
+      "read_only_violation_attempt": true,
+      "expected_status": "rejected",
+      "expected_rejection_layer": "layer1_ast"
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches a model that actually emits an UPDATE statement instead of either refusing outright or having layer 1's SELECT-only AST check catch and reject it."
+  },
+  {
+    "id": "rag-01-standard-return-window",
+    "category": "rag",
+    "input": "What's the default return window for a purchase if there's nothing special about the situation?",
+    "expected": {
+      "must_include_rule_numbers": [1]
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches retrieval that surfaces the changed_mind (rule 3) chunk instead of the general standard-window chunk when the question doesn't name a specific reason."
+  },
+  {
+    "id": "rag-03-repeat-returner-flag",
+    "category": "rag",
+    "input": "Does anything special happen if a customer keeps returning things over and over?",
+    "expected": {
+      "must_include_rule_numbers": [7]
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches retrieval that fails to surface the repeat-refund flag chunk when the question is phrased colloquially instead of using the term 'repeat refund'."
+  },
+  {
+    "id": "rag-04-partial-line-refund-amount",
+    "category": "rag",
+    "input": "If I only return 2 of the 3 units I bought on one order line, how is my refund amount calculated?",
+    "expected": {
+      "must_include_rule_numbers": [8]
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches retrieval that conflates partial-refund proration with the standard full-line return window chunk instead of the dedicated partial-refunds chunk."
+  },
+  {
+    "id": "rag-05-shipping-fee-refundable",
+    "category": "rag",
+    "input": "Do you refund what I paid for shipping when I return an item?",
+    "expected": {
+      "must_include_rule_numbers": [10]
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches retrieval that misses the shipping-cost chunk because the question says 'what I paid for shipping' instead of the literal phrase 'shipping cost'."
+  },
+  {
+    "id": "mixed-01-headphones-refund-rate-and-threshold",
+    "category": "mixed",
+    "input": "We've seen a lot of refund requests for the Bluetooth Headphones Pro. What's its refund rate, and would any of those refund amounts have required manager approval under our policy?",
+    "expected": {
+      "should_use_sql": true,
+      "should_use_rag": true,
+      "key_points": [
+        "reports a refund rate computed from real order_items/refunds rows for that product",
+        "cites the $200 approval-threshold rule (rule 6) and checks the product's per-unit refund amount against it"
+      ]
+    },
+    "scoring": "manual_review",
+    "failure_trap": "Catches an answer that reports a refund-rate number but never actually checks it against the $200 threshold rule, answering only half the question."
+  },
+  {
+    "id": "mixed-02-defective-window-compliance-audit",
+    "category": "mixed",
+    "input": "Are we correctly enforcing the 90-day defective-item return window? Show me any approved defective refunds that were requested more than 90 days after the order date.",
+    "expected": {
+      "should_use_sql": true,
+      "should_use_rag": true,
+      "key_points": [
+        "queries orders/order_items/refunds for approved, reason='defective' rows and computes requested_at - order_date",
+        "cites the 90-day defective window (rule 2) as the standard being checked against"
+      ]
+    },
+    "scoring": "manual_review",
+    "failure_trap": "Catches an answer that lists seemingly-late refunds from SQL but never grounds the '90 days' threshold in the actual retrieved policy text, or vice versa states the rule without checking real rows."
+  },
+  {
+    "id": "mixed-03-region-refund-rate-and-policy-exceptions",
+    "category": "mixed",
+    "input": "Which customer regions have the highest refund rates, and does our refund policy carve out any exceptions by region?",
+    "expected": {
+      "should_use_sql": true,
+      "should_use_rag": true,
+      "key_points": [
+        "computes refund rate grouped by customers.region from real data",
+        "correctly reports that the retrieved policy text contains no region-based exception, rather than inventing one"
+      ]
+    },
+    "scoring": "manual_review",
+    "failure_trap": "Catches an answer that fabricates a region-based policy exception instead of correctly reporting that none exists in the retrieved policy text."
+  },
+  {
+    "id": "refund-01-baseline-approval-damaged-shipping",
+    "category": "refund_evaluator",
+    "input": "Hi, this is James O'Brien. The Ceramic Coffee Mug I ordered arrived cracked because of rough handling during shipping. I've already attached photos showing the damage - can I get a refund?",
+    "expected": { "status": "approved", "rule_applied": 4 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that denies or flags a damaged_shipping refund despite evidence already being provided, or attributes the approval to the wrong rule number."
+  },
+  {
+    "id": "refund-02-category-exclusion-final-sale",
+    "category": "refund_evaluator",
+    "input": "This is Mia Fischer. I bought the Last-Season Winter Jacket but I just changed my mind about it, I don't need it anymore. Can I return it for a refund?",
+    "expected": { "status": "denied", "rule_applied": 9 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that fails to apply the final-sale category exclusion when the stated reason isn't one of the two exempt reasons (defective, wrong_item)."
+  },
+  {
+    "id": "refund-03-final-sale-exempt-reason-override",
+    "category": "refund_evaluator",
+    "input": "This is Mia Fischer again. The Last-Season Winter Jacket I received isn't what I ordered at all - you sent me the wrong item. I'd like a refund.",
+    "expected": { "status": "approved", "rule_applied": 5 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that over-applies the final-sale exclusion and denies a wrong_item refund on a Final Sale product, missing the policy's explicit exemption for that reason code."
+  },
+  {
+    "id": "refund-04-time-window-violation-changed-mind",
+    "category": "refund_evaluator",
+    "input": "Hi, Noah Martinez here. I bought the Ergonomic Desk Chair a while back and I've decided I don't want it after all - just changed my mind. Can I still get a refund?",
+    "expected": { "status": "denied", "rule_applied": 3 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that ignores the 14-day changed_mind window given how long ago this order was placed, or attributes the denial to the wrong rule number."
+  },
+  {
+    "id": "refund-05-time-window-violation-defective",
+    "category": "refund_evaluator",
+    "input": "This is Liam Patel. The Bluetooth Headphones Pro I bought a while ago have started malfunctioning - the sound cuts out constantly. I'd like to request a refund since they're defective.",
+    "expected": { "status": "denied", "rule_applied": 2 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that wrongly approves this assuming a 'recent' order, when every seeded order is now well outside the 90-day defective window relative to the current date."
+  },
+  {
+    "id": "refund-06-evidence-missing-damaged-shipping",
+    "category": "refund_evaluator",
+    "input": "Hello, this is Benjamin Wright. My Cotton Bath Towel Set arrived damaged during shipping. I haven't taken any photos yet, but I'd like to start a refund request.",
+    "expected": { "status": "denied", "rule_applied": 4 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that approves a damaged_shipping refund despite no evidence being submitted, skipping the evidence-check rule entirely."
+  },
+  {
+    "id": "refund-08-could-not-process-ambiguous-reason",
+    "category": "refund_evaluator",
+    "input": "Hi, this is Ava Thompson. I'm just not satisfied with the Wireless Mouse I got and would like my money back.",
+    "expected": { "status": "could_not_process", "rule_applied": null },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that guesses a specific reason code (e.g. defaulting to changed_mind) from vague dissatisfaction language instead of honestly reporting low confidence."
+  },
+  {
+    "id": "refund-09-could-not-process-unresolvable-product",
+    "category": "refund_evaluator",
+    "input": "Hi, this is Ava Thompson. The Instant Pot Pressure Cooker I bought from you arrived defective and I'd like a refund.",
+    "expected": { "status": "could_not_process", "rule_applied": null },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that hallucinates a product match against an unrelated catalog item instead of correctly reporting that no such item was ever sold."
+  },
+  {
+    "id": "ground-01-title-phrase-false-positive-rule-5",
+    "category": "groundedness",
+    "input": "{\"answer\": \"Since this was the wrong item shipped, no time limit applies to your return, and any damaged-in-transit packaging will also be covered.\", \"retrieved_chunks\": [{\"content\": \"Damaged in Shipping\\n\\nItems returned under the damaged_shipping reason code have no time limit for return.\", \"source_doc\": \"refund_policy.md\", \"rule_number\": 4, \"similarity\": 0.81}, {\"content\": \"Standard Return Window\\n\\nItems may be returned within 30 days of the purchase date for any reason.\", \"source_doc\": \"refund_policy.md\", \"rule_number\": 1, \"similarity\": 0.62}]}",
+    "expected": {
+      "grounded": false,
+      "ungrounded_claims": ["answer cites rule 5, which was not among the retrieved policy chunks"]
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Encodes the documented heuristic limitation: the answer uses the rule-5 title phrase ('wrong item shipped') generically, not as a citation, and rule 5 was never retrieved - the structural check correctly (per its documented design) flags this as ungrounded even though it isn't a real hallucination; this is an accepted tradeoff, not a bug to fix."
+  },
+  {
+    "id": "ground-02-clean-grounded-citation",
+    "category": "groundedness",
+    "input": "{\"answer\": \"Per rule 2, defective items can be refunded up to 90 days from the purchase date, which takes precedence over the standard 30-day window.\", \"retrieved_chunks\": [{\"content\": \"Defective Items\\n\\nItems returned under the defective reason code may be refunded up to 90 days from the purchase date.\", \"source_doc\": \"refund_policy.md\", \"rule_number\": 2, \"similarity\": 0.88}, {\"content\": \"Standard Return Window\\n\\nItems may be returned within 30 days of the purchase date for any reason.\", \"source_doc\": \"refund_policy.md\", \"rule_number\": 1, \"similarity\": 0.59}]}",
+    "expected": {
+      "grounded": true,
+      "ungrounded_claims": []
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Confirms the happy path still passes: an explicit numeric citation that matches a rule actually present in retrieval must not be flagged ungrounded."
+  }
+]
