@@ -50,6 +50,21 @@
 - The Win: Verified empirically (not just written and trusted) that SQLAlchemy's `JSON`/`JSONB` column type defaults `none_as_null=False` — assigning a Python `None` to a nullable JSONB column serializes it as the JSON literal `null` (a real, non-NULL JSONB value) rather than mapping it to SQL `NULL`. Caught by checking `IS NOT NULL` directly in psql across all four request types after the first end-to-end verification pass: every `sql` and `refund_evaluate` row (neither of which touches RAG) showed `rag_chunks_retrieved` as non-NULL, containing the literal string `null`. Fixed by declaring the column `JSONB(none_as_null=True)`; re-verified the same way — `sql`/`refund_evaluate` rows now show genuine SQL `NULL`, `rag`/`analyze` rows show the actual chunk array.
 - The Tradeoff Accepted: None really — this is a pure correctness fix, not a design tradeoff. Worth recording anyway because it's a non-obvious SQLAlchemy default that will bite again on any *future* nullable JSON/JSONB column in this codebase if `none_as_null=True` isn't set explicitly each time; there's no single place that defaults it project-wide.
 
+14. Seed Data Uses Fixed Historical Dates, Not Time-Relative Offsets
+- The Win: Deterministic, reproducible seed data (established in decision #4) — the same
+  rows exist every time seed.py runs, so hand-verified edge cases stay findable and
+  eval expected-values stay stable across re-seeds.
+- The Tradeoff Accepted: Discovered while generating eval cases: every rule with a
+  time-relative window (2, 3, 6's implicit recency assumptions, and especially 7's
+  90-day trailing check) decays against fixed calendar dates as real time passes. Rule
+  7 is already fully unreachable — no seeded refund falls within 90 days of "now" as
+  of this writing — and this will only get worse, not resolve itself, the longer this
+  project sits between demos or interviews. Not fixed as part of this eval-authoring
+  pass since it's a seed-generation change, not an eval-case change; flagged here as a
+  known, worsening gap. Fix path if revisited: compute time-relative seed fields
+  (requested_at, order_date) as offsets from datetime.now() at seed-time rather than
+  fixed dates, so edge cases stay evergreen regardless of when seed.py actually runs.
+
 ---
 
 **Note:** Decision #2 (docker-compose scope) is a direct consequence of the Part 1 scope boundary already recorded in `ARCHITECTURE.md`. Logged here separately because it's concrete enough to defend on its own, but if that upstream scope boundary changes, this entry needs to be revisited rather than treated as independent.
