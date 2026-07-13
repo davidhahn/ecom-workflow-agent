@@ -4,6 +4,91 @@
  */
 
 export interface paths {
+    "/query/sql": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Query Sql */
+        post: operations["query_sql_query_sql_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/query/rag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Query Rag Endpoint */
+        post: operations["query_rag_endpoint_query_rag_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/query/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Analyze Endpoint */
+        post: operations["analyze_endpoint_query_analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/refund/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refund Evaluate Endpoint */
+        post: operations["refund_evaluate_endpoint_refund_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/observability/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Requests Endpoint */
+        get: operations["list_requests_endpoint_observability_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -24,7 +109,173 @@ export interface paths {
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
+    schemas: {
+        /** AnalyzeRequest */
+        AnalyzeRequest: {
+            /** Question */
+            question: string;
+        };
+        /** AnalyzeResponse */
+        AnalyzeResponse: {
+            /** Answer */
+            answer: string;
+            /** Sql Used */
+            sql_used: boolean;
+            /** Rag Used */
+            rag_used: boolean;
+            /** Grounded */
+            grounded: boolean;
+            /** Ungrounded Claims */
+            ungrounded_claims: string[];
+            /** Sources */
+            sources: components["schemas"]["SourceRef"][];
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
+        /** RagChunkResult */
+        RagChunkResult: {
+            /** Content */
+            content: string;
+            /** Source Doc */
+            source_doc: string;
+            /** Rule Number */
+            rule_number: number | null;
+            /** Similarity */
+            similarity: number;
+        };
+        /** RagQueryRequest */
+        RagQueryRequest: {
+            /** Question */
+            question: string;
+            /**
+             * K
+             * @default 3
+             */
+            k: number;
+        };
+        /** RagQueryResponse */
+        RagQueryResponse: {
+            /** Chunks */
+            chunks: components["schemas"]["RagChunkResult"][];
+        };
+        /** RefundEvaluateRequest */
+        RefundEvaluateRequest: {
+            /** Request Text */
+            request_text: string;
+        };
+        /** RefundEvaluateResponse */
+        RefundEvaluateResponse: {
+            /** Status */
+            status: string;
+            /** Rule Applied */
+            rule_applied: number | null;
+            /** Reasoning */
+            reasoning: string;
+            /** Extracted Fields */
+            extracted_fields: {
+                [key: string]: unknown;
+            };
+        };
+        /** RequestLogListResponse */
+        RequestLogListResponse: {
+            /** Requests */
+            requests: components["schemas"]["RequestLogRow"][];
+        };
+        /** RequestLogRow */
+        RequestLogRow: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Request Type */
+            request_type: string;
+            /** Input */
+            input: string;
+            /** Output */
+            output: unknown;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Input Tokens */
+            input_tokens: number | null;
+            /** Output Tokens */
+            output_tokens: number | null;
+            /** Estimated Cost Usd */
+            estimated_cost_usd: number | null;
+            /** Grounded */
+            grounded: boolean | null;
+            /** Sql Query Audit Id */
+            sql_query_audit_id: string | null;
+            /** Rag Chunks Retrieved */
+            rag_chunks_retrieved: unknown | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** SourceRef */
+        SourceRef: {
+            /** Rule Number */
+            rule_number: number | null;
+            /** Source Doc */
+            source_doc: string;
+        };
+        /** SqlQueryRequest */
+        SqlQueryRequest: {
+            /** Question */
+            question: string;
+        };
+        /** SqlQueryResponse */
+        SqlQueryResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "rejected" | "error";
+            /** Sql Executed */
+            sql_executed?: string | null;
+            /** Rejection Reason */
+            rejection_reason?: string | null;
+            /**
+             * Rows
+             * @default []
+             */
+            rows: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Row Count
+             * @default 0
+             */
+            row_count: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Execution Time Ms */
+            execution_time_ms?: number | null;
+            /** Estimated Cost */
+            estimated_cost?: number | null;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
+    };
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -33,6 +284,173 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    query_sql_query_sql_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SqlQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SqlQueryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_rag_endpoint_query_rag_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RagQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RagQueryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_endpoint_query_analyze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyzeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyzeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refund_evaluate_endpoint_refund_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundEvaluateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundEvaluateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_requests_endpoint_observability_requests_get: {
+        parameters: {
+            query?: {
+                request_type?: ("sql" | "rag" | "analyze" | "refund_evaluate") | null;
+                since?: string | null;
+                until?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestLogListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_health_get: {
         parameters: {
             query?: never;
