@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { analyzeQuestion, type AnalyzeResponse } from "@/lib/api";
 import { Badge } from "@/components/Badge";
+import { Markdown } from "@/components/Markdown";
 
 type State =
   | { status: "idle" }
@@ -73,7 +74,7 @@ export default function AskPage() {
             </Badge>
           </div>
 
-          <p className="whitespace-pre-wrap text-sm">{state.result.answer}</p>
+          <Markdown content={state.result.answer} />
 
           {state.result.ungrounded_claims.length > 0 && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
