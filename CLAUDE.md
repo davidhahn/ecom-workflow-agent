@@ -84,7 +84,7 @@ Orchestration seam is "LLM proposes, Python enforces": Claude extracts intent vi
 - Once an eval harness exists: eval cases and their expected outputs/scoring rubrics will be off-limits the same way — fix the code or the prompt, never edit a test's expected answer to force a passing grade.
 
 ## Running tests
-- No automated test harness yet (Part 1 has no eval scoring harness, no `pytest` suite). Until one exists, verify changes manually: `poetry run alembic upgrade head` / `poetry run python -m app.db.seed` for schema changes, `pnpm --filter web run build` for frontend changes, direct `curl` against the running FastAPI app for endpoint changes.
+- No eval scoring harness yet (Part 1 has eval case drafts in `evals/cases.json` but no runner). A small `pytest` suite exists at `apps/api/tests/` (currently just the tool registry contract tests — run with `poetry run pytest` from `apps/api`); extend it as more of the backend gets test coverage, rather than treating "no harness" as still true. For anything not yet covered, verify manually: `poetry run alembic upgrade head` / `poetry run python -m app.db.seed` for schema changes, `pnpm --filter web run build` for frontend changes, direct `curl` against the running FastAPI app for endpoint changes.
 
 ## Secrets
 - **Zero-Exposure Rule**: API keys, tokens, and DB strings live exclusively in `.env` (gitignored, one per app — `apps/web/.env`, `apps/api/.env`). `.env.example` files are tracked and must contain placeholders only, never a real credential. You must never hardcode a literal credential string in the codebase. If you write `sk-ant-`, `sk-proj-`, or `sk-svc-` followed by real-looking characters anywhere outside a gitignored `.env` file, you have failed the most critical check.

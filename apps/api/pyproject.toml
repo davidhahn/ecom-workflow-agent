@@ -21,6 +21,8 @@ package-mode = false
 
 [tool.poetry.group.dev.dependencies]
 httpx = "^0.28.0"
+pytest = "^9.1.1"
+jsonschema = "^4.26.0"
 
 [build-system]
 requires = ["poetry-core"]

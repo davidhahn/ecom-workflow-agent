@@ -8,12 +8,11 @@ from app.observability.logger import request_log_span
 from app.query.claude_client import DEFAULT_MODEL, ProposedQuery
 from app.query.schema_context import build_schema_context
 from app.query.service import ExecutedQuery, execute_proposed_query
-from app.query.tool_spec import RUN_SQL_QUERY_TOOL
 from app.rag.service import query_rag
 from app.rag.schemas import RagChunkResult
 from app.orchestrator.groundedness import check_groundedness
 from app.orchestrator.schemas import AnalyzeResponse, SourceRef
-from app.orchestrator.tool_specs import SEARCH_POLICY_TOOL
+from app.tools.registry import anthropic_tool_defs
 
 load_dotenv()
 
@@ -79,7 +78,7 @@ def analyze(question: str) -> AnalyzeResponse:
                 model=model,
                 max_tokens=2048,
                 system=system,
-                tools=[RUN_SQL_QUERY_TOOL, SEARCH_POLICY_TOOL],
+                tools=anthropic_tool_defs(),
                 messages=messages,
             )
             log.add_usage(response.usage)
