@@ -65,6 +65,27 @@
   (requested_at, order_date) as offsets from datetime.now() at seed-time rather than
   fixed dates, so edge cases stay evergreen regardless of when seed.py actually runs.
 
+15. Groundedness Eval Cases: Reconciling JSON Fixtures with Typed Function Input
+- The Win: `evals/cases.json` stores `retrieved_chunks` as plain JSON dicts (necessary,
+  since JSON can't represent internal dataclass/Pydantic types), but `check_groundedness()`
+  expects attribute access (`chunk.rule_number`), since it's typed as `list[RagChunkResult]`.
+  This surfaced as a real `AttributeError: 'dict' object has no attribute 'rule_number'`
+  when eval cases were first run against the live function rather than just
+  schema-validated. Fixed by adding `chunk_from_dict()` next to `RagChunkResult` in
+  `app/rag/schemas.py` — a single documented conversion path (`RagChunkResult(**data)`)
+  other eval-loading code can reuse, rather than each caller inventing its own
+  dict-to-object workaround (a `SimpleNamespace(**c)` shim was found already sitting
+  untracked in `apps/api/tests/`, doing exactly that).
+- The Tradeoff Accepted: `check_groundedness()` itself was deliberately left untouched —
+  loosening it to accept dicts via `getattr`/`.get()` fallbacks would blur an
+  already-correct type contract, and duck-typing appears nowhere else in this codebase.
+  This is a small instance of a larger pattern worth watching as Part 4's eval runner gets
+  built: any eval case whose expected input is a typed object, not a primitive or dict,
+  needs this same reconciliation. Worth revisiting whether eval fixtures should store a
+  schema hint or whether all internal functions consuming eval-fixture data should accept
+  dict-like input by convention, rather than discovering each mismatch one broken test at
+  a time.
+
 ---
 
 **Note:** Decision #2 (docker-compose scope) is a direct consequence of the Part 1 scope boundary already recorded in `ARCHITECTURE.md`. Logged here separately because it's concrete enough to defend on its own, but if that upstream scope boundary changes, this entry needs to be revisited rather than treated as independent.
