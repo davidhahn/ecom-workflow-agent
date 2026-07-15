@@ -52,8 +52,17 @@ def resolve_order_item(
     product_identifier: str, customer_identifier: str | None
 ) -> ResolvedOrderItem | None:
     """Look up the most recent order_item matching the extracted product
-    (and customer, if given) identifiers against real DB rows. Returns None
-    if nothing matches — callers must not guess an order_item_id."""
+    and customer identifiers against real DB rows. Returns None if nothing
+    matches — callers must not guess an order_item_id.
+
+    customer_identifier is required, not optional: without it, a product-name
+    match alone would resolve to whichever customer most recently ordered
+    that product, across the entire customer base — a wrong-customer match,
+    not just a wrong-order one. Absence of a customer identifier is grounds
+    for refusal, so this returns None before running any query."""
+    if not customer_identifier:
+        return None
+
     with SessionLocal() as session:
         stmt = (
             select(OrderItem.id)
@@ -61,16 +70,15 @@ def resolve_order_item(
             .join(Product, OrderItem.product_id == Product.id)
             .join(Customer, Order.customer_id == Customer.id)
             .where(Product.name.ilike(f"%{product_identifier}%"))
-            .order_by(Order.order_date.desc())
-            .limit(1)
-        )
-        if customer_identifier:
-            stmt = stmt.where(
+            .where(
                 or_(
                     Customer.name.ilike(f"%{customer_identifier}%"),
                     Customer.email.ilike(f"%{customer_identifier}%"),
                 )
             )
+            .order_by(Order.order_date.desc())
+            .limit(1)
+        )
         order_item_id = session.execute(stmt).scalar_one_or_none()
 
     if order_item_id is None:

@@ -129,6 +129,11 @@ export interface components {
             ungrounded_claims: string[];
             /** Sources */
             sources: components["schemas"]["SourceRef"][];
+            /**
+             * Incomplete
+             * @default false
+             */
+            incomplete: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {

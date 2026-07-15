@@ -60,7 +60,14 @@ export default function AskPage() {
         </div>
       )}
 
-      {state.status === "success" && (
+      {state.status === "success" && state.result.incomplete && (
+        <div className="flex flex-col gap-1 rounded-md border-2 border-amber-400 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          <p className="font-semibold">⚠ Unable to complete this request</p>
+          <p>{state.result.answer}</p>
+        </div>
+      )}
+
+      {state.status === "success" && !state.result.incomplete && (
         <div className="flex flex-col gap-4 rounded-md border border-black/10 p-4 dark:border-white/10">
           <div className="flex flex-wrap gap-2">
             <Badge tone={state.result.sql_used ? "success" : "neutral"}>
@@ -74,18 +81,25 @@ export default function AskPage() {
             </Badge>
           </div>
 
-          <Markdown content={state.result.answer} />
-
-          {state.result.ungrounded_claims.length > 0 && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
-              <p className="font-medium">Ungrounded claims:</p>
-              <ul className="mt-1 list-disc pl-4">
-                {state.result.ungrounded_claims.map((claim) => (
-                  <li key={claim}>{claim}</li>
-                ))}
-              </ul>
+          {!state.result.grounded && (
+            <div className="flex flex-col gap-1 rounded-md border-2 border-red-400 bg-red-50 p-4 text-sm text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
+              <p className="font-semibold">⚠ This response contains an unverified claim</p>
+              <p>
+                At least one cited policy rule wasn&apos;t among what was actually retrieved for
+                this request. The answer is still shown below — treat it with caution until this
+                is checked.
+              </p>
+              {state.result.ungrounded_claims.length > 0 && (
+                <ul className="mt-1 list-disc pl-4">
+                  {state.result.ungrounded_claims.map((claim) => (
+                    <li key={claim}>{claim}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
+
+          <Markdown content={state.result.answer} />
 
           {state.result.sources.length > 0 && (
             <div className="text-xs text-gray-500 dark:text-gray-400">

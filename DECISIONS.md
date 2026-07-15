@@ -86,6 +86,60 @@
   dict-like input by convention, rather than discovering each mismatch one broken test at
   a time.
 
+16. Refund resolution requires a customer identifier — refusal, not a product-only fallback
+- The Win: `resolve_order_item()` now refuses (returns `None` → `could_not_process`) rather
+  than falling back to a product-only `ILIKE` match across the entire customer base when no
+  customer identifier was extracted. Caught during an independent architecture critique
+  (`ARCHITECTURE_CRITIQUE.md` finding #2) as a real correctness gap: because Part 1 has no
+  session/identity concept, "no customer named in the request" is a common case, not an edge
+  case, and the old fallback could render a real approve/deny decision against a completely
+  different customer's order history. Verified end-to-end: a refund request naming no customer
+  now returns `could_not_process` ("Could not identify which customer is making this
+  request"), while the same request with a real customer name still resolves and evaluates
+  correctly.
+- The Tradeoff Accepted: This is a strict refusal, not a request for clarification — Part 1
+  has no follow-up-question mechanism, so a request that's actually unambiguous (e.g.
+  referencing a product only one customer has ever ordered) still gets refused if the customer
+  wasn't named, since `resolve_order_item` has no way to know in advance that the product
+  identifier alone would have been unique. Trades a small amount of legitimate-but-under-
+  specified requests for eliminating the wrong-customer-match risk entirely — the right
+  tradeoff given a wrong decision against the wrong customer is worse than an honest refusal.
+
+17. Tool-loop exhaustion returns an explicit incomplete state, not a silently empty answer
+- The Win: `analyze()`'s tool-call loop previously fell through to `answer = ""` if Claude was
+  still requesting tools on the final allowed iteration (`MAX_TOOL_ITERATIONS` reached without
+  ever hitting the loop's `break`) — and `check_groundedness("", [])` trivially returns
+  `grounded=True` on empty input, so the failure rendered as a blank answer with a green
+  "Grounded" badge and a 200 OK. Caught during the same independent critique (finding #5) as a
+  direct violation of this project's own Fail Loudly rule. Fixed with Python's `for`/`else`:
+  the `else` clause fires only when the loop completes all iterations without a `break`, an
+  unambiguous signal distinct from "Claude decided it was done." That branch skips
+  `check_groundedness()` entirely (nothing meaningful to check) and returns a new
+  `incomplete: bool` field with an explanatory answer instead.
+- The Tradeoff Accepted: `AnalyzeResponse.incomplete` is a new field older callers of this API
+  don't know to check — defaulted to `False` to keep existing JSON consumers working without a
+  hard break, but any caller that only reads `answer`/`grounded` and ignores `incomplete` is
+  back to the same misleading-badge problem this fix exists to prevent. The incomplete-state
+  message is also a fixed generic string, not a diagnostic of what Claude was actually still
+  trying to do (which specific tool call, how many rounds) — enough to stop the silent
+  failure, not enough to debug why it happened without checking `request_log` directly.
+
+18. Groundedness warning made visually prominent, not gating
+- The Win: the frontend previously rendered a full answer with equal visual weight to a small
+  badge when `grounded: false` — easy to miss under time pressure, undercutting the point of
+  having a groundedness signal at all. Caught during the same critique (finding #1: "the
+  groundedness check doesn't gate anything"). Fixed on the display side only: a prominent
+  bordered warning banner now renders above the answer whenever `grounded` is false, with
+  `ungrounded_claims` listed explicitly rather than buried below in a small box.
+- The Tradeoff Accepted: This is a visibility fix, not a gating fix — the answer is still
+  shown in full, since Part 1 has no remediation flow (no re-generation, no escalation,
+  nothing else to do with a flagged answer yet) and hiding it outright was explicitly out of
+  scope. A user can still read past the banner and act on a flagged answer anyway; this makes
+  that a harder mistake to make by accident, not an impossible one. The underlying
+  groundedness heuristic's own known limitations (decision #9 — it can false-positive on a
+  title phrase used generically) are unchanged; a more prominent banner around an
+  already-imperfect signal is still built on that same imperfect signal.
+
 ---
 
 **Note:** Decision #2 (docker-compose scope) is a direct consequence of the Part 1 scope boundary already recorded in `ARCHITECTURE.md`. Logged here separately because it's concrete enough to defend on its own, but if that upstream scope boundary changes, this entry needs to be revisited rather than treated as independent.

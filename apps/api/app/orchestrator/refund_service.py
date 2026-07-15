@@ -61,11 +61,31 @@ def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
             log.output = response.model_dump(mode="json")
             return response
 
+        if not extraction.customer_identifier:
+            response = RefundEvaluateResponse(
+                status=COULD_NOT_PROCESS,
+                rule_applied=None,
+                reasoning=(
+                    "Could not identify which customer is making this request "
+                    "(no name or email found in the message); refusing to guess "
+                    "and match against the wrong customer's order history."
+                ),
+                extracted_fields=_partial_fields(
+                    extraction.product_identifier,
+                    extraction.customer_identifier,
+                    extraction.reason,
+                    extraction.evidence_submitted,
+                ),
+            )
+            log.output = response.model_dump(mode="json")
+            return response
+
         resolved = resolve_order_item(extraction.product_identifier, extraction.customer_identifier)
         if resolved is None:
-            detail = f"product '{extraction.product_identifier}'"
-            if extraction.customer_identifier:
-                detail += f" and customer '{extraction.customer_identifier}'"
+            detail = (
+                f"product '{extraction.product_identifier}' and customer "
+                f"'{extraction.customer_identifier}'"
+            )
             response = RefundEvaluateResponse(
                 status=COULD_NOT_PROCESS,
                 rule_applied=None,

@@ -111,8 +111,32 @@ def analyze(question: str) -> AnalyzeResponse:
                         }
                     )
             messages.append({"role": "user", "content": tool_results})
+        else:
+            # Loop ran MAX_TOOL_ITERATIONS times and never hit the `break`
+            # above — Claude was still requesting tools on the last call and
+            # never reached a final answer. Must not fall through to the
+            # normal path below: an empty `answer` would trivially "pass"
+            # check_groundedness (nothing to flag as ungrounded), rendering
+            # as a blank answer with a misleading "grounded" badge instead of
+            # a visible failure. Skip the check entirely and return a
+            # distinct, explicit incomplete state instead.
+            result = AnalyzeResponse(
+                answer=(
+                    "This request could not be completed: the assistant was still "
+                    "requesting tools after the maximum number of tool-call rounds "
+                    "and never reached a final answer."
+                ),
+                sql_used=sql_used,
+                rag_used=rag_used,
+                grounded=False,
+                ungrounded_claims=[],
+                sources=_build_sources(retrieved_chunks),
+                incomplete=True,
+            )
+            log.output = result.model_dump(mode="json")
+            return result
 
-        answer = next((b.text for b in response.content if b.type == "text"), "") if response else ""
+        answer = next((b.text for b in response.content if b.type == "text"), "")
 
         grounded, ungrounded_claims = check_groundedness(answer, retrieved_chunks)
         log.grounded = grounded
