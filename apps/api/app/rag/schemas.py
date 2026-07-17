@@ -15,6 +15,7 @@ class RagChunkResult(BaseModel):
 
 class RagQueryResponse(BaseModel):
     chunks: list[RagChunkResult]
+    cached: bool = False
 
 
 def chunk_from_dict(data: dict) -> RagChunkResult:

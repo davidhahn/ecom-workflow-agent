@@ -16,3 +16,4 @@ class SqlQueryResponse(BaseModel):
     truncated: bool = False
     execution_time_ms: int | None = None
     estimated_cost: float | None = None
+    cached: bool = False

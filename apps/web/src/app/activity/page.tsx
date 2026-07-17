@@ -62,6 +62,7 @@ export default function ActivityPage() {
                 <th className="py-2 pr-4 font-medium">Tokens</th>
                 <th className="py-2 pr-4 font-medium">Cost</th>
                 <th className="py-2 pr-4 font-medium">Grounded</th>
+                <th className="py-2 pr-4 font-medium">Cached</th>
               </tr>
             </thead>
             <tbody>
@@ -90,6 +91,9 @@ export default function ActivityPage() {
                         {row.grounded ? "yes" : "no"}
                       </Badge>
                     )}
+                  </td>
+                  <td className="py-2 pr-4">
+                    {row.cached && <Badge tone="neutral">cached</Badge>}
                   </td>
                 </tr>
               ))}

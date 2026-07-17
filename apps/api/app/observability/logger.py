@@ -22,6 +22,7 @@ class LogFields:
     grounded: bool | None = None
     sql_query_audit_id: uuid.UUID | None = None
     rag_chunks_retrieved: list[Any] | None = None
+    cached: bool = False
 
     def add_usage(self, usage: Any) -> None:
         """Accumulates an Anthropic response.usage. Safe to call multiple
@@ -44,6 +45,7 @@ def log_request(
     grounded: bool | None = None,
     sql_query_audit_id: uuid.UUID | None = None,
     rag_chunks_retrieved: list[Any] | None = None,
+    cached: bool = False,
 ) -> uuid.UUID:
     log_id = uuid.uuid4()
     with SessionLocal() as session:
@@ -60,6 +62,7 @@ def log_request(
                 grounded=grounded,
                 sql_query_audit_id=sql_query_audit_id,
                 rag_chunks_retrieved=rag_chunks_retrieved,
+                cached=cached,
             )
         )
         session.commit()
@@ -92,4 +95,5 @@ def request_log_span(request_type: str, input_text: str) -> Iterator[LogFields]:
             grounded=fields.grounded,
             sql_query_audit_id=fields.sql_query_audit_id,
             rag_chunks_retrieved=fields.rag_chunks_retrieved,
+            cached=fields.cached,
         )

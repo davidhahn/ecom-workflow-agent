@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
+from app.caching.cache import cache_get, cache_set, normalize_key
 from app.observability.logger import request_log_span
 from app.query.audit import record_attempt
 from app.query.claude_client import ClaudeProposalError, ProposedQuery, propose_sql
@@ -48,6 +49,16 @@ def _get_estimated_cost(sql: str) -> float:
 
 def run_sql_query(question: str) -> SqlQueryResponse:
     with request_log_span("sql", question) as log:
+        cache_key = normalize_key(question)
+        cached = cache_get("sql", cache_key)
+        if cached is not None:
+            log.cached = True
+            log.input_tokens = 0
+            log.output_tokens = 0
+            response = cached.model_copy(update={"cached": True})
+            log.output = response.model_dump(mode="json")
+            return response
+
         try:
             proposed = propose_sql(question)
         except ClaudeProposalError as e:
@@ -68,6 +79,7 @@ def run_sql_query(question: str) -> SqlQueryResponse:
         executed = execute_proposed_query(question, proposed)
         log.sql_query_audit_id = executed.audit_id
         log.output = executed.response.model_dump(mode="json")
+        cache_set("sql", cache_key, executed.response)
         return executed.response
 
 

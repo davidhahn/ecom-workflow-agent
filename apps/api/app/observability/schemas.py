@@ -19,6 +19,7 @@ class RequestLogRow(BaseModel):
     grounded: bool | None
     sql_query_audit_id: uuid.UUID | None
     rag_chunks_retrieved: Any | None
+    cached: bool
     created_at: datetime
 
 

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { analyzeQuestion, type AnalyzeResponse } from "@/lib/api";
+import {
+  analyzeQuestion,
+  formatRetryAfter,
+  RateLimitedError,
+  type AnalyzeResponse,
+  type RateLimitInfo,
+} from "@/lib/api";
 import { Badge } from "@/components/Badge";
 import { Markdown } from "@/components/Markdown";
 
@@ -14,16 +20,22 @@ type State =
 export default function AskPage() {
   const [question, setQuestion] = useState("");
   const [state, setState] = useState<State>({ status: "idle" });
+  const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!question.trim() || state.status === "loading") return;
     setState({ status: "loading" });
     try {
-      const result = await analyzeQuestion(question);
-      setState({ status: "success", result });
+      const { data, rateLimit: rl } = await analyzeQuestion(question);
+      setState({ status: "success", result: data });
+      setRateLimit(rl);
     } catch (err) {
-      setState({ status: "error", message: err instanceof Error ? err.message : String(err) });
+      if (err instanceof RateLimitedError) {
+        setState({ status: "error", message: formatRetryAfter(err.retryAfterSeconds) });
+      } else {
+        setState({ status: "error", message: err instanceof Error ? err.message : String(err) });
+      }
     }
   }
 
@@ -45,13 +57,20 @@ export default function AskPage() {
           rows={3}
           className="w-full rounded-md border border-black/15 bg-transparent p-3 text-sm outline-none focus:border-black/40 dark:border-white/15 dark:focus:border-white/40"
         />
-        <button
-          type="submit"
-          disabled={state.status === "loading" || !question.trim()}
-          className="self-start rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40"
-        >
-          {state.status === "loading" ? "Asking…" : "Ask"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={state.status === "loading" || !question.trim()}
+            className="self-start rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40"
+          >
+            {state.status === "loading" ? "Asking…" : "Ask"}
+          </button>
+          {rateLimit?.remaining !== null && rateLimit?.remaining !== undefined && (
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {rateLimit.remaining} of {rateLimit.limit} requests remaining this hour
+            </span>
+          )}
+        </div>
       </form>
 
       {state.status === "error" && (
@@ -79,6 +98,7 @@ export default function AskPage() {
             <Badge tone={state.result.grounded ? "success" : "danger"}>
               {state.result.grounded ? "Grounded" : "Ungrounded claims detected"}
             </Badge>
+            {state.result.cached && <Badge tone="neutral">Cached</Badge>}
           </div>
 
           {!state.result.grounded && (

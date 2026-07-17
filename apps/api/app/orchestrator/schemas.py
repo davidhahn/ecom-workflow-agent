@@ -25,6 +25,7 @@ class AnalyzeResponse(BaseModel):
     # answer, and `grounded`/`ungrounded_claims` were never evaluated against
     # it (an empty answer would trivially "pass" groundedness).
     incomplete: bool = False
+    cached: bool = False
 
 
 class RefundEvaluateRequest(BaseModel):

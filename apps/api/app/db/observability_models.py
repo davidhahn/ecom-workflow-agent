@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, Numeric, Text, func
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, Numeric, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +41,7 @@ class RequestLog(Base):
     # not SQL NULL. Without this, every non-RAG row would store `null` here
     # instead of leaving the column genuinely NULL.
     rag_chunks_retrieved: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    cached: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[object] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )

@@ -134,6 +134,11 @@ export interface components {
              * @default false
              */
             incomplete: boolean;
+            /**
+             * Cached
+             * @default false
+             */
+            cached: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -165,6 +170,11 @@ export interface components {
         RagQueryResponse: {
             /** Chunks */
             chunks: components["schemas"]["RagChunkResult"][];
+            /**
+             * Cached
+             * @default false
+             */
+            cached: boolean;
         };
         /** RefundEvaluateRequest */
         RefundEvaluateRequest: {
@@ -216,6 +226,8 @@ export interface components {
             sql_query_audit_id: string | null;
             /** Rag Chunks Retrieved */
             rag_chunks_retrieved: unknown | null;
+            /** Cached */
+            cached: boolean;
             /**
              * Created At
              * Format: date-time
@@ -266,6 +278,11 @@ export interface components {
             execution_time_ms?: number | null;
             /** Estimated Cost */
             estimated_cost?: number | null;
+            /**
+             * Cached
+             * @default false
+             */
+            cached: boolean;
         };
         /** ValidationError */
         ValidationError: {

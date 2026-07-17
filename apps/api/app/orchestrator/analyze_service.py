@@ -4,6 +4,7 @@ import os
 import anthropic
 from dotenv import load_dotenv
 
+from app.caching.cache import cache_get, cache_set, normalize_key
 from app.observability.logger import request_log_span
 from app.query.claude_client import DEFAULT_MODEL, ProposedQuery
 from app.query.schema_context import build_schema_context
@@ -63,6 +64,16 @@ def _build_sources(chunks: list[RagChunkResult]) -> list[SourceRef]:
 
 def analyze(question: str) -> AnalyzeResponse:
     with request_log_span("analyze", question) as log:
+        cache_key = normalize_key(question)
+        cached = cache_get("analyze", cache_key)
+        if cached is not None:
+            log.cached = True
+            log.input_tokens = 0
+            log.output_tokens = 0
+            result = cached.model_copy(update={"cached": True})
+            log.output = result.model_dump(mode="json")
+            return result
+
         client = anthropic.Anthropic()
         model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
         system = SYSTEM_PROMPT.format(schema=build_schema_context())
@@ -152,4 +163,5 @@ def analyze(question: str) -> AnalyzeResponse:
             sources=_build_sources(retrieved_chunks),
         )
         log.output = result.model_dump(mode="json")
+        cache_set("analyze", cache_key, result)
         return result
