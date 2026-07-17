@@ -154,9 +154,14 @@ multi_item_refunded = add_item(multi_order_id, product_by_name["Bluetooth Headph
 multi_item_untouched_a = add_item(multi_order_id, product_by_name["Wireless Mouse"], 1)
 multi_item_untouched_b = add_item(multi_order_id, product_by_name["USB-C Charging Cable"], 2)
 
-# --- edge case: refund that is structurally valid but outside the 45-day
-#     policy window once requested_at - order_date is computed -------------
-policy_order_id = add_order(ANCHOR - timedelta(days=200), customer_index=1, status="delivered")
+# --- edge case: changed_mind refund that violates the 14-day window (rule 3)
+#     once requested_at - order_date is computed. Time-relative to *now*,
+#     not ANCHOR, since this order's age is what the refund-evaluator eval
+#     suite's window-violation case (refund-04) actually exercises — a fixed
+#     calendar date here decays as real time passes; see DECISIONS.md #14. -
+policy_order_id = add_order(
+    datetime.now(timezone.utc) - timedelta(days=45), customer_index=1, status="delivered"
+)
 policy_violation_item = add_item(policy_order_id, product_by_name["Ergonomic Desk Chair"], 1)
 
 # --- edge case: damaged_shipping refunds with evidence_submitted variation
@@ -178,6 +183,23 @@ evidence_false_item = add_item(evidence_false_order, product_by_name["Cotton Bat
 final_sale_order_id = add_order(ANCHOR - timedelta(days=10), customer_index=10, status="delivered")
 final_sale_item = add_item(final_sale_order_id, product_by_name["Last-Season Winter Jacket"], 1)
 
+# --- edge case: repeat-refund flag (rule 7) -- 3 approved refunds for one
+#     customer, all with requested_at inside the trailing 90-day window from
+#     *now* (unlike every other refund in this file, whose requested_at is
+#     ANCHOR-relative and has since aged out of that window -- see
+#     DECISIONS.md #14). Order dates themselves don't drive any rule outcome
+#     here, so they're left ANCHOR-relative like the rest of the file.
+#     Charlotte Dubois (customer_index 12) isn't used by any other edge
+#     case, to avoid interaction effects. -----------------------------------
+repeat_refund_order_1 = add_order(ANCHOR - timedelta(days=60), customer_index=12, status="delivered")
+repeat_refund_item_1 = add_item(repeat_refund_order_1, product_by_name["Wireless Keyboard"], 1)
+
+repeat_refund_order_2 = add_order(ANCHOR - timedelta(days=55), customer_index=12, status="delivered")
+repeat_refund_item_2 = add_item(repeat_refund_order_2, product_by_name["Wireless Keyboard"], 1)
+
+repeat_refund_order_3 = add_order(ANCHOR - timedelta(days=50), customer_index=12, status="delivered")
+repeat_refund_item_3 = add_item(repeat_refund_order_3, product_by_name["Wireless Keyboard"], 1)
+
 # --- high refund-rate products: 5 orders each, most items refunded --------
 high_refund_items: dict[str, list[uuid.UUID]] = {p["name"]: [] for p in HIGH_REFUND_PRODUCTS}
 for product in HIGH_REFUND_PRODUCTS:
@@ -189,6 +211,16 @@ for product in HIGH_REFUND_PRODUCTS:
         )
         item_id = add_item(o_id, product, 1)
         high_refund_items[product["name"]].append(item_id)
+        if product["name"] == "Bluetooth Headphones Pro" and j == 1:
+            # refund-05's underlying order (Liam Patel, customer_index 3):
+            # its age drives the defective 90-day window eval case, so it's
+            # overridden to be time-relative to *now* rather than left
+            # pinned to this loop's ANCHOR-relative random draw. Overridden
+            # after the fact, not by skipping the RNG call above, so every
+            # other order in this loop keeps drawing from the same RNG
+            # stream position it always has -- nothing else in this file
+            # shifts as a result.
+            orders[-1]["order_date"] = datetime.now(timezone.utc) - timedelta(days=150)
 
 # --- remaining filler orders for volume + general realism -----------------
 FILLER_PRODUCT_NAMES = [
@@ -266,14 +298,17 @@ add_refund(
     order_lookup(multi_order_id)["order_date"] + timedelta(days=6),
 )
 
-# structurally valid refund that violates the 45-day policy window
+# structurally valid refund that violates the 14-day changed_mind window.
+# Offset from this order's own (now time-relative) order_date rather than a
+# fixed day count from ANCHOR, so it stays a past timestamp (order_date is
+# now - 45 days) instead of landing in the future.
 _item = item_lookup(policy_violation_item)
 add_refund(
     policy_violation_item,
     _item["quantity"] * _item["unit_price_cents"],
     "changed_mind",
     "approved",
-    order_lookup(policy_order_id)["order_date"] + timedelta(days=60),
+    order_lookup(policy_order_id)["order_date"] + timedelta(days=20),
 )
 
 # damaged_shipping refunds with photo evidence submitted (approvable)
@@ -315,6 +350,21 @@ add_refund(
     order_lookup(final_sale_order_id)["order_date"] + timedelta(days=5),
     evidence_submitted=False,
 )
+
+# repeat-refund flag (rule 7): 3 approved refunds within 90 days of *now*
+for item_id, days_ago, reason in [
+    (repeat_refund_item_1, 10, "defective"),
+    (repeat_refund_item_2, 30, "wrong_item"),
+    (repeat_refund_item_3, 55, "changed_mind"),
+]:
+    _item = item_lookup(item_id)
+    add_refund(
+        item_id,
+        _item["quantity"] * _item["unit_price_cents"],
+        reason,
+        "approved",
+        datetime.now(timezone.utc) - timedelta(days=days_ago),
+    )
 
 # high refund-rate products: 4 of 5 items refunded (approved), within policy
 for product_name, item_ids in high_refund_items.items():
