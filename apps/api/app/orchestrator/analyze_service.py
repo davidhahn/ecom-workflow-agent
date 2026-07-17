@@ -13,6 +13,7 @@ from app.rag.service import query_rag
 from app.rag.schemas import RagChunkResult
 from app.orchestrator.groundedness import check_groundedness
 from app.orchestrator.schemas import AnalyzeResponse, SourceRef
+from app.orchestrator.topic_coverage import check_topic_coverage
 from app.tools.registry import anthropic_tool_defs
 
 load_dotenv()
@@ -34,6 +35,15 @@ needs data and policy context together, one if it only needs one, neither \
 if you can answer directly. When your final answer relies on a specific \
 numbered refund-policy rule, cite it explicitly as "rule N" so the citation \
 can be checked against what was actually retrieved.
+
+You do not currently have access to shipment tracking, delivery delay \
+status, or carrier data. If a question is about shipment delays, tracking, \
+or delivery status, say so explicitly rather than inferring an answer from \
+order status or any other adjacent data.
+
+Only make claims backed by an actual tool result. If no tool result \
+directly addresses the question, state that clearly rather than \
+speculating from related information.
 
 Database schema:
 {schema}
@@ -82,6 +92,7 @@ def analyze(question: str) -> AnalyzeResponse:
         sql_used = False
         rag_used = False
         retrieved_chunks: list[RagChunkResult] = []
+        generated_sql: list[str] = []
 
         response = None
         for _ in range(MAX_TOOL_ITERATIONS):
@@ -89,7 +100,7 @@ def analyze(question: str) -> AnalyzeResponse:
                 model=model,
                 max_tokens=2048,
                 system=system,
-                tools=anthropic_tool_defs(),
+                tools=anthropic_tool_defs(for_analyze=True),
                 messages=messages,
             )
             log.add_usage(response.usage)
@@ -106,6 +117,8 @@ def analyze(question: str) -> AnalyzeResponse:
                     sql_used = True
                     executed = _run_run_sql_query_tool(question, block.input)
                     log.sql_query_audit_id = executed.audit_id
+                    if executed.response.sql_executed:
+                        generated_sql.append(executed.response.sql_executed)
                     result = executed.response.model_dump(mode="json")
                     tool_results.append(
                         {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)}
@@ -154,6 +167,12 @@ def analyze(question: str) -> AnalyzeResponse:
         if retrieved_chunks:
             log.rag_chunks_retrieved = [c.model_dump(mode="json") for c in retrieved_chunks]
 
+        # Separate, additional check from check_groundedness() above — a
+        # citation can check out (grounded=True) while the answer's actual
+        # data-driven claim is still fabricated from an unrelated table. See
+        # app/orchestrator/topic_coverage.py.
+        topic_coverage_warning = check_topic_coverage(answer, sql_used, generated_sql)
+
         result = AnalyzeResponse(
             answer=answer,
             sql_used=sql_used,
@@ -161,6 +180,7 @@ def analyze(question: str) -> AnalyzeResponse:
             grounded=grounded,
             ungrounded_claims=ungrounded_claims,
             sources=_build_sources(retrieved_chunks),
+            topic_coverage_warning=topic_coverage_warning,
         )
         log.output = result.model_dump(mode="json")
         cache_set("analyze", cache_key, result)

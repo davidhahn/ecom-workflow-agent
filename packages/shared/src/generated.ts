@@ -139,6 +139,11 @@ export interface components {
              * @default false
              */
             cached: boolean;
+            /**
+             * Topic Coverage Warning
+             * @default false
+             */
+            topic_coverage_warning: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {

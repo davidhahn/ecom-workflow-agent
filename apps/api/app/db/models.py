@@ -129,3 +129,27 @@ class SupportTicket(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     resolved_at: Mapped[object | None] = mapped_column(TIMESTAMP(timezone=True))
+
+
+class Shipment(Base):
+    __tablename__ = "shipments"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','shipped','delivered','delayed')",
+            name="shipments_status_check",
+        ),
+        Index("ix_shipments_order_id", "order_id"),
+        Index("ix_shipments_status", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False
+    )
+    carrier: Mapped[str] = mapped_column(Text, nullable=False)
+    shipped_date: Mapped[object | None] = mapped_column(TIMESTAMP(timezone=True))
+    expected_delivery_date: Mapped[object] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    actual_delivery_date: Mapped[object | None] = mapped_column(TIMESTAMP(timezone=True))
+    status: Mapped[str] = mapped_column(Text, nullable=False)

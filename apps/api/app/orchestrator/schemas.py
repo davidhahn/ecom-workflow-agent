@@ -26,6 +26,13 @@ class AnalyzeResponse(BaseModel):
     # it (an empty answer would trivially "pass" groundedness).
     incomplete: bool = False
     cached: bool = False
+    # A separate, additional signal from check_groundedness()/grounded above:
+    # true when the answer mentions a topic (shipment/delivery/tracking) the
+    # current toolset has no way to actually answer, and no SQL call in this
+    # request queried the shipments table. A citation can be grounded while
+    # the answer's actual data claim is still fabricated from an unrelated
+    # table — see app/orchestrator/topic_coverage.py.
+    topic_coverage_warning: bool = False
 
 
 class RefundEvaluateRequest(BaseModel):

@@ -19,12 +19,13 @@ from app.orchestrator.analyze_service import (
     analyze,
 )
 from app.rag.service import query_rag
+from app.shipments.service import get_shipment_status
 from app.tools.registry import TOOLS, ToolSpec, anthropic_tool_defs
 
 
 def test_registry_is_enumerable_dict_of_toolspec():
     assert isinstance(TOOLS, dict)
-    assert set(TOOLS) == {"run_sql_query", "search_policy"}
+    assert set(TOOLS) == {"run_sql_query", "search_policy", "get_shipment_status"}
     for spec in TOOLS.values():
         assert isinstance(spec, ToolSpec)
 
@@ -38,6 +39,7 @@ def test_registry_entries_declare_all_required_fields():
         "permission_required",
         "error_behavior",
         "requires_confirmation",
+        "exposed_to_analyze",
     }
     assert {f.name for f in fields(ToolSpec)} == expected_fields
 
@@ -105,16 +107,56 @@ def test_search_policy_output_schema_matches_real_response():
 
 def test_orchestrator_builds_tool_list_from_registry_not_inline():
     """The actual payoff of the registry: /query/analyze's Claude call must
-    receive exactly anthropic_tool_defs(), proving it reads from TOOLS rather
-    than a parallel hand-written tools=[...] list it happens to ignore."""
+    receive exactly anthropic_tool_defs(for_analyze=True), proving it reads
+    from TOOLS rather than a parallel hand-written tools=[...] list it
+    happens to ignore."""
     fake_usage = MagicMock(input_tokens=1, output_tokens=1)
     fake_text_block = MagicMock(type="text", text="fake answer, no rule citations here")
     fake_response = MagicMock(content=[fake_text_block], stop_reason="end_turn", usage=fake_usage)
 
     with patch("app.orchestrator.analyze_service.anthropic.Anthropic") as mock_anthropic_cls:
         mock_anthropic_cls.return_value.messages.create.return_value = fake_response
-        analyze("does this reach the registry?")
+        analyze("does this reach the registry, unique phrasing for cache-miss safety?")
 
         _, kwargs = mock_anthropic_cls.return_value.messages.create.call_args
-        assert kwargs["tools"] == anthropic_tool_defs()
+        assert kwargs["tools"] == anthropic_tool_defs(for_analyze=True)
         assert {t["name"] for t in kwargs["tools"]} == {"run_sql_query", "search_policy"}
+
+
+def test_get_shipment_status_is_registered_but_not_exposed_to_analyze():
+    """get_shipment_status is registered (the task's actual ask) but must
+    not be advertised to /query/analyze's Claude call yet, since
+    analyze_service.py's tool-loop has no dispatch handler for it — an
+    unhandled tool_use block would leave the next turn without a matching
+    tool_result. Wiring that in is a deliberate later step, not a side
+    effect of registering the tool."""
+    assert TOOLS["get_shipment_status"].exposed_to_analyze is False
+    assert "get_shipment_status" not in {
+        t["name"] for t in anthropic_tool_defs(for_analyze=True)
+    }
+    assert "get_shipment_status" in {t["name"] for t in anthropic_tool_defs()}
+
+
+def test_get_shipment_status_input_schema_matches_real_handler():
+    spec = TOOLS["get_shipment_status"]
+    sample_input = {"product_name": "Stainless Steel Water Bottle", "status": "delayed"}
+    jsonschema.validate(sample_input, spec.input_schema)
+
+    result = get_shipment_status(**sample_input)
+    assert result.status == "success"
+    assert result.row_count > 0
+
+
+def test_get_shipment_status_output_schema_matches_real_response():
+    spec = TOOLS["get_shipment_status"]
+    result = get_shipment_status(product_name="Stainless Steel Water Bottle", status="delayed")
+    jsonschema.validate(result.model_dump(mode="json"), spec.output_schema)
+
+
+def test_get_shipment_status_output_schema_matches_error_response():
+    """error is part of the same response union output_schema describes,
+    not just the success case."""
+    spec = TOOLS["get_shipment_status"]
+    result = get_shipment_status(status="not_a_real_status")
+    assert result.status == "error"
+    jsonschema.validate(result.model_dump(mode="json"), spec.output_schema)

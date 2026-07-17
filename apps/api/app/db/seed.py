@@ -1,7 +1,7 @@
 """Re-runnable seed script for the Part 1 schema (customers, products, orders,
-order_items, refunds, support_tickets). Truncates the six tables and reinserts
-deterministic fixture data — safe to run against a fresh or already-seeded
-database.
+order_items, refunds, support_tickets, shipments). Truncates the seven tables
+and reinserts deterministic fixture data — safe to run against a fresh or
+already-seeded database.
 
 Usage:
     poetry run python -m app.db.seed
@@ -19,6 +19,7 @@ from app.db.models import (
     OrderItem,
     Product,
     Refund,
+    Shipment,
     SupportTicket,
 )
 from app.db.session import engine
@@ -243,6 +244,75 @@ while len(orders) < 25:
         item_id = add_item(o_id, product, RNG.randint(1, 2))
         filler_items.append(item_id)
 
+# --- edge case: 12 delayed shipments for the same product, across 12
+#     distinct customers -- what get_shipment_status's Part 2 demo query
+#     needs to find (past its expected delivery date, never marked
+#     delivered). Dates are time-relative to *now*, not ANCHOR, for the same
+#     reason as the refund-evaluator fixes: a fixed calendar date would age
+#     out of "overdue" relevance as real time passes (see DECISIONS.md #14).
+#     Customer indices mix already-used ones with otherwise-untouched ones --
+#     shipments have no bearing on refund_evaluator logic, so reuse here
+#     creates no interaction effect, unlike the refund-case customer choices.
+#     No RNG calls in this block or the contrast block below, so neither
+#     shifts the RNG stream position for anything before or after them. -----
+DELAYED_SHIPMENT_PRODUCT = product_by_name["Stainless Steel Water Bottle"]
+DELAYED_SHIPMENT_CUSTOMER_INDICES = [2, 3, 4, 5, 6, 11, 13, 14, 15, 16, 17, 18]
+DELAYED_SHIPMENT_CARRIERS = ["FastFreight", "ParcelPoint", "QuickShip"]
+
+delayed_shipment_orders: list[uuid.UUID] = []
+for i, customer_index in enumerate(DELAYED_SHIPMENT_CUSTOMER_INDICES):
+    days_overdue = 3 + i  # spread 3-14 days overdue
+    o_id = add_order(
+        datetime.now(timezone.utc) - timedelta(days=days_overdue + 10),
+        customer_index=customer_index,
+        status="shipped",
+    )
+    add_item(o_id, DELAYED_SHIPMENT_PRODUCT, 1)
+    delayed_shipment_orders.append(o_id)
+
+# --- contrast: a handful of normal shipments (delivered on-time, in-transit
+#     not yet due, and not-yet-shipped) so "everything is delayed" isn't
+#     trivially true for the demo query. -----------------------------------
+normal_shipment_order_1 = add_order(
+    datetime.now(timezone.utc) - timedelta(days=20), customer_index=0, status="delivered"
+)
+add_item(normal_shipment_order_1, product_by_name["USB-C Charging Cable"], 1)
+
+normal_shipment_order_2 = add_order(
+    datetime.now(timezone.utc) - timedelta(days=15), customer_index=1, status="delivered"
+)
+add_item(normal_shipment_order_2, product_by_name["Wireless Mouse"], 1)
+
+normal_shipment_order_3 = add_order(
+    datetime.now(timezone.utc) - timedelta(days=10), customer_index=7, status="delivered"
+)
+add_item(normal_shipment_order_3, product_by_name["Organic Green Tea (20ct)"], 1)
+
+normal_shipment_order_4 = add_order(
+    datetime.now(timezone.utc) - timedelta(days=2), customer_index=8, status="shipped"
+)
+add_item(normal_shipment_order_4, product_by_name["Men's Running Shoes"], 1)
+
+normal_shipment_order_5 = add_order(
+    datetime.now(timezone.utc) - timedelta(days=1), customer_index=9, status="shipped"
+)
+add_item(normal_shipment_order_5, product_by_name["Dark Roast Coffee Beans 12oz"], 1)
+
+normal_shipment_order_6 = add_order(
+    datetime.now(timezone.utc) - timedelta(days=3), customer_index=19, status="shipped"
+)
+add_item(normal_shipment_order_6, product_by_name["Fleece Zip Hoodie"], 1)
+
+normal_shipment_order_7 = add_order(
+    datetime.now(timezone.utc), customer_index=10, status="placed"
+)
+add_item(normal_shipment_order_7, product_by_name["Women's Running Shoes"], 1)
+
+normal_shipment_order_8 = add_order(
+    datetime.now(timezone.utc), customer_index=0, status="placed"
+)
+add_item(normal_shipment_order_8, product_by_name["Cotton Bath Towel Set"], 1)
+
 # backfill order totals from their items
 totals: dict[uuid.UUID, int] = {}
 for item in order_items:
@@ -251,6 +321,115 @@ for item in order_items:
     )
 for order in orders:
     order["total_cents"] = totals.get(order["id"], 0)
+
+# ---------------------------------------------------------------------------
+# shipments (Part 2 tool: get_shipment_status)
+# ---------------------------------------------------------------------------
+
+shipments: list[dict] = []
+
+
+def add_shipment(
+    order_id: uuid.UUID,
+    carrier: str,
+    status: str,
+    expected_delivery_date: datetime,
+    shipped_date: datetime | None = None,
+    actual_delivery_date: datetime | None = None,
+) -> None:
+    shipments.append(
+        {
+            "id": uid("shipment", str(len(shipments) + 1)),
+            "order_id": order_id,
+            "carrier": carrier,
+            "shipped_date": shipped_date,
+            "expected_delivery_date": expected_delivery_date,
+            "actual_delivery_date": actual_delivery_date,
+            "status": status,
+        }
+    )
+
+
+for i, o_id in enumerate(delayed_shipment_orders):
+    days_overdue = 3 + i
+    add_shipment(
+        o_id,
+        carrier=DELAYED_SHIPMENT_CARRIERS[i % len(DELAYED_SHIPMENT_CARRIERS)],
+        status="delayed",
+        shipped_date=datetime.now(timezone.utc) - timedelta(days=days_overdue + 8),
+        expected_delivery_date=datetime.now(timezone.utc) - timedelta(days=days_overdue),
+        actual_delivery_date=None,
+    )
+
+# contrast: delivered on-time
+add_shipment(
+    normal_shipment_order_1,
+    carrier="FastFreight",
+    status="delivered",
+    shipped_date=datetime.now(timezone.utc) - timedelta(days=18),
+    expected_delivery_date=datetime.now(timezone.utc) - timedelta(days=15),
+    actual_delivery_date=datetime.now(timezone.utc) - timedelta(days=14),
+)
+add_shipment(
+    normal_shipment_order_2,
+    carrier="ParcelPoint",
+    status="delivered",
+    shipped_date=datetime.now(timezone.utc) - timedelta(days=13),
+    expected_delivery_date=datetime.now(timezone.utc) - timedelta(days=10),
+    actual_delivery_date=datetime.now(timezone.utc) - timedelta(days=10),
+)
+add_shipment(
+    normal_shipment_order_3,
+    carrier="QuickShip",
+    status="delivered",
+    shipped_date=datetime.now(timezone.utc) - timedelta(days=8),
+    expected_delivery_date=datetime.now(timezone.utc) - timedelta(days=6),
+    actual_delivery_date=datetime.now(timezone.utc) - timedelta(days=6),
+)
+
+# contrast: shipped, in transit, not yet due
+add_shipment(
+    normal_shipment_order_4,
+    carrier="FastFreight",
+    status="shipped",
+    shipped_date=datetime.now(timezone.utc) - timedelta(days=2),
+    expected_delivery_date=datetime.now(timezone.utc) + timedelta(days=5),
+    actual_delivery_date=None,
+)
+add_shipment(
+    normal_shipment_order_5,
+    carrier="ParcelPoint",
+    status="shipped",
+    shipped_date=datetime.now(timezone.utc) - timedelta(days=1),
+    expected_delivery_date=datetime.now(timezone.utc) + timedelta(days=6),
+    actual_delivery_date=None,
+)
+add_shipment(
+    normal_shipment_order_6,
+    carrier="QuickShip",
+    status="shipped",
+    shipped_date=datetime.now(timezone.utc) - timedelta(days=3),
+    expected_delivery_date=datetime.now(timezone.utc) + timedelta(days=4),
+    actual_delivery_date=None,
+)
+
+# contrast: not yet shipped
+add_shipment(
+    normal_shipment_order_7,
+    carrier="FastFreight",
+    status="pending",
+    shipped_date=None,
+    expected_delivery_date=datetime.now(timezone.utc) + timedelta(days=10),
+    actual_delivery_date=None,
+)
+add_shipment(
+    normal_shipment_order_8,
+    carrier="ParcelPoint",
+    status="pending",
+    shipped_date=None,
+    expected_delivery_date=datetime.now(timezone.utc) + timedelta(days=12),
+    actual_delivery_date=None,
+)
 
 # ---------------------------------------------------------------------------
 # refunds
@@ -511,7 +690,7 @@ def seed() -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE TABLE support_tickets, refunds, order_items, "
+                "TRUNCATE TABLE support_tickets, refunds, shipments, order_items, "
                 "orders, products, customers CASCADE"
             )
         )
@@ -519,13 +698,15 @@ def seed() -> None:
         conn.execute(insert(Product), products)
         conn.execute(insert(Order), orders)
         conn.execute(insert(OrderItem), order_items)
+        conn.execute(insert(Shipment), shipments)
         conn.execute(insert(Refund), refunds)
         conn.execute(insert(SupportTicket), support_tickets)
 
     print(
         f"Seeded {len(customers)} customers, {len(products)} products, "
         f"{len(orders)} orders, {len(order_items)} order_items, "
-        f"{len(refunds)} refunds, {len(support_tickets)} support_tickets."
+        f"{len(shipments)} shipments, {len(refunds)} refunds, "
+        f"{len(support_tickets)} support_tickets."
     )
 
 

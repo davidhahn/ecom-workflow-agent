@@ -11,6 +11,15 @@ same reason — see the JSON-schema-vs-real-shape tests in tests/.
 
 permission_required and requires_confirmation are declared here but not yet
 checked against anything; enforcement is a later step.
+
+exposed_to_analyze controls whether a tool is included in
+anthropic_tool_defs(for_analyze=True) — the subset /query/analyze actually
+advertises to Claude. Being in TOOLS (registered) and being wired into
+analyze_service.py's tool-call loop (dispatched) are different things: a
+tool the loop has no dispatch handler for must not be advertised there,
+since an unhandled tool_use block leaves Claude's next turn without a
+matching tool_result. New tools default to False until that integration
+step is deliberately done.
 """
 
 from dataclasses import dataclass
@@ -20,6 +29,8 @@ from app.orchestrator.tool_specs import SEARCH_POLICY_TOOL
 from app.query.schemas import SqlQueryResponse
 from app.query.tool_spec import RUN_SQL_QUERY_TOOL
 from app.rag.schemas import RagChunkResult
+from app.shipments.schemas import ShipmentStatusResponse
+from app.shipments.tool_spec import GET_SHIPMENT_STATUS_TOOL
 
 PermissionLevel = Literal["read_only", "write", "admin"]
 
@@ -33,6 +44,7 @@ class ToolSpec:
     permission_required: PermissionLevel
     error_behavior: str
     requires_confirmation: bool
+    exposed_to_analyze: bool = False
 
     def anthropic_tool_def(self) -> dict[str, Any]:
         """The subset of this spec Anthropic's tool-calling API accepts."""
@@ -60,6 +72,7 @@ TOOLS: dict[str, ToolSpec] = {
                 "query_audit_log via record_attempt."
             ),
             requires_confirmation=False,
+            exposed_to_analyze=True,
         ),
         ToolSpec(
             name=SEARCH_POLICY_TOOL["name"],
@@ -74,12 +87,39 @@ TOOLS: dict[str, ToolSpec] = {
                 "a silent empty result."
             ),
             requires_confirmation=False,
+            exposed_to_analyze=True,
+        ),
+        ToolSpec(
+            name=GET_SHIPMENT_STATUS_TOOL["name"],
+            description=GET_SHIPMENT_STATUS_TOOL["description"],
+            input_schema=GET_SHIPMENT_STATUS_TOOL["input_schema"],
+            output_schema=ShipmentStatusResponse.model_json_schema(),
+            permission_required="read_only",
+            error_behavior=(
+                "Never raises for expected failure modes: an invalid status "
+                "value or an unparseable date filter is caught and returned "
+                "as a structured 'error' status with error_reason. No "
+                "arbitrary SQL string is ever built from input — every "
+                "filter is bound as a parameter via SQLAlchemy Core's query "
+                "builder, executed through the same restricted "
+                "ops_agent_readonly role as run_sql_query, capped at the "
+                "same DEFAULT_LIMIT row cap."
+            ),
+            requires_confirmation=False,
         ),
     )
 }
 
 
-def anthropic_tool_defs() -> list[dict[str, Any]]:
+def anthropic_tool_defs(*, for_analyze: bool = False) -> list[dict[str, Any]]:
     """Tool definitions in the shape Anthropic's `tools=` parameter expects,
-    built from the registry so the orchestrator never hand-writes tool JSON."""
-    return [spec.anthropic_tool_def() for spec in TOOLS.values()]
+    built from the registry so the orchestrator never hand-writes tool JSON.
+
+    for_analyze=True restricts this to tools analyze_service.py's tool-call
+    loop actually has a dispatch handler for (see exposed_to_analyze above);
+    omit it to enumerate every registered tool regardless of integration
+    status, e.g. for a tool-call trace UI or a registry contract test."""
+    specs = TOOLS.values()
+    if for_analyze:
+        specs = [spec for spec in specs if spec.exposed_to_analyze]
+    return [spec.anthropic_tool_def() for spec in specs]
