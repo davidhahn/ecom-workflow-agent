@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { Badge } from "@/components/Badge";
 import { Markdown } from "@/components/Markdown";
+import { useRole } from "@/lib/role-context";
 
 type State =
   | { status: "idle" }
@@ -21,13 +22,14 @@ export default function AskPage() {
   const [question, setQuestion] = useState("");
   const [state, setState] = useState<State>({ status: "idle" });
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
+  const { role } = useRole();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!question.trim() || state.status === "loading") return;
     setState({ status: "loading" });
     try {
-      const { data, rateLimit: rl } = await analyzeQuestion(question);
+      const { data, rateLimit: rl } = await analyzeQuestion(question, role);
       setState({ status: "success", result: data });
       setRateLimit(rl);
     } catch (err) {

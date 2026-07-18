@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NavHeader } from "@/components/NavHeader";
+import { RoleProvider } from "@/lib/role-context";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,8 +30,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <NavHeader />
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
+        <RoleProvider>
+          <NavHeader />
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
+        </RoleProvider>
       </body>
     </html>
   );

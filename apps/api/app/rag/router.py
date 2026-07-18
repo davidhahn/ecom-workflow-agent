@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.caching.cache import cache_get, cache_set, normalize_key
 from app.observability.logger import request_log_span
+from app.permissions import require_permission
 from app.rag.schemas import RagQueryRequest, RagQueryResponse
 from app.rag.service import query_rag
 from app.rate_limit import limiter
@@ -13,7 +14,12 @@ _CACHE_NAMESPACE = "rag"
 
 @router.post("/query/rag", response_model=RagQueryResponse)
 @limiter.limit("20/hour")
-def query_rag_endpoint(request: Request, response: Response, body: RagQueryRequest) -> RagQueryResponse:
+def query_rag_endpoint(
+    request: Request,
+    response: Response,
+    body: RagQueryRequest,
+    role: str = Depends(require_permission("search_policy", "rag")),
+) -> RagQueryResponse:
     # Logged here rather than inside query_rag() itself — that function is
     # also called internally by /query/analyze's search_policy tool, and
     # each request must write exactly one request_log row at its true entry

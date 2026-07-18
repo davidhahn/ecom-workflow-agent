@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { listRequestLogs, type RequestLogRow } from "@/lib/api";
 import { Badge } from "@/components/Badge";
+import { useRole } from "@/lib/role-context";
 
 type State =
   | { status: "loading" }
@@ -11,10 +12,11 @@ type State =
 
 export default function ActivityPage() {
   const [state, setState] = useState<State>({ status: "loading" });
+  const { role } = useRole();
 
   useEffect(() => {
     let cancelled = false;
-    listRequestLogs()
+    listRequestLogs(role)
       .then((rows) => {
         if (!cancelled) setState({ status: "success", rows });
       })
@@ -26,7 +28,7 @@ export default function ActivityPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [role]);
 
   return (
     <div className="flex flex-col gap-6">

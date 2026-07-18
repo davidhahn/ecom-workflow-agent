@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { DEMO_ROLES, useRole } from "@/lib/role-context";
 
 const TABS = [
   { href: "/", label: "Ask" },
@@ -9,8 +10,16 @@ const TABS = [
   { href: "/activity", label: "Activity" },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  read_only_viewer: "Read-only viewer",
+  support_agent: "Support agent",
+  manager: "Manager",
+  admin: "Admin",
+};
+
 export function NavHeader() {
   const pathname = usePathname();
+  const { role, setRole } = useRole();
 
   return (
     <header className="border-b border-black/10 dark:border-white/10">
@@ -34,6 +43,23 @@ export function NavHeader() {
             );
           })}
         </nav>
+        <div className="ml-auto flex items-center gap-2">
+          <label htmlFor="demo-role" className="text-xs text-gray-500 dark:text-gray-400">
+            Role
+          </label>
+          <select
+            id="demo-role"
+            value={role}
+            onChange={(e) => setRole(e.target.value as typeof role)}
+            className="rounded-md border border-black/15 bg-transparent px-2 py-1 text-xs outline-none dark:border-white/15"
+          >
+            {DEMO_ROLES.map((r) => (
+              <option key={r} value={r} className="text-black">
+                {ROLE_LABELS[r]}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </header>
   );

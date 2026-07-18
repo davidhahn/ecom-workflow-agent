@@ -9,6 +9,7 @@ import {
   type RateLimitInfo,
 } from "@/lib/api";
 import { Badge, type BadgeTone } from "@/components/Badge";
+import { useRole } from "@/lib/role-context";
 
 type State =
   | { status: "idle" }
@@ -28,13 +29,14 @@ export default function RefundsPage() {
   const [requestText, setRequestText] = useState("");
   const [state, setState] = useState<State>({ status: "idle" });
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
+  const { role } = useRole();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!requestText.trim() || state.status === "loading") return;
     setState({ status: "loading" });
     try {
-      const { data, rateLimit: rl } = await evaluateRefund(requestText);
+      const { data, rateLimit: rl } = await evaluateRefund(requestText, role);
       setState({ status: "success", result: data });
       setRateLimit(rl);
     } catch (err) {

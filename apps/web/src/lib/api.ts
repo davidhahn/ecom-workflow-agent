@@ -1,4 +1,5 @@
 import type { components } from "shared";
+import type { DemoRole } from "@/lib/role-context";
 
 export type AnalyzeResponse = components["schemas"]["AnalyzeResponse"];
 export type RefundEvaluateResponse = components["schemas"]["RefundEvaluateResponse"];
@@ -28,10 +29,14 @@ function readRateLimit(headers: Headers): RateLimitInfo {
   };
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<{ data: T; rateLimit: RateLimitInfo }> {
+async function postJson<T>(
+  path: string,
+  body: unknown,
+  role: DemoRole
+): Promise<{ data: T; rateLimit: RateLimitInfo }> {
   const res = await fetch(`/api${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Demo-Role": role },
     body: JSON.stringify(body),
   });
 
@@ -52,15 +57,17 @@ async function postJson<T>(path: string, body: unknown): Promise<{ data: T; rate
 }
 
 export function analyzeQuestion(
-  question: string
+  question: string,
+  role: DemoRole
 ): Promise<{ data: AnalyzeResponse; rateLimit: RateLimitInfo }> {
-  return postJson<AnalyzeResponse>("/query/analyze", { question });
+  return postJson<AnalyzeResponse>("/query/analyze", { question }, role);
 }
 
 export function evaluateRefund(
-  requestText: string
+  requestText: string,
+  role: DemoRole
 ): Promise<{ data: RefundEvaluateResponse; rateLimit: RateLimitInfo }> {
-  return postJson<RefundEvaluateResponse>("/refund/evaluate", { request_text: requestText });
+  return postJson<RefundEvaluateResponse>("/refund/evaluate", { request_text: requestText }, role);
 }
 
 export function formatRetryAfter(seconds: number | null): string {
@@ -70,8 +77,8 @@ export function formatRetryAfter(seconds: number | null): string {
   return `Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
 }
 
-export async function listRequestLogs(): Promise<RequestLogRow[]> {
-  const res = await fetch("/api/observability/requests");
+export async function listRequestLogs(role: DemoRole): Promise<RequestLogRow[]> {
+  const res = await fetch("/api/observability/requests", { headers: { "X-Demo-Role": role } });
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`/observability/requests failed (${res.status}): ${detail}`);

@@ -166,6 +166,33 @@
   `alembic/env.py` and `tests/__init__.py` pull from, so there's one place to update instead of
   two.
 
+20. Permission enforcement v1: one dependency, keyed by tool_name against the registry, not by endpoint
+- The Win: `require_permission(tool_name, request_type)` is a single FastAPI dependency
+  factory, reused on every gated route, that looks up `TOOLS[tool_name].permission_required`
+  from the tool registry and checks it against a demo role read from the `X-Demo-Role` header
+  (fails closed to `read_only_viewer` on a missing/invalid header — never open access).
+  Keying the check by `tool_name` rather than by endpoint or a role-tier string comparison is
+  what makes `support_agent` able to call `draft_support_ticket`
+  (`permission_required="read_only"`) but not `confirm_support_ticket`
+  (`permission_required="write"`), even though both endpoints are conceptually "the ticket
+  workflow" and a naive per-route or per-workflow check would have conflated them. This is the
+  actual payoff of the tool registry existing at all (see the `exposed_to_analyze` /
+  `anthropic_tool_defs()` split from the shipments-tool pass): a second system
+  (permissions) reads the same single source of truth a third system (the Claude-facing tool
+  list) already reads, instead of each maintaining its own parallel notion of what a tool is
+  allowed to do. Denials still write a `request_log` row (role, required permission, and the
+  raw request body) even though they short-circuit before the route handler's own
+  `request_log_span` ever opens — logged directly from inside the dependency instead.
+- The Tradeoff Accepted: `X-Demo-Role` is a client-supplied, unauthenticated header — any
+  caller can claim `admin` by setting it themselves. Explicitly fine for this pass (real auth
+  is a separate, later step per the task), but this means "permission enforcement v1" enforces
+  a role the caller asserts about themselves, not one the system verifies. `/refund/evaluate`
+  and `/query/analyze` are both unprotected by this dependency — `/refund/evaluate` because it
+  was never registered in the tool registry in the first place (this dependency has nothing to
+  look up `permission_required` from without a `TOOLS` entry), and `/query/analyze` by explicit
+  scope (it doesn't currently call any write-tier tool). Both are real, currently-open gaps,
+  not oversights — they're the next things to close, not this pass's job.
+
 ---
 
 **Note:** Decision #2 (docker-compose scope) is a direct consequence of the Part 1 scope boundary already recorded in `ARCHITECTURE.md`. Logged here separately because it's concrete enough to defend on its own, but if that upstream scope boundary changes, this entry needs to be revisited rather than treated as independent.
