@@ -17,7 +17,8 @@ class RequestLog(Base):
     __tablename__ = "request_log"
     __table_args__ = (
         CheckConstraint(
-            "request_type IN ('sql','rag','analyze','refund_evaluate')",
+            "request_type IN ('sql','rag','analyze','refund_evaluate',"
+            "'ticket_draft','ticket_confirm')",
             name="request_log_request_type_check",
         ),
         Index("ix_request_log_request_type", "request_type"),

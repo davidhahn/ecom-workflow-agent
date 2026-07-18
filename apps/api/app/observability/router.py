@@ -8,7 +8,9 @@ from app.observability.service import MAX_LIMIT, list_request_logs
 
 router = APIRouter()
 
-RequestType = Literal["sql", "rag", "analyze", "refund_evaluate"]
+RequestType = Literal[
+    "sql", "rag", "analyze", "refund_evaluate", "ticket_draft", "ticket_confirm"
+]
 
 
 @router.get("/observability/requests", response_model=RequestLogListResponse)

@@ -25,7 +25,13 @@ from app.tools.registry import TOOLS, ToolSpec, anthropic_tool_defs
 
 def test_registry_is_enumerable_dict_of_toolspec():
     assert isinstance(TOOLS, dict)
-    assert set(TOOLS) == {"run_sql_query", "search_policy", "get_shipment_status"}
+    assert set(TOOLS) == {
+        "run_sql_query",
+        "search_policy",
+        "get_shipment_status",
+        "draft_support_ticket",
+        "confirm_support_ticket",
+    }
     for spec in TOOLS.values():
         assert isinstance(spec, ToolSpec)
 
@@ -44,10 +50,23 @@ def test_registry_entries_declare_all_required_fields():
     assert {f.name for f in fields(ToolSpec)} == expected_fields
 
 
-def test_registry_entries_are_read_only_no_confirmation():
-    for spec in TOOLS.values():
-        assert spec.permission_required == "read_only"
-        assert spec.requires_confirmation is False
+def test_registry_permission_and_confirmation_flags_are_correct_per_tool():
+    """Was 'every tool is read_only/no-confirmation' until confirm_support_ticket
+    (the first real write) and draft_support_ticket (the first
+    requires_confirmation=True) were registered — this asserts the actual
+    per-tool split instead of a blanket rule that's no longer true."""
+    write_tools = {"confirm_support_ticket"}
+    read_only_tools = set(TOOLS) - write_tools
+
+    for name in read_only_tools:
+        assert TOOLS[name].permission_required == "read_only"
+    for name in write_tools:
+        assert TOOLS[name].permission_required == "write"
+
+    confirmation_required_tools = {"draft_support_ticket"}
+    for name in TOOLS:
+        expected = name in confirmation_required_tools
+        assert TOOLS[name].requires_confirmation is expected
 
 
 def test_run_sql_query_input_schema_matches_real_handler():

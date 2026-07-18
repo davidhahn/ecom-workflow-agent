@@ -31,6 +31,8 @@ from app.query.tool_spec import RUN_SQL_QUERY_TOOL
 from app.rag.schemas import RagChunkResult
 from app.shipments.schemas import ShipmentStatusResponse
 from app.shipments.tool_spec import GET_SHIPMENT_STATUS_TOOL
+from app.tickets.schemas import TicketConfirmResponse, TicketDraftResponse
+from app.tickets.tool_spec import CONFIRM_SUPPORT_TICKET_TOOL, DRAFT_SUPPORT_TICKET_TOOL
 
 PermissionLevel = Literal["read_only", "write", "admin"]
 
@@ -104,6 +106,40 @@ TOOLS: dict[str, ToolSpec] = {
                 "builder, executed through the same restricted "
                 "ops_agent_readonly role as run_sql_query, capped at the "
                 "same DEFAULT_LIMIT row cap."
+            ),
+            requires_confirmation=False,
+        ),
+        ToolSpec(
+            name=DRAFT_SUPPORT_TICKET_TOOL["name"],
+            description=DRAFT_SUPPORT_TICKET_TOOL["description"],
+            input_schema=DRAFT_SUPPORT_TICKET_TOOL["input_schema"],
+            output_schema=TicketDraftResponse.model_json_schema(),
+            permission_required="read_only",
+            error_behavior=(
+                "Never raises for expected failure modes: extraction failure or "
+                "an unresolvable customer/product reference is caught and "
+                "returned as a structured 'could_not_process' status with "
+                "reasoning, mirroring refund_evaluator's pattern exactly (see "
+                "DECISIONS.md #16). Writes nothing to support_tickets — only to "
+                "an in-memory draft store with a 10-minute TTL."
+            ),
+            requires_confirmation=True,
+        ),
+        ToolSpec(
+            name=CONFIRM_SUPPORT_TICKET_TOOL["name"],
+            description=CONFIRM_SUPPORT_TICKET_TOOL["description"],
+            input_schema=CONFIRM_SUPPORT_TICKET_TOOL["input_schema"],
+            output_schema=TicketConfirmResponse.model_json_schema(),
+            permission_required="write",
+            error_behavior=(
+                "Never raises for expected failure modes: a missing or expired "
+                "draft_id returns a structured 'error' status with error_reason, "
+                "never a silent no-op. Re-confirming an already-confirmed "
+                "draft_id is idempotent — returns the same ticket_id rather than "
+                "inserting a duplicate row. Does raise (not caught) if "
+                "draft_support_ticket's registry entry ever stops declaring "
+                "requires_confirmation=True, since enforcing that gate is this "
+                "tool's entire reason to exist."
             ),
             requires_confirmation=False,
         ),
