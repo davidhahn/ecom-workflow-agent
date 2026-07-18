@@ -140,6 +140,32 @@
   title phrase used generically) are unchanged; a more prominent banner around an
   already-imperfect signal is still built on that same imperfect signal.
 
+19. Test isolation requires explicitly importing every model module, not just the one under test
+- The Win: `tests/test_tickets.py` failed with `sqlalchemy.exc.NoReferencedTableError` on
+  `RequestLog.sql_query_audit_id -> query_audit_log.id` when run in isolation (`pytest
+  tests/test_tickets.py`), despite passing inside the full suite. Root cause: SQLAlchemy
+  resolves a string-based `ForeignKey(...)` lazily, against whatever tables have actually been
+  imported into `Base.metadata` at the time any ORM write triggers mapper configuration — and
+  that configuration step covers every pending mapper at once, not just the table being
+  written to. `audit_models.py`/`observability_models.py`/`rag_models.py` each register their
+  own table only as a side effect of being imported somewhere; nothing in `test_tickets.py`'s
+  own import chain happened to pull in `audit_models`, so `query_audit_log` was never
+  registered, and configuring *any* mapper (here, inserting a `SupportTicket`) failed on a
+  wholly unrelated table's dangling FK. The project already had the fix pattern —
+  `alembic/env.py` imports `audit_models`/`rag_models`/`observability_models` explicitly with
+  `# noqa: F401` specifically for this reason — it just wasn't applied to the test suite.
+  Fixed by adding the same three imports to `tests/__init__.py`, so every test file gets the
+  full metadata registered regardless of which tables its own imports happen to touch.
+- The Tradeoff Accepted: This is a real, generalizable gap, not a one-off — any *new* model
+  module added later (the next `db/*_models.py` file) needs the same import added to
+  `tests/__init__.py`, or isolated runs of unrelated test files can fail again with the same
+  confusing error, pointing at a table the failing test never touches. There's no compile-time
+  or lint-time guard against forgetting this; it will only surface again as a runtime failure
+  in whichever test happens to be unlucky enough to run first in isolation. Worth revisiting if
+  the project ever adds a lint rule or a single `app.db.all_models`-style import module both
+  `alembic/env.py` and `tests/__init__.py` pull from, so there's one place to update instead of
+  two.
+
 ---
 
 **Note:** Decision #2 (docker-compose scope) is a direct consequence of the Part 1 scope boundary already recorded in `ARCHITECTURE.md`. Logged here separately because it's concrete enough to defend on its own, but if that upstream scope boundary changes, this entry needs to be revisited rather than treated as independent.
