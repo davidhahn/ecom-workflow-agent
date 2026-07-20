@@ -31,6 +31,8 @@ def test_registry_is_enumerable_dict_of_toolspec():
         "get_shipment_status",
         "draft_support_ticket",
         "confirm_support_ticket",
+        "draft_vendor_invoice",
+        "confirm_vendor_invoice",
     }
     for spec in TOOLS.values():
         assert isinstance(spec, ToolSpec)
@@ -55,7 +57,7 @@ def test_registry_permission_and_confirmation_flags_are_correct_per_tool():
     (the first real write) and draft_support_ticket (the first
     requires_confirmation=True) were registered — this asserts the actual
     per-tool split instead of a blanket rule that's no longer true."""
-    write_tools = {"confirm_support_ticket"}
+    write_tools = {"confirm_support_ticket", "confirm_vendor_invoice"}
     read_only_tools = set(TOOLS) - write_tools
 
     for name in read_only_tools:
@@ -63,7 +65,7 @@ def test_registry_permission_and_confirmation_flags_are_correct_per_tool():
     for name in write_tools:
         assert TOOLS[name].permission_required == "write"
 
-    confirmation_required_tools = {"draft_support_ticket"}
+    confirmation_required_tools = {"draft_support_ticket", "draft_vendor_invoice"}
     for name in TOOLS:
         expected = name in confirmation_required_tools
         assert TOOLS[name].requires_confirmation is expected
@@ -179,3 +181,14 @@ def test_get_shipment_status_output_schema_matches_error_response():
     result = get_shipment_status(status="not_a_real_status")
     assert result.status == "error"
     jsonschema.validate(result.model_dump(mode="json"), spec.output_schema)
+
+
+def test_invoice_tools_are_registered_but_not_exposed_to_analyze():
+    """draft_vendor_invoice / confirm_vendor_invoice are registered (the
+    task's actual ask) but must not be advertised to /query/analyze's Claude
+    call in this pass — analyze_service.py's tool-loop has no dispatch
+    handler for either, same reasoning as get_shipment_status above."""
+    for name in ("draft_vendor_invoice", "confirm_vendor_invoice"):
+        assert TOOLS[name].exposed_to_analyze is False
+        assert name not in {t["name"] for t in anthropic_tool_defs(for_analyze=True)}
+        assert name in {t["name"] for t in anthropic_tool_defs()}

@@ -1,7 +1,7 @@
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, Text, func, text
-from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
+from sqlalchemy import Boolean, CheckConstraint, Date, ForeignKey, Index, Integer, Text, func, text
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -153,3 +153,34 @@ class Shipment(Base):
     )
     actual_delivery_date: Mapped[object | None] = mapped_column(TIMESTAMP(timezone=True))
     status: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class VendorInvoice(Base):
+    __tablename__ = "vendor_invoices"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('validated','flagged','duplicate')",
+            name="vendor_invoices_status_check",
+        ),
+        Index(
+            "ix_vendor_invoices_vendor_name_invoice_number",
+            "vendor_name",
+            "invoice_number",
+            unique=True,
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    vendor_name: Mapped[str] = mapped_column(Text, nullable=False)
+    invoice_number: Mapped[str] = mapped_column(Text, nullable=False)
+    invoice_date: Mapped[object] = mapped_column(Date, nullable=False)
+    subtotal_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    tax_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_items: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    field_confidence: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    flagged_reasons: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    created_at: Mapped[object] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )

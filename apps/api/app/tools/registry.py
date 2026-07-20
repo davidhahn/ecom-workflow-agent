@@ -25,6 +25,8 @@ step is deliberately done.
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from app.invoices.schemas import InvoiceConfirmResponse, InvoiceDraftResponse
+from app.invoices.tool_spec import CONFIRM_VENDOR_INVOICE_TOOL, DRAFT_VENDOR_INVOICE_TOOL
 from app.orchestrator.tool_specs import SEARCH_POLICY_TOOL
 from app.query.schemas import SqlQueryResponse
 from app.query.tool_spec import RUN_SQL_QUERY_TOOL
@@ -138,6 +140,46 @@ TOOLS: dict[str, ToolSpec] = {
                 "draft_id is idempotent — returns the same ticket_id rather than "
                 "inserting a duplicate row. Does raise (not caught) if "
                 "draft_support_ticket's registry entry ever stops declaring "
+                "requires_confirmation=True, since enforcing that gate is this "
+                "tool's entire reason to exist."
+            ),
+            requires_confirmation=False,
+        ),
+        ToolSpec(
+            name=DRAFT_VENDOR_INVOICE_TOOL["name"],
+            description=DRAFT_VENDOR_INVOICE_TOOL["description"],
+            input_schema=DRAFT_VENDOR_INVOICE_TOOL["input_schema"],
+            output_schema=InvoiceDraftResponse.model_json_schema(),
+            permission_required="read_only",
+            error_behavior=(
+                "Never raises for expected failure modes: an extraction failure "
+                "(no tool_use returned, or a missing/invalid field) is caught and "
+                "returned as a structured 'could_not_process' status with "
+                "reasoning, mirroring draft_support_ticket's pattern exactly. "
+                "Writes nothing to vendor_invoices — only to an in-memory draft "
+                "store with a 10-minute TTL."
+            ),
+            requires_confirmation=True,
+        ),
+        ToolSpec(
+            name=CONFIRM_VENDOR_INVOICE_TOOL["name"],
+            description=CONFIRM_VENDOR_INVOICE_TOOL["description"],
+            input_schema=CONFIRM_VENDOR_INVOICE_TOOL["input_schema"],
+            output_schema=InvoiceConfirmResponse.model_json_schema(),
+            permission_required="write",
+            error_behavior=(
+                "Never raises for expected failure modes: a missing or expired "
+                "draft_id returns a structured 'error' status with error_reason, "
+                "never a silent no-op. Re-confirming an already-confirmed "
+                "draft_id is idempotent — returns the same invoice_id rather than "
+                "inserting a duplicate row. The duplicate (vendor_name, "
+                "invoice_number) check is re-run at confirm-time, not just "
+                "draft-time, so a race between two drafts of the same invoice is "
+                "still caught — vendor_invoices has a unique index on that pair, "
+                "so a confirm-time duplicate returns a structured 'error' status "
+                "(validation_status='duplicate') instead of attempting an insert "
+                "that would violate the constraint. Does raise (not caught) if "
+                "draft_vendor_invoice's registry entry ever stops declaring "
                 "requires_confirmation=True, since enforcing that gate is this "
                 "tool's entire reason to exist."
             ),
