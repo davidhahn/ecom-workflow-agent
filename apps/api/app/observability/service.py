@@ -1,10 +1,11 @@
+import uuid
 from datetime import datetime
 
 from sqlalchemy import select
 
 from app.db.observability_models import RequestLog
 from app.db.session import SessionLocal
-from app.observability.schemas import RequestLogRow
+from app.observability.schemas import RequestLogDetailRow, RequestLogRow
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 500
@@ -31,3 +32,13 @@ def list_request_logs(
         stmt = stmt.order_by(RequestLog.created_at.desc()).limit(limit).offset(offset)
         rows = session.execute(stmt).scalars().all()
         return [RequestLogRow.model_validate(row) for row in rows]
+
+
+def get_request_log(request_id: uuid.UUID) -> RequestLogDetailRow | None:
+    """Single-row full detail, including tool_calls — the list endpoint
+    above stays summary-only on purpose (see RequestLogRow's docstring)."""
+    with SessionLocal() as session:
+        row = session.get(RequestLog, request_id)
+        if row is None:
+            return None
+        return RequestLogDetailRow.model_validate(row)

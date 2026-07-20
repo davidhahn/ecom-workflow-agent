@@ -1,10 +1,11 @@
+import uuid
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from app.observability.schemas import RequestLogListResponse
-from app.observability.service import MAX_LIMIT, list_request_logs
+from app.observability.schemas import RequestLogDetailRow, RequestLogListResponse
+from app.observability.service import MAX_LIMIT, get_request_log, list_request_logs
 
 router = APIRouter()
 
@@ -25,3 +26,11 @@ def list_requests_endpoint(
         request_type=request_type, since=since, until=until, limit=limit, offset=offset
     )
     return RequestLogListResponse(requests=rows)
+
+
+@router.get("/observability/requests/{request_id}", response_model=RequestLogDetailRow)
+def get_request_endpoint(request_id: uuid.UUID) -> RequestLogDetailRow:
+    row = get_request_log(request_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"No request found for id '{request_id}'")
+    return row

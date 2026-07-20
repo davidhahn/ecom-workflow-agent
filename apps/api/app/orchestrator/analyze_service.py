@@ -1,11 +1,13 @@
 import json
 import os
+import time
 
 import anthropic
 from dotenv import load_dotenv
 
 from app.caching.cache import cache_get, cache_set, normalize_key
 from app.observability.logger import request_log_span
+from app.observability.schemas import ToolCallEntry
 from app.query.claude_client import DEFAULT_MODEL, ProposedQuery
 from app.query.schema_context import build_schema_context
 from app.query.service import ExecutedQuery, execute_proposed_query
@@ -80,6 +82,10 @@ def analyze(question: str) -> AnalyzeResponse:
             log.cached = True
             log.input_tokens = 0
             log.output_tokens = 0
+            # No tool loop ran for this request (served from cache) — an
+            # empty trace, not NULL, since this is still request_type
+            # 'analyze' and every analyze row logs a (possibly empty) array.
+            log.tool_calls = []
             result = cached.model_copy(update={"cached": True})
             log.output = result.model_dump(mode="json")
             return result
@@ -93,6 +99,10 @@ def analyze(question: str) -> AnalyzeResponse:
         rag_used = False
         retrieved_chunks: list[RagChunkResult] = []
         generated_sql: list[str] = []
+        # Accumulated across every iteration of the loop below, not reset
+        # per iteration — sequence numbers must reflect the call's position
+        # in the whole request, not just within one turn.
+        tool_calls: list[dict] = []
 
         response = None
         for _ in range(MAX_TOOL_ITERATIONS):
@@ -113,6 +123,7 @@ def analyze(question: str) -> AnalyzeResponse:
             for block in response.content:
                 if block.type != "tool_use":
                     continue
+                call_start = time.perf_counter()
                 if block.name == "run_sql_query":
                     sql_used = True
                     executed = _run_run_sql_query_tool(question, block.input)
@@ -123,16 +134,35 @@ def analyze(question: str) -> AnalyzeResponse:
                     tool_results.append(
                         {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)}
                     )
+                    tool_calls.append(
+                        ToolCallEntry(
+                            tool_name=block.name,
+                            input=block.input,
+                            output=result,
+                            latency_ms=int((time.perf_counter() - call_start) * 1000),
+                            sequence=len(tool_calls),
+                        ).model_dump(mode="json")
+                    )
                 elif block.name == "search_policy":
                     rag_used = True
                     chunks = _run_search_policy_tool(block.input)
                     retrieved_chunks.extend(chunks)
+                    chunk_dicts = [c.model_dump() for c in chunks]
                     tool_results.append(
                         {
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": json.dumps([c.model_dump() for c in chunks]),
+                            "content": json.dumps(chunk_dicts),
                         }
+                    )
+                    tool_calls.append(
+                        ToolCallEntry(
+                            tool_name=block.name,
+                            input=block.input,
+                            output=chunk_dicts,
+                            latency_ms=int((time.perf_counter() - call_start) * 1000),
+                            sequence=len(tool_calls),
+                        ).model_dump(mode="json")
                     )
             messages.append({"role": "user", "content": tool_results})
         else:
@@ -157,6 +187,11 @@ def analyze(question: str) -> AnalyzeResponse:
                 sources=_build_sources(retrieved_chunks),
                 incomplete=True,
             )
+            # Whatever calls completed before exhaustion — a valid, ordered
+            # (possibly empty) array, never a broken/partial structure, since
+            # entries are only ever appended fully-formed after each call
+            # finishes.
+            log.tool_calls = tool_calls
             log.output = result.model_dump(mode="json")
             return result
 
@@ -182,6 +217,7 @@ def analyze(question: str) -> AnalyzeResponse:
             sources=_build_sources(retrieved_chunks),
             topic_coverage_warning=topic_coverage_warning,
         )
+        log.tool_calls = tool_calls
         log.output = result.model_dump(mode="json")
         cache_set("analyze", cache_key, result)
         return result

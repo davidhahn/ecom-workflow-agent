@@ -43,6 +43,14 @@ class RequestLog(Base):
     # instead of leaving the column genuinely NULL.
     rag_chunks_retrieved: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     cached: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # Populated only for request_type='analyze', where a tool-call loop
+    # actually runs — every other request type makes at most one LLM call
+    # and leaves this NULL rather than being forced into an empty-list
+    # shape it has no real content for. An analyze request that made zero
+    # tool calls (e.g. answered directly, or served from cache) still logs
+    # `[]`, not NULL — NULL means "this request type has no concept of a
+    # tool-call trace," `[]` means "traced, and nothing was called."
+    tool_calls: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     created_at: Mapped[object] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )

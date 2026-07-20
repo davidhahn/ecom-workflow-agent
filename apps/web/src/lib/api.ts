@@ -4,6 +4,8 @@ import type { DemoRole } from "@/lib/role-context";
 export type AnalyzeResponse = components["schemas"]["AnalyzeResponse"];
 export type RefundEvaluateResponse = components["schemas"]["RefundEvaluateResponse"];
 export type RequestLogRow = components["schemas"]["RequestLogRow"];
+export type RequestLogDetailRow = components["schemas"]["RequestLogDetailRow"];
+export type ToolCallEntry = components["schemas"]["ToolCallEntry"];
 
 export type RateLimitInfo = {
   limit: number | null;
@@ -85,4 +87,13 @@ export async function listRequestLogs(role: DemoRole): Promise<RequestLogRow[]> 
   }
   const data = (await res.json()) as components["schemas"]["RequestLogListResponse"];
   return data.requests;
+}
+
+export async function getRequestLog(id: string, role: DemoRole): Promise<RequestLogDetailRow> {
+  const res = await fetch(`/api/observability/requests/${id}`, { headers: { "X-Demo-Role": role } });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`/observability/requests/${id} failed (${res.status}): ${detail}`);
+  }
+  return (await res.json()) as RequestLogDetailRow;
 }

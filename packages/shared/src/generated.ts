@@ -89,6 +89,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/observability/requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Request Endpoint */
+        get: operations["get_request_endpoint_observability_requests__request_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tickets/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tickets Draft Endpoint */
+        post: operations["tickets_draft_endpoint_tickets_draft_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tickets/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tickets Confirm Endpoint */
+        post: operations["tickets_confirm_endpoint_tickets_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Invoices Draft Endpoint */
+        post: operations["invoices_draft_endpoint_invoices_draft_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Invoices Confirm Endpoint */
+        post: operations["invoices_confirm_endpoint_invoices_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -150,6 +235,75 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InvoiceConfirmRequest */
+        InvoiceConfirmRequest: {
+            /** Draft Id */
+            draft_id: string;
+        };
+        /** InvoiceConfirmResponse */
+        InvoiceConfirmResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "error";
+            /** Invoice Id */
+            invoice_id?: string | null;
+            /** Validation Status */
+            validation_status?: ("validated" | "flagged" | "duplicate") | null;
+            /** Flagged Reasons */
+            flagged_reasons?: string[] | null;
+            /** Error Reason */
+            error_reason?: string | null;
+        };
+        /** InvoiceDraftRequest */
+        InvoiceDraftRequest: {
+            /** Image Base64 */
+            image_base64: string;
+            /**
+             * Media Type
+             * @enum {string}
+             */
+            media_type: "image/jpeg" | "image/png";
+        };
+        /** InvoiceDraftResponse */
+        InvoiceDraftResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "drafted" | "could_not_process";
+            /** Draft Id */
+            draft_id?: string | null;
+            /** Vendor Name */
+            vendor_name?: string | null;
+            /** Invoice Number */
+            invoice_number?: string | null;
+            /** Invoice Date */
+            invoice_date?: string | null;
+            /** Subtotal Cents */
+            subtotal_cents?: number | null;
+            /** Tax Cents */
+            tax_cents?: number | null;
+            /** Total Cents */
+            total_cents?: number | null;
+            /** Line Items */
+            line_items?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Field Confidence */
+            field_confidence?: {
+                [key: string]: number;
+            } | null;
+            /** Validation Status */
+            validation_status?: ("validated" | "flagged" | "duplicate") | null;
+            /** Flagged Reasons */
+            flagged_reasons?: string[] | null;
+            /** Reasoning */
+            reasoning?: string | null;
+            /** Expires In Seconds */
+            expires_in_seconds?: number | null;
+        };
         /** RagChunkResult */
         RagChunkResult: {
             /** Content */
@@ -199,12 +353,61 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * RequestLogDetailRow
+         * @description Full single-row detail, returned by GET /observability/requests/{id}.
+         *     tool_calls is NULL for every request type except 'analyze' — see the
+         *     column comment on RequestLog.tool_calls.
+         */
+        RequestLogDetailRow: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Request Type */
+            request_type: string;
+            /** Input */
+            input: string;
+            /** Output */
+            output: unknown;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Input Tokens */
+            input_tokens: number | null;
+            /** Output Tokens */
+            output_tokens: number | null;
+            /** Estimated Cost Usd */
+            estimated_cost_usd: number | null;
+            /** Grounded */
+            grounded: boolean | null;
+            /** Sql Query Audit Id */
+            sql_query_audit_id: string | null;
+            /** Rag Chunks Retrieved */
+            rag_chunks_retrieved: unknown | null;
+            /** Cached */
+            cached: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Tool Calls */
+            tool_calls: components["schemas"]["ToolCallEntry"][] | null;
+        };
         /** RequestLogListResponse */
         RequestLogListResponse: {
             /** Requests */
             requests: components["schemas"]["RequestLogRow"][];
         };
-        /** RequestLogRow */
+        /**
+         * RequestLogRow
+         * @description Summary shape used by the list endpoint. Deliberately excludes
+         *     tool_calls — a full per-call trace is only meaningful for one request at
+         *     a time, and including it on every row of a list response would bloat a
+         *     50-row page with payloads nobody's looking at yet. See
+         *     RequestLogDetailRow for the single-row detail endpoint.
+         */
         RequestLogRow: {
             /**
              * Id
@@ -289,6 +492,73 @@ export interface components {
              */
             cached: boolean;
         };
+        /** TicketConfirmRequest */
+        TicketConfirmRequest: {
+            /** Draft Id */
+            draft_id: string;
+        };
+        /** TicketConfirmResponse */
+        TicketConfirmResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "error";
+            /** Ticket Id */
+            ticket_id?: string | null;
+            /** Error Reason */
+            error_reason?: string | null;
+        };
+        /** TicketDraftRequest */
+        TicketDraftRequest: {
+            /** Request Text */
+            request_text: string;
+        };
+        /** TicketDraftResponse */
+        TicketDraftResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "drafted" | "could_not_process";
+            /** Draft Id */
+            draft_id?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Customer Id */
+            customer_id?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /** Reasoning */
+            reasoning?: string | null;
+            /** Expires In Seconds */
+            expires_in_seconds?: number | null;
+        };
+        /**
+         * ToolCallEntry
+         * @description One tool invocation within /query/analyze's tool-call loop. sequence
+         *     is the call's position across the *entire* loop (all iterations), not
+         *     reset per iteration, so the ordered trace survives even when the loop
+         *     calls multiple tools in one turn or spans several turns.
+         */
+        ToolCallEntry: {
+            /** Tool Name */
+            tool_name: string;
+            /** Input */
+            input: {
+                [key: string]: unknown;
+            };
+            /** Output */
+            output: unknown;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Sequence */
+            sequence: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -314,7 +584,9 @@ export interface operations {
     query_sql_query_sql_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Demo-Role"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -347,7 +619,9 @@ export interface operations {
     query_rag_endpoint_query_rag_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Demo-Role"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -446,7 +720,7 @@ export interface operations {
     list_requests_endpoint_observability_requests_get: {
         parameters: {
             query?: {
-                request_type?: ("sql" | "rag" | "analyze" | "refund_evaluate") | null;
+                request_type?: ("sql" | "rag" | "analyze" | "refund_evaluate" | "ticket_draft" | "ticket_confirm") | null;
                 since?: string | null;
                 until?: string | null;
                 limit?: number;
@@ -465,6 +739,177 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RequestLogListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_request_endpoint_observability_requests__request_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestLogDetailRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tickets_draft_endpoint_tickets_draft_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Demo-Role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketDraftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tickets_confirm_endpoint_tickets_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Demo-Role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketConfirmResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invoices_draft_endpoint_invoices_draft_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Demo-Role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDraftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invoices_confirm_endpoint_invoices_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Demo-Role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceConfirmResponse"];
                 };
             };
             /** @description Validation Error */

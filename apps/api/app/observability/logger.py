@@ -23,6 +23,7 @@ class LogFields:
     sql_query_audit_id: uuid.UUID | None = None
     rag_chunks_retrieved: list[Any] | None = None
     cached: bool = False
+    tool_calls: list[dict[str, Any]] | None = None
 
     def add_usage(self, usage: Any) -> None:
         """Accumulates an Anthropic response.usage. Safe to call multiple
@@ -46,6 +47,7 @@ def log_request(
     sql_query_audit_id: uuid.UUID | None = None,
     rag_chunks_retrieved: list[Any] | None = None,
     cached: bool = False,
+    tool_calls: list[dict[str, Any]] | None = None,
 ) -> uuid.UUID:
     log_id = uuid.uuid4()
     with SessionLocal() as session:
@@ -63,6 +65,7 @@ def log_request(
                 sql_query_audit_id=sql_query_audit_id,
                 rag_chunks_retrieved=rag_chunks_retrieved,
                 cached=cached,
+                tool_calls=tool_calls,
             )
         )
         session.commit()
@@ -96,4 +99,5 @@ def request_log_span(request_type: str, input_text: str) -> Iterator[LogFields]:
             sql_query_audit_id=fields.sql_query_audit_id,
             rag_chunks_retrieved=fields.rag_chunks_retrieved,
             cached=fields.cached,
+            tool_calls=fields.tool_calls,
         )
