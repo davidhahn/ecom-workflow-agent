@@ -7,11 +7,27 @@ from app.db.models import SupportTicket
 from app.db.session import SessionLocal
 from app.observability.logger import request_log_span
 from app.tickets.draft_store import DRAFT_TTL_SECONDS, create_draft, get_draft, mark_confirmed
-from app.tickets.extraction import TicketExtractionError, extract_support_ticket
-from app.tickets.resolution import resolve_ticket_context
+from app.tickets.extraction import TicketExtractionError, TicketExtractionResult, extract_support_ticket
+from app.tickets.resolution import TicketResolutionFailure, resolve_ticket_context
 from app.tickets.schemas import TicketConfirmResponse, TicketDraftResponse
 
 COULD_NOT_PROCESS = "could_not_process"
+
+
+def _resolution_failure_detail(extraction: TicketExtractionResult, unresolved_fields: list[str]) -> str:
+    """Builds a message naming only the field(s) that actually failed to
+    resolve, not a blanket "customer and product" regardless of which one
+    was the real problem — unresolved_fields is the source of truth here,
+    not extraction.customer_identifier/product_identifier's mere presence."""
+    if unresolved_fields == ["customer"] and not extraction.customer_identifier:
+        return "no customer could be identified in the request"
+
+    parts = []
+    if "customer" in unresolved_fields:
+        parts.append(f"customer '{extraction.customer_identifier}'")
+    if "product" in unresolved_fields:
+        parts.append(f"product '{extraction.product_identifier}'")
+    return f"could not resolve {' and '.join(parts)} against the database"
 
 
 def draft_ticket(request_text: str) -> TicketDraftResponse:
@@ -29,17 +45,12 @@ def draft_ticket(request_text: str) -> TicketDraftResponse:
         log.add_usage(extraction.usage)
 
         resolved = resolve_ticket_context(extraction.customer_identifier, extraction.product_identifier)
-        if resolved is None:
-            if not extraction.customer_identifier:
-                detail = "no customer could be identified in the request"
-            else:
-                detail = f"could not resolve customer '{extraction.customer_identifier}'"
-                if extraction.product_identifier:
-                    detail += f" and product '{extraction.product_identifier}'"
-                detail += " against the database"
+        if isinstance(resolved, TicketResolutionFailure):
+            detail = _resolution_failure_detail(extraction, resolved.unresolved_fields)
             response = TicketDraftResponse(
                 status=COULD_NOT_PROCESS,
                 reasoning=f"Could not resolve enough context to draft a ticket: {detail}.",
+                unresolved_fields=resolved.unresolved_fields,
             )
             log.output = response.model_dump(mode="json")
             return response

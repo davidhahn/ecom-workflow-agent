@@ -18,6 +18,10 @@ class TicketDraftResponse(BaseModel):
     product_id: uuid.UUID | None = None
     reasoning: str | None = None
     expires_in_seconds: int | None = None
+    # Only set when status is "could_not_process" due to unresolvable
+    # context: "customer", "product", or both — lets a caller determine
+    # exactly what failed without string-parsing `reasoning`.
+    unresolved_fields: list[str] | None = None
 
 
 class TicketConfirmRequest(BaseModel):

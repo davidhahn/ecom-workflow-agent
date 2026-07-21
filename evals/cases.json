@@ -223,5 +223,281 @@
     },
     "scoring": "exact_match",
     "failure_trap": "Confirms the happy path still passes: an explicit numeric citation that matches a rule actually present in retrieval must not be flagged ungrounded."
+  },
+  {
+    "id": "refund-07-repeat-refund-flag-charlotte-dubois",
+    "category": "refund_evaluator",
+    "input": "Hi, this is Charlotte Dubois. The Wireless Keyboard I received wasn't what I ordered - you sent me the wrong item. I'd like a refund.",
+    "expected": { "status": "flagged_for_review", "rule_applied": 7 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a model that evaluates this refund purely on its own merits - wrong_item has no time limit and needs no evidence, so in isolation it would clear straight to approved under rule 5 - and misses that Charlotte Dubois (seeded specifically for this case) already has 3 approved refunds within the trailing 90-day window, which rule 7 flags for manual review 'regardless of this refund's own reason or amount' per the policy text and the evaluator's own fourth waterfall step (checked after category exclusion, time window, and evidence, before the approval threshold)."
+  },
+  {
+    "id": "refund-10-repeat-refund-flag-not-triggered-below-threshold",
+    "category": "refund_evaluator",
+    "input": "Hi, this is Noah Martinez. The Wireless Mouse I just got is defective, it keeps disconnecting. I'd like a refund.",
+    "expected": { "status": "approved", "rule_applied": 2 },
+    "scoring": "exact_match",
+    "failure_trap": "The boundary case for rule 7: catches a model that over-applies the repeat-refund flag to any customer with prior approved-refund history at all, rather than the specific >=3-approved-within-90-days threshold. Noah Martinez has exactly 1 approved refund in the trailing window (a second one exists but is 276 days old, outside the window) - this must clear rule 7 untouched and approve normally under rule 2."
+  },
+  {
+    "id": "ticket-01-draft-succeeds-full-resolution",
+    "category": "ticket_evaluator",
+    "input": "{\"action\": \"draft\", \"request_text\": \"Hi, this is James O'Brien. The Organic Green Tea (20ct) I received had a broken seal on the packaging.\"}",
+    "expected": {
+      "draft_status": "drafted",
+      "category": "product_defect",
+      "reasoning_contains": null,
+      "confirm_status": null,
+      "idempotent_retry_matches": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that drafts a ticket with a null customer_id/order_id/product_id when both a real seeded customer and a real product they actually ordered are named in the request - resolve_ticket_context() must reach the full customer+product resolution branch (via resolve_order_item(), the same lookup refund_evaluator uses), not just the customer-only branch, and must not silently drop the product match."
+  },
+  {
+    "id": "ticket-02-could-not-process-unresolvable-customer",
+    "category": "ticket_evaluator",
+    "input": "{\"action\": \"draft\", \"request_text\": \"Hi, this is Zzyzx Nonexistent Customer, my order never arrived.\"}",
+    "expected": {
+      "draft_status": "could_not_process",
+      "category": null,
+      "reasoning_contains": "Zzyzx Nonexistent Customer",
+      "confirm_status": null,
+      "idempotent_retry_matches": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that guesses or fuzzy-matches a real seeded customer for a name that doesn't exist in the database, instead of honestly refusing to draft - per DECISIONS.md's 'absence of a customer identifier is grounds for refusal, not a best-effort guess' design, extended here to a customer identifier that's present but unresolvable."
+  },
+  {
+    "id": "ticket-03-could-not-process-unresolvable-named-product",
+    "category": "ticket_evaluator",
+    "input": "{\"action\": \"draft\", \"request_text\": \"Hi, this is James O'Brien. My Quantum Flux Capacitor arrived broken and I want a replacement.\"}",
+    "expected": {
+      "draft_status": "could_not_process",
+      "category": null,
+      "unresolved_fields": ["product"],
+      "confirm_status": null,
+      "idempotent_retry_matches": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that silently drops an explicitly-named but unresolvable product and drafts a ticket anyway with product_id=null, instead of refusing entirely - this is the specific documented tradeoff in resolution.py ('An explicitly-named but unresolvable product is refused (None), not silently dropped'), distinct from ticket-02's wholly-unresolvable-customer case since here the customer (James O'Brien) resolves fine and only the product fails. Exact-matches the structured unresolved_fields == ['product'] rather than a reasoning-text substring - the substring check this replaces could pass even when the message also wrongly blamed the customer (the exact bug this field was added to fix), since it only ever confirmed the product name appeared somewhere in the prose, not that the customer was correctly exonerated."
+  },
+  {
+    "id": "ticket-04-confirm-succeeds",
+    "category": "ticket_evaluator",
+    "input": "{\"action\": \"draft_then_confirm\", \"request_text\": \"Hi, this is James O'Brien, billing question - I was charged twice for my last order.\"}",
+    "expected": {
+      "draft_status": "drafted",
+      "category": "billing",
+      "reasoning_contains": null,
+      "confirm_status": "created",
+      "idempotent_retry_matches": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation where confirm_support_ticket fails to actually write the row that draft_support_ticket described - e.g. reading stale or wrong fields off the draft record, or an off-by-one in wiring the draft_id through - and confirms the two-call flow's second half genuinely persists what the first half proposed, not just that both calls individually return 200."
+  },
+  {
+    "id": "ticket-05-confirm-error-missing-draft-id",
+    "category": "ticket_evaluator",
+    "input": "{\"action\": \"confirm_only\", \"draft_id\": \"this-draft-id-was-never-created\"}",
+    "expected": {
+      "draft_status": null,
+      "category": null,
+      "reasoning_contains": null,
+      "confirm_status": "error",
+      "idempotent_retry_matches": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that raises an unhandled exception (500) or silently no-ops (200 with no ticket_id) on a missing/expired draft_id instead of returning the structured 'error' status the tool's registered error_behavior promises - the same trap an expired-TTL draft_id falls into, since both paths return None from get_draft() and must be handled identically."
+  },
+  {
+    "id": "ticket-06-confirm-idempotent-retry",
+    "category": "ticket_evaluator",
+    "input": "{\"action\": \"draft_then_confirm_twice\", \"request_text\": \"Hi, this is James O'Brien, my package shows delivered but never arrived.\"}",
+    "expected": {
+      "draft_status": "drafted",
+      "category": "shipping",
+      "reasoning_contains": null,
+      "confirm_status": "created",
+      "idempotent_retry_matches": true
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that inserts a second support_tickets row (or errors) on a repeated confirm of the same already-confirmed draft_id, instead of returning the same ticket_id both times - the draft record must be marked confirmed rather than deleted after the first write, exactly the failure mode a naive 'delete draft after use' design would hit on retry (e.g. a client that resends after a dropped response)."
+  },
+  {
+    "id": "invoice-01-arithmetic-mismatch-flags",
+    "category": "invoice_evaluator",
+    "input": "{\"action\": \"draft\", \"vendor_name\": \"Globex Corp\", \"invoice_number\": \"INV-EVAL-ARITH\", \"invoice_date\": \"2026-06-01\", \"subtotal_cents\": 10000, \"tax_cents\": 800, \"total_cents\": 50000, \"field_confidence\": {\"vendor_name\": 0.95, \"invoice_number\": 0.95, \"invoice_date\": 0.95, \"subtotal_cents\": 0.95, \"tax_cents\": 0.95, \"total_cents\": 0.95}}",
+    "expected": {
+      "validation_status": "flagged",
+      "flagged_reasons_keyword": "total_cents",
+      "confirm_status": null,
+      "persisted_status": null,
+      "request_log_detail_complete": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that only checks subtotal_cents + tax_cents against total_cents using floating-point comparison (silently passing on rounding-adjacent mismatches) instead of exact integer-cents equality, or that fails to flag at all because it trusts the extracted total_cents as authoritative rather than re-deriving and cross-checking it."
+  },
+  {
+    "id": "invoice-02-clean-invoice-validates",
+    "category": "invoice_evaluator",
+    "input": "{\"action\": \"draft\", \"vendor_name\": \"Globex Corp\", \"invoice_number\": \"INV-EVAL-CLEAN\", \"invoice_date\": \"2026-06-01\", \"subtotal_cents\": 10000, \"tax_cents\": 800, \"total_cents\": 10800, \"field_confidence\": {\"vendor_name\": 0.95, \"invoice_number\": 0.95, \"invoice_date\": 0.95, \"subtotal_cents\": 0.95, \"tax_cents\": 0.95, \"total_cents\": 0.95}}",
+    "expected": {
+      "validation_status": "validated",
+      "flagged_reasons_keyword": null,
+      "confirm_status": null,
+      "persisted_status": null,
+      "request_log_detail_complete": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Confirms the happy path: catches an implementation that flags a legitimately clean invoice anyway (e.g. an off-by-one in the arithmetic check, or a confidence threshold applied to the wrong fields), which would erode trust in the flagging signal by making 'flagged' the common case instead of the exception."
+  },
+  {
+    "id": "invoice-03-low-confidence-dollar-field-flags",
+    "category": "invoice_evaluator",
+    "input": "{\"action\": \"draft\", \"vendor_name\": \"Globex Corp\", \"invoice_number\": \"INV-EVAL-LOWCONF\", \"invoice_date\": \"2026-06-01\", \"subtotal_cents\": 10000, \"tax_cents\": 800, \"total_cents\": 10800, \"field_confidence\": {\"vendor_name\": 0.95, \"invoice_number\": 0.95, \"invoice_date\": 0.95, \"subtotal_cents\": 0.5, \"tax_cents\": 0.95, \"total_cents\": 0.95}}",
+    "expected": {
+      "validation_status": "flagged",
+      "flagged_reasons_keyword": "subtotal_cents",
+      "confirm_status": null,
+      "persisted_status": null,
+      "request_log_detail_complete": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that applies the confidence threshold to every extracted field (which would also flag on a low-confidence vendor_name or invoice_date, fields the task explicitly scopes this check to exclude) instead of only the three dollar-amount fields, or that uses a threshold other than 0.7."
+  },
+  {
+    "id": "invoice-04-future-dated-invoice-flags",
+    "category": "invoice_evaluator",
+    "input": "{\"action\": \"draft\", \"vendor_name\": \"Globex Corp\", \"invoice_number\": \"INV-EVAL-FUTURE\", \"invoice_date\": \"2026-12-25\", \"subtotal_cents\": 10000, \"tax_cents\": 800, \"total_cents\": 10800, \"field_confidence\": {\"vendor_name\": 0.95, \"invoice_number\": 0.95, \"invoice_date\": 0.95, \"subtotal_cents\": 0.95, \"tax_cents\": 0.95, \"total_cents\": 0.95}}",
+    "expected": {
+      "validation_status": "flagged",
+      "flagged_reasons_keyword": "future",
+      "confirm_status": null,
+      "persisted_status": null,
+      "request_log_detail_complete": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that only checks the more-than-2-years-in-the-past bound and forgets the future-dated bound entirely (both are named in the task, but the past bound is the one that maps onto an obvious real-world scenario, so it's the one most likely to get implemented while the future check gets skipped)."
+  },
+  {
+    "id": "invoice-05-duplicate-caught-at-draft-time",
+    "category": "invoice_evaluator",
+    "input": "{\"action\": \"draft_confirm_then_draft_duplicate\", \"vendor_name\": \"Initech LLC\", \"invoice_number\": \"INV-EVAL-DUPDRAFT\", \"invoice_date\": \"2026-06-01\", \"subtotal_cents\": 5000, \"tax_cents\": 400, \"total_cents\": 5400, \"field_confidence\": {\"vendor_name\": 0.95, \"invoice_number\": 0.95, \"invoice_date\": 0.95, \"subtotal_cents\": 0.95, \"tax_cents\": 0.95, \"total_cents\": 0.95}}",
+    "expected": {
+      "validation_status": "duplicate",
+      "flagged_reasons_keyword": null,
+      "confirm_status": null,
+      "persisted_status": null,
+      "request_log_detail_complete": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "First confirms a real invoice for (Initech LLC, INV-EVAL-DUPDRAFT), then drafts the identical (vendor_name, invoice_number) pair again - catches an implementation that runs the arithmetic/date/confidence checks first and only checks for a duplicate afterward (or not at all), instead of short-circuiting on the duplicate check before any other rule runs, per the task's explicit 'do not let a duplicate slip through even if every other check passes.'"
+  },
+  {
+    "id": "invoice-06-duplicate-caught-at-confirm-time-race",
+    "category": "invoice_evaluator",
+    "input": "{\"action\": \"draft_twice_confirm_both\", \"vendor_name\": \"Umbrella Inc\", \"invoice_number\": \"INV-EVAL-DUPCONFIRM\", \"invoice_date\": \"2026-06-01\", \"subtotal_cents\": 7000, \"tax_cents\": 560, \"total_cents\": 7560, \"field_confidence\": {\"vendor_name\": 0.95, \"invoice_number\": 0.95, \"invoice_date\": 0.95, \"subtotal_cents\": 0.95, \"tax_cents\": 0.95, \"total_cents\": 0.95}}",
+    "expected": {
+      "validation_status": "duplicate",
+      "flagged_reasons_keyword": null,
+      "confirm_status": "error",
+      "persisted_status": null,
+      "request_log_detail_complete": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Drafts the same (vendor_name, invoice_number) pair twice before confirming either (both drafts validate cleanly, since neither invoice exists in the table yet), confirms the first (succeeds), then confirms the second - catches an implementation that only checks for a duplicate at draft-time and trusts the draft's stored validation_status at confirm-time, missing the race the task explicitly calls out; also catches an implementation that, having correctly detected the confirm-time duplicate, then crashes attempting to insert a second row anyway instead of refusing the write (vendor_invoices has a real unique index on this pair)."
+  },
+  {
+    "id": "invoice-07-confirm-on-flagged-draft-still-persists",
+    "category": "invoice_evaluator",
+    "input": "{\"action\": \"draft_then_confirm\", \"vendor_name\": \"Wayne Enterprises\", \"invoice_number\": \"INV-EVAL-FLAGGEDPERSIST\", \"invoice_date\": \"2026-06-01\", \"subtotal_cents\": 10000, \"tax_cents\": 800, \"total_cents\": 99999, \"field_confidence\": {\"vendor_name\": 0.95, \"invoice_number\": 0.95, \"invoice_date\": 0.95, \"subtotal_cents\": 0.95, \"tax_cents\": 0.95, \"total_cents\": 0.95}}",
+    "expected": {
+      "validation_status": "flagged",
+      "flagged_reasons_keyword": "total_cents",
+      "confirm_status": "created",
+      "persisted_status": "flagged",
+      "request_log_detail_complete": null
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that treats 'flagged' as a rejection and refuses to confirm it (returning an error instead of writing the row), misreading the task's explicit 'flagging means needs human review, not reject and discard' - the row must land in vendor_invoices with status='flagged' and its original flagged_reasons intact, not discarded or silently reset to validated on write."
+  },
+  {
+    "id": "invoice-08-confirm-on-duplicate-rejected-with-full-detail-logged",
+    "category": "invoice_evaluator",
+    "input": "{\"action\": \"draft_twice_confirm_both\", \"vendor_name\": \"Stark Industries\", \"invoice_number\": \"INV-EVAL-DUPLOGGED\", \"invoice_date\": \"2026-06-01\", \"subtotal_cents\": 12000, \"tax_cents\": 960, \"total_cents\": 12960, \"field_confidence\": {\"vendor_name\": 0.95, \"invoice_number\": 0.95, \"invoice_date\": 0.95, \"subtotal_cents\": 0.95, \"tax_cents\": 0.95, \"total_cents\": 0.95}}",
+    "expected": {
+      "validation_status": "duplicate",
+      "flagged_reasons_keyword": null,
+      "confirm_status": "error",
+      "persisted_status": null,
+      "request_log_detail_complete": true
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Same setup as invoice-06, but checks the audit trail rather than the API response: catches an implementation where request_log.output for the rejected confirm-time duplicate is thin (just a status/error-code flag with vendor_name/invoice_number only as prose inside a free-text error_reason) instead of carrying the full extracted fields (vendor_name, invoice_number, invoice_date, subtotal_cents, tax_cents, total_cents, line_items) as structured JSON keys - vendor_invoices never gets a row for a rejected duplicate, so request_log is the only place a human can investigate the attempt from /observability/requests."
+  },
+  {
+    "id": "perm-01-read-only-viewer-can-run-sql-query",
+    "category": "permission",
+    "input": "{\"endpoint\": \"/query/sql\", \"role\": \"read_only_viewer\", \"body\": {\"question\": \"how many products exist?\"}}",
+    "expected": { "status_code": 200 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that fails closed too aggressively - denying the lowest-privilege role access to a read_only-tier tool it's explicitly entitled to, which would make the demo's default (and safest) role unable to do anything at all."
+  },
+  {
+    "id": "perm-02-support-agent-can-run-sql-query",
+    "category": "permission",
+    "input": "{\"endpoint\": \"/query/sql\", \"role\": \"support_agent\", \"body\": {\"question\": \"how many products exist?\"}}",
+    "expected": { "status_code": 200 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that hardcodes a role-to-endpoint allowlist keyed by role name rather than checking the tool's registered permission_required against the role's permission set - support_agent isn't explicitly named in most access-control examples in this codebase, so a hand-maintained list is prone to omitting it here."
+  },
+  {
+    "id": "perm-03-manager-can-run-sql-query",
+    "category": "permission",
+    "input": "{\"endpoint\": \"/query/sql\", \"role\": \"manager\", \"body\": {\"question\": \"how many products exist?\"}}",
+    "expected": { "status_code": 200 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that only special-cases read_only_viewer and admin at the two ends of the privilege spectrum and mishandles a mid-tier role like manager, e.g. by requiring an exact permission-set match instead of a subset/superset check."
+  },
+  {
+    "id": "perm-04-admin-can-run-sql-query",
+    "category": "permission",
+    "input": "{\"endpoint\": \"/query/sql\", \"role\": \"admin\", \"body\": {\"question\": \"how many products exist?\"}}",
+    "expected": { "status_code": 200 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that only grants admin its own admin-tier permission and forgets admin must also inherit read_only/write access - ROLE_PERMISSIONS defines admin's set explicitly rather than via inheritance, so a partial or mistyped set literal would silently under-grant admin here."
+  },
+  {
+    "id": "perm-05-support-agent-can-draft-ticket",
+    "category": "permission",
+    "input": "{\"endpoint\": \"/tickets/draft\", \"role\": \"support_agent\", \"body\": {\"request_text\": \"This is James O'Brien, billing question.\"}}",
+    "expected": { "status_code": 200 },
+    "scoring": "exact_match",
+    "failure_trap": "The half of the case that naive role-tier string matching (e.g. 'support_agent can only touch ticket endpoints, full stop') would get right by accident - included as the paired contrast to perm-06, where the same naive rule gets it wrong."
+  },
+  {
+    "id": "perm-06-support-agent-cannot-confirm-ticket",
+    "category": "permission",
+    "input": "{\"endpoint\": \"/tickets/confirm\", \"role\": \"support_agent\", \"body\": {\"draft_id\": \"irrelevant-for-permission-check\"}}",
+    "expected": { "status_code": 403 },
+    "scoring": "exact_match",
+    "failure_trap": "The one place naive role-tier or per-endpoint-family matching gets it wrong: draft_support_ticket and confirm_support_ticket are the same conceptual 'ticket workflow' and the same URL prefix, but declare different permission_required tiers (read_only vs write) in the tool registry - an implementation that grants or denies access per endpoint *family* rather than per registered tool would incorrectly let support_agent confirm, or incorrectly block them from drafting."
+  },
+  {
+    "id": "topic-01-shipment-delay-fabrication-warns",
+    "category": "topic_coverage",
+    "input": "{\"answer\": \"Based on order status, 3 orders could be at risk of delay.\", \"sql_used\": true, \"generated_sql\": [\"SELECT status FROM orders\"]}",
+    "expected": { "topic_coverage_warning": true },
+    "scoring": "exact_match",
+    "failure_trap": "Catches an implementation that only checks whether SQL was used at all (sql_used=true here) rather than whether the SQL actually queried the shipments table - the answer speculates about delivery delay from orders.status alone, which check_groundedness's citation-matching alone would never catch since there's no policy citation involved, only a fabricated data inference."
+  },
+  {
+    "id": "topic-02-ordinary-refund-question-does-not-warn",
+    "category": "topic_coverage",
+    "input": "{\"answer\": \"The refund rate for Electronics is 12%.\", \"sql_used\": true, \"generated_sql\": [\"SELECT * FROM refunds\"]}",
+    "expected": { "topic_coverage_warning": false },
+    "scoring": "exact_match",
+    "failure_trap": "Confirms the false-positive guard: catches an implementation whose shipment/delay keyword matching is so broad it flags ordinary refund-rate answers that never mention shipping, tracking, or delivery at all - the check must key off topic language actually present in the answer, not fire unconditionally whenever SQL was used without a shipments-table query."
   }
 ]

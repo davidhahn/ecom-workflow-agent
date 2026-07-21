@@ -537,6 +537,8 @@ export interface components {
             reasoning?: string | null;
             /** Expires In Seconds */
             expires_in_seconds?: number | null;
+            /** Unresolved Fields */
+            unresolved_fields?: string[] | null;
         };
         /**
          * ToolCallEntry

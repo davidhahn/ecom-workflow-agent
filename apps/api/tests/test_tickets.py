@@ -93,12 +93,40 @@ def test_confirm_with_expired_draft_returns_clear_error():
 
 def test_draft_unresolvable_customer_returns_could_not_process():
     result = draft_ticket(
-        "Hi, this is Zzyzx Nonexistent Customer, product totally not in the "
-        "catalog is broken. (unresolvable-customer test, unique phrasing)"
+        "Hi, this is Zzyzx Nonexistent Customer, my order never arrived. "
+        "(unresolvable-customer test, unique phrasing)"
     )
     assert result.status == "could_not_process"
     assert result.draft_id is None
     assert result.reasoning is not None
+    assert result.unresolved_fields == ["customer"]
+
+
+def test_draft_unresolvable_product_with_resolvable_customer_returns_could_not_process():
+    """The distinction unresolved_fields exists to surface: the customer
+    resolves fine here, only the named product fails — the response must
+    say so specifically, not blame both regardless of which one actually
+    failed (see resolution.py: 'an explicitly-named but unresolvable
+    product is refused, not silently dropped')."""
+    result = draft_ticket(
+        f"Hi, this is {_REAL_CUSTOMER}. My Quantum Flux Capacitor arrived broken "
+        "and I want a replacement. (unresolvable-product test, unique phrasing)"
+    )
+    assert result.status == "could_not_process"
+    assert result.draft_id is None
+    assert result.unresolved_fields == ["product"]
+    assert "Quantum Flux Capacitor" in result.reasoning
+    assert _REAL_CUSTOMER not in result.reasoning
+
+
+def test_draft_unresolvable_customer_and_product_both_flagged():
+    result = draft_ticket(
+        "Hi, this is Zzyzx Nonexistent Customer. My Quantum Flux Capacitor is "
+        "broken. (both-unresolvable test, unique phrasing)"
+    )
+    assert result.status == "could_not_process"
+    assert result.draft_id is None
+    assert result.unresolved_fields == ["customer", "product"]
 
 
 def test_confirm_enforces_requires_confirmation_flag(monkeypatch):
