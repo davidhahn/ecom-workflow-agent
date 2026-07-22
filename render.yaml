@@ -59,6 +59,15 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Shared secret checked by app/proxy_secret.py on every request except
+      # /health — apps/web/middleware.ts injects it on every proxied
+      # request. Also sync: false, but unlike the two secrets above this
+      # value isn't just Render's alone: it must be set to the *same* value
+      # in Vercel's environment variables for apps/web, or every proxied
+      # request gets rejected with 403. See README.md's Deployment section
+      # for the manual first-deploy step.
+      - key: INTERNAL_PROXY_SECRET
+        sync: false
 
   # --- Cron job: daily reseed, independent of deploys ---
   # Intentionally NOT part of preDeployCommand above: reseeding truncates and

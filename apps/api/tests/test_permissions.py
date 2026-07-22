@@ -12,8 +12,9 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.permissions import DEFAULT_ROLE, ROLE_PERMISSIONS, resolve_role
+from app.proxy_secret import HEADER_NAME, INTERNAL_PROXY_SECRET
 
-client = TestClient(app)
+client = TestClient(app, headers={HEADER_NAME: INTERNAL_PROXY_SECRET})
 
 
 def _headers(role: str | None) -> dict[str, str]:

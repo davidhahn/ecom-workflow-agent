@@ -1,14 +1,13 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
+// /api/:path* proxying to the FastAPI backend moved to middleware.ts —
+// a declarative rewrite here can't inject the X-Internal-Proxy-Secret
+// header the backend now requires on every request (see
+// app/proxy_secret.py), so Edge Middleware replaces it.
 const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname, "..", ".."),
-  },
-  async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API_URL}/:path*` }];
   },
 };
 

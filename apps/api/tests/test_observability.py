@@ -14,8 +14,9 @@ from app.db.observability_models import RequestLog
 from app.db.session import SessionLocal
 from app.main import app
 from app.orchestrator.analyze_service import analyze
+from app.proxy_secret import HEADER_NAME, INTERNAL_PROXY_SECRET
 
-client = TestClient(app)
+client = TestClient(app, headers={HEADER_NAME: INTERNAL_PROXY_SECRET})
 
 _RUN_ID = uuid.uuid4().hex[:8]
 
