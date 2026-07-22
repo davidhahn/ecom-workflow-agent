@@ -38,7 +38,7 @@ Known gap, intentionally not built here: no row-level security or multi-tenant i
 `POST /query/rag` (`{"question": "...", "k": 3}`) does top-k cosine similarity search over `docs/policies/*.md` and returns raw chunks — no LLM-generated answer, no groundedness check, no orchestrator yet. See `app/rag/`:
 
 - **Chunking** (`app/rag/chunking.py`) — one chunk per H2 section (one numbered rule for `refund_policy.md`, one heading for `shipping_policy.md`/`support_playbook.md`), not fixed-size or semantic chunking. `source_doc` and `rule_number` are preserved as metadata.
-- **Embeddings** (`app/rag/embeddings.py`) — local `sentence-transformers` (`BAAI/bge-m3`), no external embedding API; see the comment above the model init for why, and when to revisit it.
+- **Embeddings** (`app/rag/embeddings.py`) — provider selected by `EMBEDDING_PROVIDER` (`local` | `voyage`, default `local`); see `DECISIONS.md` #8. `local` uses `sentence-transformers` (`BAAI/bge-m3`), no external API, no key needed — the dev default. `voyage` calls the hosted Voyage AI API directly over HTTP (`voyage-3.5-lite`, `output_dimension=1024` pinned explicitly to match the column below) and requires `VOYAGE_API_KEY` — used in deploy, where `sentence-transformers`' `torch` dependency is a memory cost the environment can't absorb. Deliberately not the `voyageai` SDK: that package's own import graph pulls in `sentence-transformers`/`torch` whenever both are installed in the same environment (as they are here), which would defeat the point.
 - **Storage** — `policy_chunks` table (`content`, `embedding vector(1024)`, `source_doc`, `rule_number`), no ANN index at this corpus size (~17 rows) — see `DECISIONS.md` #8.
 
 Ingest (re-runnable — truncates and reinserts every time):

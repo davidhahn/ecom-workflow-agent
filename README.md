@@ -46,6 +46,10 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
+`EMBEDDING_PROVIDER` (apps/api/.env) controls where RAG's embeddings come from — see `DECISIONS.md` #8:
+- **Dev:** `EMBEDDING_PROVIDER=local` (the default if unset) — local `BAAI/bge-m3`, no `VOYAGE_API_KEY` needed.
+- **Deploy:** `EMBEDDING_PROVIDER=voyage` — hosted Voyage AI, requires `VOYAGE_API_KEY`.
+
 ## Database
 
 Apply migrations and load fixture data (from `apps/api`, with Postgres up and `.env` configured):
