@@ -82,3 +82,14 @@ pnpm run codegen
 ```
 
 This runs `openapi-typescript http://localhost:8000/openapi.json -o src/generated.ts` inside `packages/shared`, pulling the live OpenAPI spec from the running FastAPI app. Re-run it any time the API's routes or schemas change; never edit `packages/shared/src/generated.ts` by hand.
+
+## Deployment
+
+`render.yaml` (repo root) is a [Render Blueprint](https://render.com/docs/blueprint-spec) for **`apps/api` only** — it defines the FastAPI web service, the Postgres database, and a daily reseed cron job, all Starter tier. It is not committed to trigger anything automatically; deploying is a manual step:
+
+1. In the Render dashboard: **New → Blueprint**, connect this GitHub repo. Render finds `render.yaml` at the repo root and shows the three resources it defines (`ecom-ops-api`, `ecom-ops-db`, `ecom-ops-reseed`) for review before creating anything.
+2. Apply the blueprint. Render provisions the Postgres instance and deploys the web service — `preDeployCommand` runs `alembic upgrade head` against it before the new version takes traffic, every deploy, no exceptions (see the comments in `render.yaml`).
+3. **After first deploy**, set the two secret env vars manually — they're declared as `sync: false` in `render.yaml`, meaning Render intentionally leaves them blank rather than expecting a value in the committed file: go to the `ecom-ops-api` service → **Environment**, and set `ANTHROPIC_API_KEY` and `VOYAGE_API_KEY` to real values. The service won't serve real requests correctly until both are set (`OPS_AGENT_DB_PASSWORD` doesn't need manual entry — Render generates it automatically on first deploy per `render.yaml`'s `generateValue: true`).
+4. The `ecom-ops-reseed` cron job runs `python -m app.db.seed` daily at 06:00 UTC against the same database — independent of deploys, so an in-progress demo interaction isn't wiped by an unrelated code push (see the comment above it in `render.yaml`).
+
+**`apps/web` (Next.js) is not part of this blueprint** — Render Blueprints don't drive Vercel deploys, and forcing a Next.js frontend into a Render web service would fight both platforms' conventions. Deploy `apps/web` to Vercel separately (connect the same repo, set the project root to `apps/web`, configure `apps/web/.env`'s variables — e.g. the API's base URL — in Vercel's dashboard); that config isn't written yet and would live in Vercel's own project settings or an `apps/web/vercel.json`, not here.

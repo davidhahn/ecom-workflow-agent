@@ -1,0 +1,87 @@
+# Render Blueprint for apps/api (backend only). apps/web (Next.js) deploys to
+# Vercel separately and is NOT part of this file — Vercel reads its own
+# project config (or dashboard settings) directly from apps/web, it does not
+# participate in a Render blueprint. See README.md's Deployment section for
+# both.
+#
+# Field names here (runtime, preDeployCommand, fromDatabase, generateValue,
+# sync: false) reflect Render's Blueprint spec as documented at the time this
+# file was written. Render's reference (dashboard → Blueprints → spec docs)
+# is the source of truth if any field is renamed/deprecated by the time this
+# is actually deployed — worth a quick diff against that before first use.
+
+databases:
+  - name: ecom-ops-db
+    databaseName: ecom_ops
+    user: ecom_ops
+    plan: starter # 256MB — matches the task's Postgres tier
+    postgresMajorVersion: "17" # matches docker-compose.yml's pgvector/pgvector:pg17 for dev/prod parity; confirm Render still offers 17 at deploy time
+    ipAllowList: [] # no public internet access — only Render's internal network (this web service, this cron job) can reach it, same least-privilege posture as the ops_agent_readonly DB role (DECISIONS.md #6)
+
+services:
+  # --- Web service: FastAPI backend ---
+  - type: web
+    name: ecom-ops-api
+    runtime: python
+    plan: starter
+    rootDir: apps/api
+    buildCommand: pip install poetry && poetry install --no-interaction --no-ansi
+    # Migrations run on every deploy, no exceptions — this is a pre-deploy
+    # command, not part of buildCommand, specifically so it runs against the
+    # real target database and blocks the new version from receiving traffic
+    # until it succeeds (a failed migration fails the deploy, it doesn't
+    # silently roll forward on stale schema).
+    preDeployCommand: poetry run alembic upgrade head
+    startCommand: poetry run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.5
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ecom-ops-db
+          property: connectionString
+      # Password for the ops_agent_readonly Postgres role (see
+      # alembic/versions/e226476acfd7_*.py and app/query/db_readonly.py).
+      # This is a role Render itself creates and connects with, not a
+      # third-party credential — generateValue lets Render mint a random
+      # value once at first deploy rather than a human choosing and typing
+      # one in, but it's still never committed to this file.
+      - key: OPS_AGENT_DB_PASSWORD
+        generateValue: true
+      - key: EMBEDDING_PROVIDER
+        value: voyage
+      # Third-party secrets: set manually in the Render dashboard after
+      # first deploy (Service → Environment). sync: false means Render
+      # will prompt for a value and never expects one to exist in this
+      # committed file.
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+  # --- Cron job: daily reseed, independent of deploys ---
+  # Intentionally NOT part of preDeployCommand above: reseeding truncates and
+  # reinserts fixture data (app/db/seed.py), which would wipe any in-progress
+  # demo interaction (e.g. a ticket someone just created) on every unrelated
+  # code push. This runs on its own daily schedule instead, decoupled from
+  # deploy activity entirely.
+  - type: cron
+    name: ecom-ops-reseed
+    runtime: python
+    plan: starter
+    rootDir: apps/api
+    schedule: "0 6 * * *" # 06:00 UTC daily — low-traffic time for a demo app
+    buildCommand: pip install poetry && poetry install --no-interaction --no-ansi
+    startCommand: poetry run python -m app.db.seed
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.5
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ecom-ops-db
+          property: connectionString
+      # app/db/seed.py connects via the plain DATABASE_URL only (see
+      # app/db/session.py) — it never touches the ops_agent_readonly role,
+      # so OPS_AGENT_DB_PASSWORD/ANTHROPIC_API_KEY/VOYAGE_API_KEY are not
+      # needed here.
