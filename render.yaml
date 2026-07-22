@@ -14,7 +14,7 @@ databases:
   - name: ecom-ops-db
     databaseName: ecom_ops
     user: ecom_ops
-    plan: starter # 256MB — matches the task's Postgres tier
+    plan: basic-256mb # 256MB — Render's current smallest paid flexible Postgres tier; "starter" is a legacy plan name no longer available for new database instances (web/cron services below are unaffected, they keep plan: starter)
     postgresMajorVersion: "17" # matches docker-compose.yml's pgvector/pgvector:pg17 for dev/prod parity; confirm Render still offers 17 at deploy time
     ipAllowList: [] # no public internet access — only Render's internal network (this web service, this cron job) can reach it, same least-privilege posture as the ops_agent_readonly DB role (DECISIONS.md #6)
 
