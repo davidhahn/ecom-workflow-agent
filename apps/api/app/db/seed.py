@@ -1,7 +1,7 @@
 """Re-runnable seed script for the Part 1 schema (customers, products, orders,
-order_items, refunds, support_tickets, shipments). Truncates the seven tables
-and reinserts deterministic fixture data — safe to run against a fresh or
-already-seeded database.
+order_items, refunds, support_tickets, shipments) plus the Part 3 web_analytics
+and campaigns tables. Truncates the nine tables and reinserts deterministic
+fixture data — safe to run against a fresh or already-seeded database.
 
 Usage:
     poetry run python -m app.db.seed
@@ -10,10 +10,12 @@ Usage:
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from sqlalchemy import insert, text
 
 from app.db.models import (
+    Campaign,
     Customer,
     Order,
     OrderItem,
@@ -21,6 +23,7 @@ from app.db.models import (
     Refund,
     Shipment,
     SupportTicket,
+    WebAnalytics,
 )
 from app.db.session import engine
 
@@ -313,6 +316,64 @@ normal_shipment_order_8 = add_order(
 )
 add_item(normal_shipment_order_8, product_by_name["Cotton Bath Towel Set"], 1)
 
+# ---------------------------------------------------------------------------
+# revenue-dip story (Part 3 demo query: "why did revenue drop last week?")
+# --  a 14-day window of real orders, time-relative to *now* like the
+# other Part 2/3 blocks above (see DECISIONS.md #14) rather than
+# ANCHOR-relative, so the dip stays in the trailing 14 days across
+# reseeds instead of decaying. All dates below are computed from this one
+# NOW so every row in this block shares the same instant, rather than
+# drifting against separate datetime.now() calls if seeding happens to
+# straddle a day boundary. Revenue itself is never stored directly -- it's
+# whatever SUM(order_items.quantity * order_items.unit_price_cents) over
+# these orders comes out to, same as everywhere else in this file. -------
+NOW = datetime.now(timezone.utc)
+
+
+def _dip_order(days_ago: int, product_name: str, customer_index: int) -> uuid.UUID:
+    o_id = add_order(NOW - timedelta(days=days_ago), customer_index=customer_index, status="delivered")
+    add_item(o_id, product_by_name[product_name], 1)
+    return o_id
+
+
+# Same product rotation/price range in both weeks -- the dip is driven by
+# fewer orders, not by swapping in cheaper products, so a "lower order
+# values" story isn't accidentally smuggled in alongside the "fewer
+# orders" one. Counts here (14 vs 4) are chosen net of the pre-existing
+# normal_shipment_order_*/delayed_shipment_orders rows immediately above,
+# which land unevenly across these same two windows by construction (they
+# exist to test shipment-delay/contrast logic, not this story) -- 2 of
+# them fall in the prior window, 5 in the recent one, at fixed day-offsets
+# that don't shift across reseeds. Net of that fixed skew, the *combined*
+# result queried straight off `orders`/`order_items` (below, not just
+# these rows in isolation) is still a clean ~28% revenue drop on ~44%
+# fewer orders -- confirmed by direct SQL, not just this arithmetic.
+DIP_ROTATION = [
+    "Bluetooth Headphones", "Men's Running Shoes", "Fleece Zip Hoodie",
+    "Wireless Keyboard", "Memory Foam Pillow", "Cotton Bath Towel Set",
+]
+
+# prior week (days 13-7 ago): normal volume, 14 orders across 7 days
+dip_prior_orders = [
+    _dip_order(13, DIP_ROTATION[0], 0), _dip_order(13, DIP_ROTATION[1], 1),
+    _dip_order(12, DIP_ROTATION[2], 2), _dip_order(12, DIP_ROTATION[3], 3),
+    _dip_order(11, DIP_ROTATION[4], 4), _dip_order(11, DIP_ROTATION[5], 5),
+    _dip_order(10, DIP_ROTATION[0], 6), _dip_order(10, DIP_ROTATION[1], 7),
+    _dip_order(9, DIP_ROTATION[2], 8), _dip_order(9, DIP_ROTATION[3], 9),
+    _dip_order(8, DIP_ROTATION[4], 10), _dip_order(8, DIP_ROTATION[5], 11),
+    _dip_order(7, DIP_ROTATION[0], 12), _dip_order(7, DIP_ROTATION[1], 13),
+]
+
+# recent week (days 6-0 ago): the drop -- just 4 orders across the same 7
+# days, one per active day, real (not discounted) product prices so the
+# dip reads as fewer people buying, not a clearance-style value collapse.
+dip_recent_orders = [
+    _dip_order(6, "Ergonomic Desk Chair", 14),
+    _dip_order(4, DIP_ROTATION[3], 15),
+    _dip_order(2, DIP_ROTATION[4], 16),
+    _dip_order(0, DIP_ROTATION[5], 17),
+]
+
 # backfill order totals from their items
 totals: dict[uuid.UUID, int] = {}
 for item in order_items:
@@ -558,6 +619,36 @@ for product_name, item_ids in high_refund_items.items():
             _order["order_date"] + timedelta(days=RNG.randint(3, 20)),
         )
 
+# revenue-dip story: refunds against the dip orders above, at roughly the
+# SAME rate in both windows once combined with the pre-existing orders
+# that also land in these two windows (2 refunds / 16 combined prior
+# orders = 12.5%, 1 refund / 9 combined recent orders = 11.1%) -- the
+# deliberate red herring. A correct investigation checks refunds, finds
+# this rate essentially unchanged on both sides of the drop, and rules
+# refunds out rather than wrongly attributing the revenue dip to them.
+# All "defective"/"approved" so a rate computed either as
+# all-refunds/orders or approved-refunds/orders comes out the same.
+for order_id in [dip_prior_orders[0], dip_prior_orders[8]]:
+    item_id = next(i["id"] for i in order_items if i["order_id"] == order_id)
+    _item = item_lookup(item_id)
+    add_refund(
+        item_id,
+        _item["quantity"] * _item["unit_price_cents"],
+        "defective",
+        "approved",
+        order_lookup(order_id)["order_date"] + timedelta(days=3),
+    )
+for order_id in [dip_recent_orders[0]]:
+    item_id = next(i["id"] for i in order_items if i["order_id"] == order_id)
+    _item = item_lookup(item_id)
+    add_refund(
+        item_id,
+        _item["quantity"] * _item["unit_price_cents"],
+        "defective",
+        "approved",
+        order_lookup(order_id)["order_date"] + timedelta(days=1),
+    )
+
 # filler refunds against the general filler items, to reach >= 20 total
 FILLER_REASONS = ["defective", "wrong_item", "changed_mind", "damaged_shipping"]
 FILLER_STATUSES = ["approved", "denied", "pending"]
@@ -681,6 +772,58 @@ while len(support_tickets) < 20:
         resolved_at=resolved,
     )
 
+# ---------------------------------------------------------------------------
+# web_analytics + campaigns (Part 3 demo query: "why did revenue drop last
+# week?"). Time-relative to NOW (defined above, in the revenue-dip orders
+# block), not ANCHOR -- see DECISIONS.md #14. No revenue-shaped column
+# here; revenue is always computed from orders (see above).
+# ---------------------------------------------------------------------------
+
+web_analytics = []
+
+# prior week (days 13-7 ago): normal baseline.
+_PRIOR_ANALYTICS = [
+    (13, 1280, 4200, "0.0305"), (12, 1350, 4450, "0.0320"), (11, 1310, 4300, "0.0298"),
+    (10, 1290, 4180, "0.0312"), (9, 1400, 4700, "0.0335"), (8, 1330, 4300, "0.0301"),
+    (7, 1360, 4450, "0.0318"),
+]
+# recent week (days 6-0 ago): sessions and conversion_rate both ~25-27%
+# below the prior week's daily average -- a real, deliberate signal, not
+# day-to-day noise. Begins the day after the campaign below ends.
+_RECENT_ANALYTICS = [
+    (6, 950, 3050, "0.0230"), (5, 1020, 3300, "0.0245"), (4, 980, 3150, "0.0220"),
+    (3, 1005, 3220, "0.0238"), (2, 940, 3010, "0.0215"), (1, 1010, 3260, "0.0250"),
+    (0, 990, 3180, "0.0228"),
+]
+for days_ago, sessions, page_views, conversion_rate in _PRIOR_ANALYTICS + _RECENT_ANALYTICS:
+    web_analytics.append(
+        {
+            "id": uid("web_analytics", str(len(web_analytics) + 1)),
+            "date": (NOW - timedelta(days=days_ago)).date(),
+            "sessions": sessions,
+            "page_views": page_views,
+            "conversion_rate": Decimal(conversion_rate),
+        }
+    )
+
+# The campaign whose end_date lines up with the drop: ends 1 day before the
+# recent (lower-performing) week begins. paid_social, a channel plausibly
+# responsible for a traffic dip when it stops running -- see
+# docs/notes/campaign-launch-notes.md for the narrative context a caller
+# investigating this would want alongside these rows.
+campaign_end_date = (NOW - timedelta(days=7)).date()
+campaigns = [
+    {
+        "id": uid("campaign", "1"),
+        "name": "Paid Social Growth Push",
+        "channel": "paid_social",
+        "start_date": campaign_end_date - timedelta(days=30),
+        "end_date": campaign_end_date,
+        "budget_cents": 1_850_000,
+        "status": "ended",
+    }
+]
+
 
 # ---------------------------------------------------------------------------
 # seed
@@ -691,7 +834,7 @@ def seed() -> None:
         conn.execute(
             text(
                 "TRUNCATE TABLE support_tickets, refunds, shipments, order_items, "
-                "orders, products, customers CASCADE"
+                "orders, products, customers, web_analytics, campaigns CASCADE"
             )
         )
         conn.execute(insert(Customer), customers)
@@ -701,12 +844,15 @@ def seed() -> None:
         conn.execute(insert(Shipment), shipments)
         conn.execute(insert(Refund), refunds)
         conn.execute(insert(SupportTicket), support_tickets)
+        conn.execute(insert(WebAnalytics), web_analytics)
+        conn.execute(insert(Campaign), campaigns)
 
     print(
         f"Seeded {len(customers)} customers, {len(products)} products, "
         f"{len(orders)} orders, {len(order_items)} order_items, "
         f"{len(shipments)} shipments, {len(refunds)} refunds, "
-        f"{len(support_tickets)} support_tickets."
+        f"{len(support_tickets)} support_tickets, "
+        f"{len(web_analytics)} web_analytics, {len(campaigns)} campaigns."
     )
 
 

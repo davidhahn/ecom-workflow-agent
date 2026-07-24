@@ -1,6 +1,17 @@
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Date, ForeignKey, Index, Integer, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -184,3 +195,40 @@ class VendorInvoice(Base):
     created_at: Mapped[object] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class WebAnalytics(Base):
+    """Daily site-traffic snapshot. Deliberately has no revenue-shaped
+    column — revenue is always computed from orders (SUM(order_items.quantity
+    * order_items.unit_price_cents) over orders.order_date), so this table
+    can't become a second, driftable source of truth for the same fact."""
+
+    __tablename__ = "web_analytics"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    date: Mapped[object] = mapped_column(Date, nullable=False, unique=True)
+    sessions: Mapped[int] = mapped_column(Integer, nullable=False)
+    page_views: Mapped[int] = mapped_column(Integer, nullable=False)
+    conversion_rate: Mapped[object] = mapped_column(Numeric(6, 4), nullable=False)
+
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+    __table_args__ = (
+        CheckConstraint(
+            "channel IN ('email','paid_search','paid_social','influencer','organic')",
+            name="campaigns_channel_check",
+        ),
+        CheckConstraint(
+            "status IN ('planned','active','ended')",
+            name="campaigns_status_check",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    channel: Mapped[str] = mapped_column(Text, nullable=False)
+    start_date: Mapped[object] = mapped_column(Date, nullable=False)
+    end_date: Mapped[object | None] = mapped_column(Date)
+    budget_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
