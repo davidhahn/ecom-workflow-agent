@@ -9,6 +9,7 @@ import {
   type RateLimitInfo,
 } from "@/lib/api";
 import { Badge, type BadgeTone } from "@/components/Badge";
+import { ExampleChip } from "@/components/ExampleChip";
 import { useRole } from "@/lib/role-context";
 
 type State =
@@ -16,6 +17,14 @@ type State =
   | { status: "loading" }
   | { status: "success"; result: RefundEvaluateResponse }
   | { status: "error"; message: string };
+
+// A damaged-shipping request with evidence already mentioned, against a
+// real seeded customer/product — resolves cleanly to a complete decision
+// (approved, rule 4) rather than a could_not_process refusal.
+const EXAMPLE_REQUEST =
+  "Hi, this is James O'Brien. The Ceramic Coffee Mug I ordered arrived cracked because of " +
+  "rough handling during shipping. I've already attached photos showing the damage - can I " +
+  "get a refund?";
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   approved: "success",
@@ -56,6 +65,13 @@ export default function RefundsPage() {
           Paste a natural-language refund request. This evaluates a decision only — it never
           writes to the refunds table.
         </p>
+      </div>
+
+      <div>
+        <ExampleChip
+          label="Try an example: damaged shipment with evidence attached"
+          onClick={() => setRequestText(EXAMPLE_REQUEST)}
+        />
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">

@@ -9,6 +9,7 @@ import {
   type RateLimitInfo,
 } from "@/lib/api";
 import { Badge } from "@/components/Badge";
+import { ExampleChip } from "@/components/ExampleChip";
 import { Markdown } from "@/components/Markdown";
 import { useRole } from "@/lib/role-context";
 
@@ -17,6 +18,13 @@ type State =
   | { status: "loading" }
   | { status: "success"; result: AnalyzeResponse }
   | { status: "error"; message: string };
+
+const EXAMPLE_QUESTIONS = [
+  "Which products have the highest refund rate?",
+  "What's our policy on damaged shipments?",
+  "We've had a lot of refund requests for the Bluetooth Headphones Pro, what's driving that, and does it violate our policy?",
+  "Are any shipments delayed right now?",
+];
 
 export default function AskPage() {
   const [question, setQuestion] = useState("");
@@ -49,6 +57,12 @@ export default function AskPage() {
           Ask a question over ops data (SQL) and/or refund policy (RAG). The agent decides which
           tools it needs.
         </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {EXAMPLE_QUESTIONS.map((example) => (
+          <ExampleChip key={example} label={example} onClick={() => setQuestion(example)} />
+        ))}
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
