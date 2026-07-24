@@ -17,26 +17,28 @@ from app.tickets.router import router as tickets_router
 # CORS stops a browser from letting cross-origin JS call this API even if it
 # somehow had the shared secret; the secret stops everything CORS can't
 # (curl, server-to-server, any non-browser caller).
-# TODO: replace with the real production domain before deploying.
-ALLOWED_ORIGINS = ["https://REPLACE_WITH_PRODUCTION_VERCEL_DOMAIN"]
+ALLOWED_ORIGINS = ["https://ecom-workflow-agent-web.vercel.app"]
 
 app = FastAPI(title="Ops Intelligence Agent API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-# Order matters: Starlette runs the first-added middleware outermost, so
-# each layer here sees the request before the one below it. CORS goes
-# first so preflight is handled before anything else; the proxy-secret
-# check goes next so an unauthorized request is rejected before it can
-# spend a rate-limit token.
+# Order matters: FastAPI/Starlette's add_middleware() prepends (inserts at
+# position 0), so the *last*-added middleware ends up outermost — it's the
+# first to see an incoming request, not the first-added. CORS is added
+# last so it's actually outermost: a browser's OPTIONS preflight must be
+# answered by CORSMiddleware itself (200/400 based on origin) before
+# ProxySecretMiddleware ever sees it, since a preflight never carries
+# X-Internal-Proxy-Secret and would otherwise get an unconditional 403
+# regardless of origin — silently making the origin allowlist unreachable.
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(ProxySecretMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(ProxySecretMiddleware)
-app.add_middleware(SlowAPIMiddleware)
 app.include_router(query_router)
 app.include_router(rag_router)
 app.include_router(orchestrator_router)
