@@ -5,6 +5,8 @@ ALLOWED_TABLES = {
     "order_items",
     "refunds",
     "support_tickets",
+    "web_analytics",
+    "campaigns",
 }
 
 # Column-level exclusion: never show this to the model, never allow it in a

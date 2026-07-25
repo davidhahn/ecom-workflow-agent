@@ -26,7 +26,7 @@ The role/grant migration requires `OPS_AGENT_DB_PASSWORD` to be set in `.env` be
 
 `POST /query/sql` (`{"question": "..."}`) turns a natural-language question into a SQL query via Claude tool-calling, then runs it through four independent safety layers before executing — see `app/query/`:
 
-1. **AST validation** (`app/query/validation.py`) — parses with `sqlglot`, rejects multi-statement input, non-SELECT statements, tables outside the 6 Part 1 tables, bare `SELECT *`, `customers.email`, and a function denylist (`pg_sleep`, `dblink`, `lo_import`/`lo_export`, `pg_read_file`, etc).
+1. **AST validation** (`app/query/validation.py`) — parses with `sqlglot`, rejects multi-statement input, non-SELECT statements, tables outside `ALLOWED_TABLES` (`app/query/constants.py`; the original 6 Part 1 tables plus `web_analytics`/`campaigns`), bare `SELECT *`, `customers.email`, and a function denylist (`pg_sleep`, `dblink`, `lo_import`/`lo_export`, `pg_read_file`, etc).
 2. **Cost gate** (same file) — runs `EXPLAIN` and rejects if the estimated cost exceeds `QUERY_COST_THRESHOLD` (env var, default 10000); auto-appends `LIMIT 500` if the query has none.
 3. **Database enforcement** (`alembic/versions/e226476acfd7_*.py`) — the app executes through a dedicated `ops_agent_readonly` role with column-level grants (not table-grant-then-revoke — see `DECISIONS.md` #6 for why that doesn't work), a 5s `statement_timeout`, and `default_transaction_read_only`.
 4. **Audit log** (`app/query/audit.py` → `query_audit_log` table) — every attempt is logged regardless of outcome: the question, generated SQL, stated intent, and per-layer pass/fail.
