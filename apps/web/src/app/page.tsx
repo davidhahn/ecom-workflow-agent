@@ -97,7 +97,7 @@ export default function AskPage() {
 
       {state.status === "success" && state.result.incomplete && (
         <div className="flex flex-col gap-1 rounded-md border-2 border-amber-400 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-          <p className="font-semibold">⚠ Unable to complete this request</p>
+          <p className="font-semibold">Unable to complete this request</p>
           <p>{state.result.answer}</p>
         </div>
       )}
@@ -119,7 +119,7 @@ export default function AskPage() {
 
           {!state.result.grounded && (
             <div className="flex flex-col gap-1 rounded-md border-2 border-red-400 bg-red-50 p-4 text-sm text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
-              <p className="font-semibold">⚠ This response contains an unverified claim</p>
+              <p className="font-semibold">This response contains an unverified claim</p>
               <p>
                 At least one cited policy rule wasn&apos;t among what was actually retrieved for
                 this request. The answer is still shown below — treat it with caution until this
@@ -137,7 +137,7 @@ export default function AskPage() {
 
           {state.result.topic_coverage_warning && (
             <div className="flex flex-col gap-1 rounded-md border-2 border-red-400 bg-red-50 p-4 text-sm text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
-              <p className="font-semibold">⚠ This response may reference unavailable data</p>
+              <p className="font-semibold">This response may reference unavailable data</p>
               <p>
                 This response may reference shipment/delivery data not available to the current
                 toolset. The answer is still shown below — treat it with caution until this is

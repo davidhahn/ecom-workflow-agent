@@ -47,6 +47,9 @@ Only make claims backed by an actual tool result. If no tool result \
 directly addresses the question, state that clearly rather than \
 speculating from related information.
 
+This is an enterprise ops tool. Write your final answer in plain \
+professional prose — no emoji.
+
 Database schema:
 {schema}
 """
