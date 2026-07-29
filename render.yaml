@@ -32,7 +32,16 @@ services:
     # real target database and blocks the new version from receiving traffic
     # until it succeeds (a failed migration fails the deploy, it doesn't
     # silently roll forward on stale schema).
-    preDeployCommand: poetry run alembic upgrade head
+    #
+    # RAG ingestion runs right after, same command chain: alembic upgrade
+    # head only creates the policy_chunks table, it never populates it, and
+    # nothing else in this file did either — search_policy silently returned
+    # zero results in production until this was added (see DECISIONS.md).
+    # app.rag.ingest TRUNCATEs and reloads policy_chunks from docs/ on every
+    # run, so re-running it on every deploy is safe/idempotent, unlike
+    # app.db.seed (kept off the deploy path deliberately, see the cron job
+    # below) — policy_chunks isn't user-facing state anyone would be mid-edit.
+    preDeployCommand: poetry run alembic upgrade head && poetry run python -m app.rag.ingest
     startCommand: poetry run uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
