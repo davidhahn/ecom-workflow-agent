@@ -13,7 +13,7 @@ An operations agent for eCommerce data that treats LLM output as untrusted: Clau
 
 - **An enforcement seam between the LLM and execution.** Claude extracts intent via structured tool calls; a Python state machine owns all execution authorization (SQL verb/table permissions, refund thresholds, approval routing). The LLM never executes directly. -> [`apps/api/app/orchestrator/`](apps/api/app/orchestrator/)
 - **Groundedness checking tuned to refuse rather than hallucinate.** RAG-sourced claims are verified against the retrieved passage, with the check deliberately biased toward false positives: a wrongly flagged answer costs a warning banner, an unflagged hallucination costs trust. -> [`apps/api/app/orchestrator/groundedness.py`](apps/api/app/orchestrator/groundedness.py)
-- **A 21-case eval suite (rule-based + manual-review) with two cases already wired into pytest.** The cases, the design rationale, and the known gaps are documented, not just the pass rate. -> [EVALS.md](EVALS.md)
+- **A 53-case eval suite (exact-match, rule-based, and manual-review) spanning SQL, RAG, refund/ticket/invoice evaluation, permissions, topic coverage, and prompt injection, with 2 cases already wired into pytest.** The cases, the design rationale, and the known gaps are documented, not just the pass rate. -> [EVALS.md](EVALS.md)
 - **Per-request observability in the product, not just the logs.** Latency, token counts, dollar cost, cache hits, and grounded status for every request, visible on the live [Activity page](https://ecom-workflow-agent-web.vercel.app/activity).
 - **Refund evaluation as a decision, never a mutation.** Natural-language request in, structured verdict with a rule citation out ("approved under rule 4"), extracted fields shown for audit, zero write access to the refunds table. -> [`apps/api/app/orchestrator/refund_service.py`](apps/api/app/orchestrator/refund_service.py)
 
@@ -53,7 +53,7 @@ The two gates are separate because they fail differently: a refund can pass ever
 | Backend | Python 3.14, FastAPI |
 | Orchestration | Anthropic Python SDK (claude-sonnet-4-6) |
 | Storage / retrieval | Postgres + pgvector; BGE-M3 (local dev) / Voyage AI (deploy) |
-| Evals | Case suite: exact-match, rule-based, manual-review (2 of 21 cases wired into pytest so far) |
+| Evals | Case suite: exact-match, rule-based, manual-review (2 of 53 cases wired into pytest so far) |
 
 ## Quickstart
 

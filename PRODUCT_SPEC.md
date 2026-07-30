@@ -26,8 +26,8 @@ A third surface, **refund request evaluation**, was built alongside these to giv
 Deliberately out of scope for this phase — not because they don't matter, but because proving the two core paths work has to come first:
 
 - **Executing** a refund decision (writing to the `refunds` table). Part 1 evaluates and recommends only.
-- Multi-agent decomposition, model routing, or any orchestration beyond a single tool-calling loop.
-- Prompt-injection defense, auth/RBAC, or row-level data isolation (the structural gate restricts *what* can be queried — tables, columns, verbs — not *whose* data a given caller can see).
+- Multi-agent decomposition, model routing, or any orchestration beyond a single tool-calling loop as a user-facing feature — a Planner → Data Analyst pipeline already exists (`app/orchestrator/investigation_planner.py`, `data_analyst.py`) but isn't wired to an endpoint yet (see `DECISIONS.md` #26).
+- No dedicated prompt-injection defense feature exists — though an 8-case `prompt_injection` eval category is actively run against the system, with at least one documented finding (see `DECISIONS.md` #9, the fabricated-rule-number case). Auth/RBAC and row-level data isolation remain out of scope (the structural gate restricts *what* can be queried — tables, columns, verbs — not *whose* data a given caller can see).
 - Full PII column-scoping — only `customers.email` is currently hardcoded out of reach. See `ARCHITECTURE.md`'s open questions.
 - A dedicated review/monitoring workflow for analysts auditing the agent's own answers — request logging exists, but nothing is built on top of it yet.
 
