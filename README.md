@@ -41,7 +41,7 @@ The two gates are separate because they fail differently: a refund can pass ever
 
 ## Known limitations
 
-- Seed-date staleness affects time-relative rules (documented, not yet fixed).
+- Seed-date staleness is fixed for the rules it actually affects (rules 2, 3, 7) — those rows are offset from the current time rather than a fixed calendar date. The bulk dataset stays calendar-fixed on purpose, for reproducibility. Rule 6 (the $200 approval threshold) is separately unreachable — no seeded order exceeds it — which is a price/quantity gap, not a date one.
 - PII column-scoping is only hardcoded for one column: the structural gate blocks `customers.email` explicitly (`app/query/constants.py`), but there's no general column-level policy beyond that single entry.
 - The Ask interface is single-turn; follow-up questions start a new request.
 

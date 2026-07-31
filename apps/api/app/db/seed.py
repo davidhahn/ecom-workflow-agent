@@ -32,6 +32,10 @@ RNG = random.Random(20260706)
 
 ANCHOR = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
+# Shared "now" for eval-relevant rows; everything else stays ANCHOR-relative
+# (see DECISIONS.md #14).
+NOW = datetime.now(timezone.utc)
+
 
 def uid(*parts: str) -> uuid.UUID:
     return uuid.uuid5(NAMESPACE, ":".join(parts))
@@ -158,14 +162,9 @@ multi_item_refunded = add_item(multi_order_id, product_by_name["Bluetooth Headph
 multi_item_untouched_a = add_item(multi_order_id, product_by_name["Wireless Mouse"], 1)
 multi_item_untouched_b = add_item(multi_order_id, product_by_name["USB-C Charging Cable"], 2)
 
-# --- edge case: changed_mind refund that violates the 14-day window (rule 3)
-#     once requested_at - order_date is computed. Time-relative to *now*,
-#     not ANCHOR, since this order's age is what the refund-evaluator eval
-#     suite's window-violation case (refund-04) actually exercises — a fixed
-#     calendar date here decays as real time passes; see DECISIONS.md #14. -
-policy_order_id = add_order(
-    datetime.now(timezone.utc) - timedelta(days=45), customer_index=1, status="delivered"
-)
+# --- edge case: changed_mind refund violating the 14-day window (rule 3).
+#     NOW-relative so refund-04 stays reachable — see DECISIONS.md #14. ----
+policy_order_id = add_order(NOW - timedelta(days=45), customer_index=1, status="delivered")
 policy_violation_item = add_item(policy_order_id, product_by_name["Ergonomic Desk Chair"], 1)
 
 # --- edge case: damaged_shipping refunds with evidence_submitted variation
@@ -187,14 +186,10 @@ evidence_false_item = add_item(evidence_false_order, product_by_name["Cotton Bat
 final_sale_order_id = add_order(ANCHOR - timedelta(days=10), customer_index=10, status="delivered")
 final_sale_item = add_item(final_sale_order_id, product_by_name["Last-Season Winter Jacket"], 1)
 
-# --- edge case: repeat-refund flag (rule 7) -- 3 approved refunds for one
-#     customer, all with requested_at inside the trailing 90-day window from
-#     *now* (unlike every other refund in this file, whose requested_at is
-#     ANCHOR-relative and has since aged out of that window -- see
-#     DECISIONS.md #14). Order dates themselves don't drive any rule outcome
-#     here, so they're left ANCHOR-relative like the rest of the file.
-#     Charlotte Dubois (customer_index 12) isn't used by any other edge
-#     case, to avoid interaction effects. -----------------------------------
+# --- edge case: repeat-refund flag (rule 7) -- 3 approved refunds within
+#     90 days of NOW (see DECISIONS.md #14). Order dates don't matter here,
+#     so they stay ANCHOR-relative. Charlotte Dubois (customer_index 12)
+#     isn't reused elsewhere, to avoid interaction effects. -----------------
 repeat_refund_order_1 = add_order(ANCHOR - timedelta(days=60), customer_index=12, status="delivered")
 repeat_refund_item_1 = add_item(repeat_refund_order_1, product_by_name["Wireless Keyboard"], 1)
 
@@ -216,15 +211,10 @@ for product in HIGH_REFUND_PRODUCTS:
         item_id = add_item(o_id, product, 1)
         high_refund_items[product["name"]].append(item_id)
         if product["name"] == "Bluetooth Headphones Pro" and j == 1:
-            # refund-05's underlying order (Liam Patel, customer_index 3):
-            # its age drives the defective 90-day window eval case, so it's
-            # overridden to be time-relative to *now* rather than left
-            # pinned to this loop's ANCHOR-relative random draw. Overridden
-            # after the fact, not by skipping the RNG call above, so every
-            # other order in this loop keeps drawing from the same RNG
-            # stream position it always has -- nothing else in this file
-            # shifts as a result.
-            orders[-1]["order_date"] = datetime.now(timezone.utc) - timedelta(days=150)
+            # refund-05 needs this order (Liam Patel) ~90 days old, so it's
+            # overridden to NOW-relative here, after the RNG draw above --
+            # keeps every other order in this loop unaffected.
+            orders[-1]["order_date"] = NOW - timedelta(days=150)
 
 # --- remaining filler orders for volume + general realism -----------------
 FILLER_PRODUCT_NAMES = [
@@ -318,16 +308,9 @@ add_item(normal_shipment_order_8, product_by_name["Cotton Bath Towel Set"], 1)
 
 # ---------------------------------------------------------------------------
 # revenue-dip story (Part 3 demo query: "why did revenue drop last week?")
-# --  a 14-day window of real orders, time-relative to *now* like the
-# other Part 2/3 blocks above (see DECISIONS.md #14) rather than
-# ANCHOR-relative, so the dip stays in the trailing 14 days across
-# reseeds instead of decaying. All dates below are computed from this one
-# NOW so every row in this block shares the same instant, rather than
-# drifting against separate datetime.now() calls if seeding happens to
-# straddle a day boundary. Revenue itself is never stored directly -- it's
-# whatever SUM(order_items.quantity * order_items.unit_price_cents) over
-# these orders comes out to, same as everywhere else in this file. -------
-NOW = datetime.now(timezone.utc)
+# -- NOW-relative (shared NOW from the top of the file) so the dip stays in
+# the trailing 14 days across reseeds. Revenue is never stored directly --
+# it's SUM(order_items.quantity * unit_price_cents) over these orders. -----
 
 
 def _dip_order(days_ago: int, product_name: str, customer_index: int) -> uuid.UUID:
@@ -603,7 +586,7 @@ for item_id, days_ago, reason in [
         _item["quantity"] * _item["unit_price_cents"],
         reason,
         "approved",
-        datetime.now(timezone.utc) - timedelta(days=days_ago),
+        NOW - timedelta(days=days_ago),
     )
 
 # high refund-rate products: 4 of 5 items refunded (approved), within policy
@@ -773,10 +756,9 @@ while len(support_tickets) < 20:
     )
 
 # ---------------------------------------------------------------------------
-# web_analytics + campaigns (Part 3 demo query: "why did revenue drop last
-# week?"). Time-relative to NOW (defined above, in the revenue-dip orders
-# block), not ANCHOR -- see DECISIONS.md #14. No revenue-shaped column
-# here; revenue is always computed from orders (see above).
+# web_analytics + campaigns (Part 3 demo query). NOW-relative, not ANCHOR --
+# see DECISIONS.md #14. No revenue column here; revenue is computed from
+# orders (see above).
 # ---------------------------------------------------------------------------
 
 web_analytics = []

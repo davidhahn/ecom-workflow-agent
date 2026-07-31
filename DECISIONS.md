@@ -54,16 +54,16 @@
 - The Win: Deterministic, reproducible seed data (established in decision #4) — the same
   rows exist every time seed.py runs, so hand-verified edge cases stay findable and
   eval expected-values stay stable across re-seeds.
-- The Tradeoff Accepted: Discovered while generating eval cases: every rule with a
-  time-relative window (2, 3, 6's implicit recency assumptions, and especially 7's
-  90-day trailing check) decays against fixed calendar dates as real time passes. Rule
-  7 is already fully unreachable — no seeded refund falls within 90 days of "now" as
-  of this writing — and this will only get worse, not resolve itself, the longer this
-  project sits between demos or interviews. Not fixed as part of this eval-authoring
-  pass since it's a seed-generation change, not an eval-case change; flagged here as a
-  known, worsening gap. Fix path if revisited: compute time-relative seed fields
-  (requested_at, order_date) as offsets from datetime.now() at seed-time rather than
-  fixed dates, so edge cases stay evergreen regardless of when seed.py actually runs.
+- The Tradeoff Accepted: Every rule with a time-relative window (2, 3, and especially
+  7's 90-day check) decays against fixed calendar dates as real time passes. Rule 7 was
+  fully unreachable when this was written. Fixed once: rules 2, 3, and 7's rows
+  switched from `ANCHOR`-relative to `datetime.now()`-relative. A later
+  change consolidated those three separate `datetime.now()` calls into one shared `NOW`
+  variable (matching the revenue-dip block's existing pattern) — a consistency
+  cleanup, not a second fix; reachability was verified identical before and after,
+  directly in the database, across two reseeds. The bulk dataset stays
+  `ANCHOR`-relative on purpose. Rule 6 ($200 threshold) remains separately
+  unreachable — no seeded order exceeds it — a price issue, not a date one.
 
 15. Groundedness Eval Cases: Reconciling JSON Fixtures with Typed Function Input
 - The Win: `evals/cases.json` stores `retrieved_chunks` as plain JSON dicts (necessary,
