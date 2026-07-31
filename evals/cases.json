@@ -241,6 +241,22 @@
     "failure_trap": "The boundary case for rule 7: catches a model that over-applies the repeat-refund flag to any customer with prior approved-refund history at all, rather than the specific >=3-approved-within-90-days threshold. Noah Martinez has exactly 1 approved refund in the trailing window (a second one exists but is 276 days old, outside the window) - this must clear rule 7 untouched and approve normally under rule 2."
   },
   {
+    "id": "refund-11-over-threshold-needs-manager",
+    "category": "refund_evaluator",
+    "input": "Hi, this is Henry Osei. I bought 2 Ergonomic Desk Chairs and they're not what I ordered - you sent me the wrong item. I'd like a refund.",
+    "expected": { "status": "requires_manager_approval", "rule_applied": 6 },
+    "scoring": "exact_match",
+    "failure_trap": "Catches a waterfall that ignores the $200 threshold entirely. Henry Osei's order is 2x Ergonomic Desk Chair ($159.99 each = $319.98), seeded specifically for this case: Office category (no rule 9 exclusion), wrong_item has no time window (no rule 2/3/4/5 rejection), and Henry Osei has zero prior refunds (no rule 7 interaction) - the only rule left that can fire is the $200 approval threshold, requiring manager approval rather than a plain approve."
+  },
+  {
+    "id": "refund-12-repeat-refund-flag-damaged-shipping-with-evidence",
+    "category": "refund_evaluator",
+    "input": "Hi, this is Charlotte Dubois. My Wireless Keyboard arrived damaged during shipping and I've already attached photos of the damage. Can I get a refund?",
+    "expected": { "status": "flagged_for_review", "rule_applied": 7 },
+    "scoring": "exact_match",
+    "failure_trap": "Complements refund-07 with a different reason code: damaged_shipping with evidence submitted clears both the time-window check (no limit for this reason) and the evidence check (rule 4) cleanly, so a model that only checks 'did this specific request pass its own rules' would approve it. Charlotte Dubois already has 3 approved refunds within the trailing 90-day window (the same fixture refund-07 uses), so rule 7 must still override and flag this for review before reaching the approval threshold, regardless of this request's own reason clearing every check on its own merits."
+  },
+  {
     "id": "ticket-01-draft-succeeds-full-resolution",
     "category": "ticket_evaluator",
     "input": "{\"action\": \"draft\", \"request_text\": \"Hi, this is James O'Brien. The Organic Green Tea (20ct) I received had a broken seal on the packaging.\"}",

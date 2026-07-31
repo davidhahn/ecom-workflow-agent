@@ -199,6 +199,12 @@ repeat_refund_item_2 = add_item(repeat_refund_order_2, product_by_name["Wireless
 repeat_refund_order_3 = add_order(ANCHOR - timedelta(days=50), customer_index=12, status="delivered")
 repeat_refund_item_3 = add_item(repeat_refund_order_3, product_by_name["Wireless Keyboard"], 1)
 
+# --- edge case: approval threshold (rule 6) -- 2x Ergonomic Desk Chair
+#     ($159.99 each) = $319.98, over the $200 threshold. wrong_item has no
+#     time window, so ANCHOR-relative is fine here. ------------------------
+threshold_order_id = add_order(ANCHOR - timedelta(days=8), customer_index=13, status="delivered")
+threshold_item = add_item(threshold_order_id, product_by_name["Ergonomic Desk Chair"], 2)
+
 # --- high refund-rate products: 5 orders each, most items refunded --------
 high_refund_items: dict[str, list[uuid.UUID]] = {p["name"]: [] for p in HIGH_REFUND_PRODUCTS}
 for product in HIGH_REFUND_PRODUCTS:

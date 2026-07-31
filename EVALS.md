@@ -23,11 +23,11 @@ Each case has the same six fields:
 - **`sql` and `rag`** test retrieval and query-generation, not prose. There's no single "correct" SQL string or "correct" wording for a retrieved chunk — many different queries or phrasings can be equally right. `expected` instead specifies structural properties that any correct answer must satisfy (tables joined, columns that must never appear, whether the request is a read-only-violation attempt; which `rule_number`(s) must appear in top-3 retrieval), and `scoring` is `rule_based`.
 - **`mixed`** exercises the full `/query/analyze` orchestrator loop across both tools at once. There's no reliable automated way yet to score whether a free-text answer correctly combined a SQL result with a policy citation — that requires reading the answer. `expected` is a set of key points a correct answer should hit, and `scoring` is `manual_review`.
 
-## Category breakdown (53 cases)
+## Category breakdown (55 cases)
 
 | Category | Count |
 |---|---|
-| `refund_evaluator` | 10 |
+| `refund_evaluator` | 12 |
 | `invoice_evaluator` | 8 |
 | `prompt_injection` | 8 |
 | `ticket_evaluator` | 6 |
@@ -55,11 +55,9 @@ These are two different failure directions, not one concept tested twice. A bug 
 
 Documented explicitly rather than left implicit:
 
-- **Rule 6 (approval threshold, $200+) has no reachable eval case.** No seeded `order_item` exceeds $159.99 (`Ergonomic Desk Chair`, the highest-priced row in the dataset), and the refund-request extractor has no field for a customer-stated quantity override that could push a line total over the threshold. There is currently no way to construct a real, DB-grounded case that reaches this branch of `evaluate_refund()`.
 - **`groundedness` cases don't fit the single-`input`-field schema cleanly.** `check_groundedness()` takes two arguments (`answer`, `retrieved_chunks`), not one. Both cases in this suite encode both as a single JSON-stringified object in the `input` field to stay within the given schema. Worth revisiting if Part 4's runner ends up needing more multi-argument cases like this — a stringified-JSON `input` is a workable stopgap, not a pattern to scale indefinitely.
 
 ## Out of scope for this pass
 
 - No runner implemented (Part 4).
 - No automated scoring for `mixed`/`manual_review` cases.
-- No eval case for rules 6 or 7 until the gaps above are actually addressed (seed-data or extraction changes, not eval-authoring changes).
