@@ -1,6 +1,6 @@
 # Evals
 
-Eval cases for Part 1's two proven paths (SQL refund-rate analysis, RAG refund-policy lookup) plus the two orchestrator surfaces built on top of them (the combined `/query/analyze` path and `/refund/evaluate`). Cases live in `evals/cases.json`. The 2 `groundedness` cases are wired into an automated runner — `apps/api/tests/test_groundedness_evals.py` parametrizes pytest over them and calls the real `check_groundedness()` function directly. The other 9 categories have no automated runner yet and are run manually; a general-purpose runner across all categories is still Part 4 scope.
+Eval cases for Part 1's two proven paths (SQL refund-rate analysis, RAG refund-policy lookup) plus the two orchestrator surfaces built on top of them (the combined `/query/analyze` path and `/refund/evaluate`). Cases live in `evals/cases.json`. Four categories — `refund_evaluator`, `groundedness`, `topic_coverage`, `permission` (22 cases total) — run automatically via `evals/run.py`, which dispatches each case to the real function or live endpoint it tests (see `evals/README.md` for why these four went first). The 2 `groundedness` cases are additionally wired into `apps/api/tests/test_groundedness_evals.py`, which parametrizes pytest over them and calls `check_groundedness()` directly. The other 6 categories (`sql`, `rag`, `mixed`, `ticket_evaluator`, `invoice_evaluator`, `prompt_injection`) have no automated runner yet and are run manually.
 
 ## Schema
 
@@ -59,5 +59,5 @@ Documented explicitly rather than left implicit:
 
 ## Out of scope for this pass
 
-- No runner implemented (Part 4).
+- No runner yet for `sql`, `rag`, `mixed`, `ticket_evaluator`, `invoice_evaluator`, `prompt_injection` — `evals/run.py` (Part 4) currently covers `refund_evaluator`, `groundedness`, `topic_coverage`, and `permission` only.
 - No automated scoring for `mixed`/`manual_review` cases.
