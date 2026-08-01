@@ -1,8 +1,8 @@
 # Evals
 
-A quick overview of four of the categories in `evals/cases.json`. Each section explains the following:
+A quick overview of five of the categories in `evals/cases.json`. Each section explains the following:
 - What each one is actually checking
-- Why it can be scored with a plain equality check instead of a judgment call
+- Why it can be scored automatically instead of a judgment call
 - What it means when one fails
 
 ## `refund_evaluator`
@@ -24,3 +24,9 @@ These six cases are more of an integration test than a model eval. They confirm 
 ## Why these four first
 
 None of these four categories actually measure LLM quality. They should score at or near 100%, and that's by design. They're the control group: no model calls, no cost, no variance, and outcomes that are already known. They prove the harness, case data, and reporting work before any of this gets pointed at real, noisy model behavior. They'll later anchor a deterministic CI gate. A failure here means a bug in the implementation, the harness, or the fixture data, not the model.
+
+## `sql`
+
+The first category that actually calls the model: each case sends its question to `/query/sql` and checks the SQL it generates — right tables, no blocked columns, right status. There's no single correct SQL string, so scoring checks for the right pieces of text instead of an exact match. When one fails, it means the generated SQL got the wrong answer or leaked a column it shouldn't have.
+
+**Known limitation:** this is text matching, not real SQL parsing, so it can be fooled — a table joined through an alias could look like a miss, and a name inside a comment or string could look like a hit. It's a first pass, not a full solution. (One fixture field, `expected_rejection_layer`, isn't checked — the endpoint doesn't return that.)

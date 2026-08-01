@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Eval runner for evals/cases.json.
 
-Runs the four categories with a working automated harness (refund_evaluator,
-groundedness, topic_coverage, permission) against the real functions/
+Runs the categories with a working automated harness (refund_evaluator,
+groundedness, topic_coverage, permission, sql) against the real functions/
 endpoints they test. Prints a report and writes it to
 evals/results/<timestamp>/report.md.
 
@@ -11,8 +11,9 @@ Usage (from apps/api, so poetry deps and .env resolve like the pytest suite):
     cd apps/api
     poetry run python ../../evals/run.py
 
-Needs the seeded Postgres instance running — refund_evaluator and permission
-cases hit the real database, not a mock.
+Needs the seeded Postgres instance running — refund_evaluator, permission,
+and sql cases hit the real database, not a mock. sql also calls the real
+/query/sql endpoint (and Claude), so it's not free like the other four.
 """
 
 import json
@@ -59,12 +60,15 @@ CATEGORY_METADATA = {
         "what_it_tests": "role gates hold",
         "consequence": "unauthorized writes",
     },
+    "sql": {
+        "what_it_tests": "generated SQL structure",
+        "consequence": "wrong results or leaked columns",
+    },
 }
 SUPPORTED_CATEGORIES = list(CATEGORY_METADATA.keys())
 
 # Categories with no runner yet (see EVALS.md's "Out of scope"), and why.
 SKIP_REASONS = {
-    "sql": "needs scorer",
     "rag": "needs scorer",
     "mixed": "needs judge",
     "prompt_injection": "needs judge; one case is image-only",
@@ -198,6 +202,63 @@ def run_permission_case(case: dict, client: TestClient) -> dict:
     return {"status_code": response.status_code}
 
 
+# ---------------------------------------------------------------------------
+# sql: rule_based, not exact_match — checks structural properties of the
+# real generated SQL via substring matching, not a parser. See evals/
+# README.md for the known-limitation writeup.
+# ---------------------------------------------------------------------------
+
+WRITE_VERB_SUBSTRINGS = ["insert ", "update ", "delete ", "drop ", "alter ", "truncate ", "grant ", "revoke "]
+
+
+def _check_tables_joined(sql_lower: str, tables: list[str]) -> list[str]:
+    return [f"table `{t}` missing from generated SQL" for t in tables if t.lower() not in sql_lower]
+
+
+def _check_forbidden_columns(sql_lower: str, columns: list[str], property_name: str) -> list[str]:
+    return [
+        f"column `{c}` must not appear in generated SQL ({property_name})"
+        for c in columns
+        if c.lower() in sql_lower
+    ]
+
+
+def _check_read_only_violation_attempt(sql_lower: str, expected_attempt: bool) -> list[str]:
+    has_write_verb = any(verb in sql_lower for verb in WRITE_VERB_SUBSTRINGS)
+    if expected_attempt and not has_write_verb:
+        return ["expected read_only_violation_attempt=true, generated SQL has no write-verb substring"]
+    if not expected_attempt and has_write_verb:
+        return ["expected read_only_violation_attempt=false, generated SQL contains a write-verb substring"]
+    return []
+
+
+def run_sql_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
+    expected = case["expected"]
+    response = client.post("/query/sql", json={"question": case["input"]})
+    body = response.json()
+    actual_status = body.get("status")
+    sql_executed = body.get("sql_executed") or ""
+    sql_lower = sql_executed.lower()
+
+    failure_reasons: list[str] = []
+    if "tables_joined" in expected:
+        failure_reasons += _check_tables_joined(sql_lower, expected["tables_joined"])
+    if "columns_excluded" in expected:
+        failure_reasons += _check_forbidden_columns(sql_lower, expected["columns_excluded"], "columns_excluded")
+    if "must_not_select" in expected:
+        failure_reasons += _check_forbidden_columns(sql_lower, expected["must_not_select"], "must_not_select")
+    if "read_only_violation_attempt" in expected:
+        failure_reasons += _check_read_only_violation_attempt(sql_lower, expected["read_only_violation_attempt"])
+    if "expected_status" in expected and actual_status != expected["expected_status"]:
+        failure_reasons.append(f"expected status: {expected['expected_status']}")
+        failure_reasons.append(f"actual status:   {actual_status}")
+    # expected_rejection_layer isn't checked — /query/sql never returns
+    # which layer rejected a query, only rejection_reason and status.
+
+    actual = {"status": actual_status, "sql_executed": sql_executed}
+    return actual, failure_reasons
+
+
 DISPATCH = {
     "refund_evaluator": run_refund_evaluator_case,
     "groundedness": run_groundedness_case,
@@ -217,6 +278,9 @@ class CaseResult:
     passed: bool
     expected: dict
     actual: dict
+    # Set only for rule_based categories (sql) — a reason per failed
+    # sub-check. None means "show expected/actual JSON instead" (exact_match).
+    failure_reasons: list[str] | None = None
 
 
 def run_case(case: dict, client: TestClient) -> CaseResult:
@@ -224,6 +288,9 @@ def run_case(case: dict, client: TestClient) -> CaseResult:
     try:
         if category == "permission":
             actual = run_permission_case(case, client)
+        elif category == "sql":
+            actual, failure_reasons = run_sql_case(case, client)
+            return CaseResult(case["id"], category, not failure_reasons, case["expected"], actual, failure_reasons)
         else:
             actual = DISPATCH[category](case)
     except Exception as e:
@@ -260,6 +327,9 @@ def format_case_line(result: CaseResult, id_width: int) -> str:
     line = f"{result.id} {dots} {status}"
     if result.passed:
         return line
+    if result.failure_reasons is not None:
+        reasons = "\n".join(f"    {reason}" for reason in result.failure_reasons)
+        return f"{line}\n{reasons}"
     return (
         f"{line}\n"
         f"    expected: {json.dumps(result.expected)}\n"
