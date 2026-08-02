@@ -2,8 +2,8 @@
 """Eval runner for evals/cases.json.
 
 Runs the categories with a working automated harness (refund_evaluator,
-groundedness, topic_coverage, permission, sql) against the real functions/
-endpoints they test. Prints a report and writes it to
+groundedness, topic_coverage, permission, sql, rag) against the real
+functions/endpoints they test. Prints a report and writes it to
 evals/results/<timestamp>/report.md.
 
 Usage (from apps/api, so poetry deps and .env resolve like the pytest suite):
@@ -12,8 +12,10 @@ Usage (from apps/api, so poetry deps and .env resolve like the pytest suite):
     poetry run python ../../evals/run.py
 
 Needs the seeded Postgres instance running — refund_evaluator, permission,
-and sql cases hit the real database, not a mock. sql also calls the real
-/query/sql endpoint (and Claude), so it's not free like the other four.
+sql, and rag cases hit the real database, not a mock. sql also calls the
+real /query/sql endpoint (and Claude), so it's not free or fully
+deterministic like the rest. rag hits the real /query/rag endpoint too, but
+that's embedding + cosine search, no LLM call, so it stays deterministic.
 """
 
 import json
@@ -64,12 +66,15 @@ CATEGORY_METADATA = {
         "what_it_tests": "generated SQL structure",
         "consequence": "wrong results or leaked columns",
     },
+    "rag": {
+        "what_it_tests": "policy retrieval recall",
+        "consequence": "wrong or missing policy rule cited",
+    },
 }
 SUPPORTED_CATEGORIES = list(CATEGORY_METADATA.keys())
 
 # Categories with no runner yet (see EVALS.md's "Out of scope"), and why.
 SKIP_REASONS = {
-    "rag": "needs scorer",
     "mixed": "needs judge",
     "prompt_injection": "needs judge; one case is image-only",
     "ticket_evaluator": "needs harness (draft/confirm flow)",
@@ -259,6 +264,27 @@ def run_sql_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
     return actual, failure_reasons
 
 
+# ---------------------------------------------------------------------------
+# rag: recall only — did the labeled rule come back in top-k. Doesn't check
+# for irrelevant chunks or whether an answer would use the rule correctly.
+# ---------------------------------------------------------------------------
+
+
+def run_rag_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
+    expected_rules = case["expected"]["must_include_rule_numbers"]
+    response = client.post("/query/rag", json={"question": case["input"]})
+    body = response.json()
+    retrieved_rules = [chunk["rule_number"] for chunk in body.get("chunks", [])]
+
+    missing = [rule for rule in expected_rules if rule not in retrieved_rules]
+    failure_reasons: list[str] = []
+    if missing:
+        failure_reasons.append(f"expected rule: {missing[0] if len(missing) == 1 else missing}")
+        failure_reasons.append(f"retrieved rules: {retrieved_rules}")
+
+    return {"retrieved_rules": retrieved_rules}, failure_reasons
+
+
 DISPATCH = {
     "refund_evaluator": run_refund_evaluator_case,
     "groundedness": run_groundedness_case,
@@ -288,8 +314,8 @@ def run_case(case: dict, client: TestClient) -> CaseResult:
     try:
         if category == "permission":
             actual = run_permission_case(case, client)
-        elif category == "sql":
-            actual, failure_reasons = run_sql_case(case, client)
+        elif category in ("sql", "rag"):
+            actual, failure_reasons = (run_sql_case if category == "sql" else run_rag_case)(case, client)
             return CaseResult(case["id"], category, not failure_reasons, case["expected"], actual, failure_reasons)
         else:
             actual = DISPATCH[category](case)

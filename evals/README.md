@@ -1,6 +1,6 @@
 # Evals
 
-A quick overview of five of the categories in `evals/cases.json`. Each section explains the following:
+A quick overview of six of the categories in `evals/cases.json`. Each section explains the following:
 - What each one is actually checking
 - Why it can be scored automatically instead of a judgment call
 - What it means when one fails
@@ -30,3 +30,9 @@ None of these four categories actually measure LLM quality. They should score at
 The first category that actually calls the model: each case sends its question to `/query/sql` and checks the SQL it generates — right tables, no blocked columns, right status. There's no single correct SQL string, so scoring checks for the right pieces of text instead of an exact match. When one fails, it means the generated SQL got the wrong answer or leaked a column it shouldn't have.
 
 **Known limitation:** this is text matching, not real SQL parsing, so it can be fooled — a table joined through an alias could look like a miss, and a name inside a comment or string could look like a hit. It's a first pass, not a full solution. (One fixture field, `expected_rejection_layer`, isn't checked — the endpoint doesn't return that.)
+
+## `rag`
+
+Each case sends a question to `/query/rag` and checks whether the labeled policy rule shows up among the retrieved chunks. No LLM call here — it's embedding + similarity search — so unlike `sql`, results are stable run to run.
+
+**Known limitation:** this only measures recall — did the right rule come back. It doesn't check whether irrelevant chunks also came back, or whether an answer would actually use the rule correctly.
