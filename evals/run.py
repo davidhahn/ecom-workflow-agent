@@ -285,6 +285,68 @@ def run_rag_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
     return {"retrieved_rules": retrieved_rules}, failure_reasons
 
 
+# ---------------------------------------------------------------------------
+# cache: not a cases.json category — a deterministic regression check that
+# the same /query/sql question is served from cache the second time, with
+# zero tokens and zero cost on the hit. Mirrors
+# apps/api/tests/test_sql_caching.py, plus records latency/tokens/cost.
+# ---------------------------------------------------------------------------
+
+CACHE_CHECK_QUESTION = "How many products are in the Office category? (eval cache check, unique phrasing)"
+
+
+@dataclass
+class CacheCheckResult:
+    passed: bool
+    failure_reasons: list[str]
+    first_cached: bool
+    second_cached: bool
+    first_latency_ms: int
+    second_latency_ms: int
+    first_tokens: tuple[int | None, int | None]
+    second_tokens: tuple[int | None, int | None]
+    first_cost_usd: float | None
+    second_cost_usd: float | None
+
+
+def run_cache_check(client: TestClient) -> CacheCheckResult:
+    first = client.post("/query/sql", json={"question": CACHE_CHECK_QUESTION}).json()
+    second = client.post("/query/sql", json={"question": CACHE_CHECK_QUESTION}).json()
+
+    logs = client.get("/observability/requests", params={"request_type": "sql", "limit": 2}).json()["requests"]
+    second_log, first_log = logs[0], logs[1]
+
+    reasons: list[str] = []
+    if first["cached"] is not False:
+        reasons.append(f"expected first call cached=false, got cached={first['cached']}")
+    if second["cached"] is not True:
+        reasons.append(f"expected second call cached=true, got cached={second['cached']}")
+    if second["status"] != first["status"]:
+        reasons.append(f"cache hit returned a different status: first={first['status']} second={second['status']}")
+    if second["rows"] != first["rows"]:
+        reasons.append("cache hit returned different rows than the original call")
+    if (second_log["input_tokens"], second_log["output_tokens"]) not in ((0, 0), (None, None)):
+        reasons.append(
+            f"expected zero token usage on cache hit, got "
+            f"input={second_log['input_tokens']} output={second_log['output_tokens']}"
+        )
+    if second_log["estimated_cost_usd"] not in (0, 0.0, None):
+        reasons.append(f"expected $0 cost on cache hit, got ${second_log['estimated_cost_usd']}")
+
+    return CacheCheckResult(
+        passed=not reasons,
+        failure_reasons=reasons,
+        first_cached=first["cached"],
+        second_cached=second["cached"],
+        first_latency_ms=first_log["latency_ms"],
+        second_latency_ms=second_log["latency_ms"],
+        first_tokens=(first_log["input_tokens"], first_log["output_tokens"]),
+        second_tokens=(second_log["input_tokens"], second_log["output_tokens"]),
+        first_cost_usd=first_log["estimated_cost_usd"],
+        second_cost_usd=second_log["estimated_cost_usd"],
+    )
+
+
 DISPATCH = {
     "refund_evaluator": run_refund_evaluator_case,
     "groundedness": run_groundedness_case,
@@ -363,6 +425,19 @@ def format_case_line(result: CaseResult, id_width: int) -> str:
     )
 
 
+def render_cache_check(result: CacheCheckResult) -> str:
+    status = "PASS" if result.passed else "FAIL"
+    lines = [
+        f"cache-01-repeated-sql-question ... {status}",
+        f"    first call:  cached={result.first_cached} latency={result.first_latency_ms}ms "
+        f"tokens=(in:{result.first_tokens[0]}, out:{result.first_tokens[1]}) cost=${result.first_cost_usd}",
+        f"    second call: cached={result.second_cached} latency={result.second_latency_ms}ms "
+        f"tokens=(in:{result.second_tokens[0]}, out:{result.second_tokens[1]}) cost=${result.second_cost_usd}",
+    ]
+    lines.extend(f"    {reason}" for reason in result.failure_reasons)
+    return "\n".join(lines)
+
+
 def render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     widths = [len(h) for h in headers]
     for row in rows:
@@ -377,11 +452,17 @@ def render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
-def render_report(results: list[CaseResult], skipped_categories: list[str]) -> str:
+def render_report(results: list[CaseResult], skipped_categories: list[str], cache_result: CacheCheckResult) -> str:
     sections = []
 
     id_width = max((len(r.id) for r in results), default=0)
     sections.append("\n".join(format_case_line(r, id_width) for r in results))
+
+    # Not a cases.json category — a deterministic regression check, kept out
+    # of the quality table below rather than made to look like one.
+    sections.append(
+        "CACHE CHECK (deterministic regression, not an AI-quality category):\n" + render_cache_check(cache_result)
+    )
 
     headers = ["category", "what it tests", "n", "pass", "fail", "rate", "consequence of failure"]
     rows = []
@@ -411,7 +492,8 @@ def render_report(results: list[CaseResult], skipped_categories: list[str]) -> s
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     footer = (
-        f"TOTAL: {total} run, {overall_rate}% pass.\n\n"
+        f"TOTAL: {total} run, {overall_rate}% pass. "
+        f"Cache check: {'PASS' if cache_result.passed else 'FAIL'}.\n\n"
         f"SKIPPED, NOT YET RUNNABLE:\n{skip_lines}\n\n"
         f"{timestamp} | commit {commit}"
     )
@@ -428,8 +510,9 @@ def main() -> int:
 
     client = TestClient(fastapi_app, headers={HEADER_NAME: INTERNAL_PROXY_SECRET})
     results = [run_case(case, client) for case in run_cases]
+    cache_result = run_cache_check(client)
 
-    report = render_report(results, skipped_categories)
+    report = render_report(results, skipped_categories, cache_result)
     print(report)
 
     run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -437,7 +520,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(report + "\n")
 
-    return 0 if all(r.passed for r in results) else 1
+    return 0 if all(r.passed for r in results) and cache_result.passed else 1
 
 
 if __name__ == "__main__":
