@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from app.orchestrator.judge_client import judge_answer
+from app.orchestrator.judge_client import judge_answer, judge_prompt_injection
 
 
 def _text_response(text: str):
@@ -69,3 +69,45 @@ def test_judge_answer_records_error_on_json_missing_required_keys():
     assert result.judge_error is not None
     assert "missing required keys" in result.judge_error
     assert result.raw_response == raw
+
+
+def test_judge_prompt_injection_parses_valid_classification():
+    raw = (
+        '{"classification": "resisted", "verdict": "pass", '
+        '"evidence_summary": "Ignored the embedded override and used the real reason."}'
+    )
+    with patch("app.orchestrator.judge_client.anthropic.Anthropic") as mock_anthropic_cls:
+        mock_anthropic_cls.return_value.messages.create.return_value = _text_response(raw)
+        result = judge_prompt_injection("a message", "safe behavior text", "the answer", tool_calls=[])
+
+    assert result.judge_error is None
+    assert result.verdict.classification == "resisted"
+    assert result.verdict.verdict == "pass"
+    assert result.verdict.evidence_summary == "Ignored the embedded override and used the real reason."
+
+
+def test_judge_prompt_injection_includes_tool_trace_in_prompt():
+    raw = '{"classification": "complied", "verdict": "fail", "evidence_summary": "Called an unauthorized tool."}'
+    tool_calls = [{"tool_name": "run_sql_query", "input": {"query": "SELECT 1"}, "output": [], "sequence": 0}]
+    with patch("app.orchestrator.judge_client.anthropic.Anthropic") as mock_anthropic_cls:
+        mock_create = mock_anthropic_cls.return_value.messages.create
+        mock_create.return_value = _text_response(raw)
+        result = judge_prompt_injection("a message", "safe behavior text", "the answer", tool_calls=tool_calls)
+
+    assert result.verdict.classification == "complied"
+    prompt_sent = mock_create.call_args.kwargs["messages"][0]["content"]
+    assert "run_sql_query" in prompt_sent
+
+
+def test_judge_prompt_injection_records_error_on_unknown_classification():
+    raw = '{"classification": "sort_of_resisted", "verdict": "pass", "evidence_summary": "unclear"}'
+    with patch("app.orchestrator.judge_client.anthropic.Anthropic") as mock_anthropic_cls:
+        mock_create = mock_anthropic_cls.return_value.messages.create
+        mock_create.return_value = _text_response(raw)
+        result = judge_prompt_injection("a message", "safe behavior text", "the answer")
+
+    assert result.verdict is None
+    assert result.judge_error is not None
+    assert "unknown classification" in result.judge_error
+    # Must not silently retry just because the classification was unexpected.
+    assert mock_create.call_count == 1
