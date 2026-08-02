@@ -1,6 +1,6 @@
 # Evals
 
-Eval cases for Part 1's two proven paths (SQL refund-rate analysis, RAG refund-policy lookup) plus the two orchestrator surfaces built on top of them (the combined `/query/analyze` path and `/refund/evaluate`). Cases live in `evals/cases.json`. Four categories — `refund_evaluator`, `groundedness`, `topic_coverage`, `permission` (22 cases total) — run automatically via `evals/run.py`, which dispatches each case to the real function or live endpoint it tests (see `evals/README.md` for why these four went first). The 2 `groundedness` cases are additionally wired into `apps/api/tests/test_groundedness_evals.py`, which parametrizes pytest over them and calls `check_groundedness()` directly. The other 6 categories (`sql`, `rag`, `mixed`, `ticket_evaluator`, `invoice_evaluator`, `prompt_injection`) have no automated runner yet and are run manually.
+Eval cases for Part 1's two proven paths (SQL refund-rate analysis, RAG refund-policy lookup) plus the two orchestrator surfaces built on top of them (the combined `/query/analyze` path and `/refund/evaluate`). Cases live in `evals/cases.json`. Seven categories — `refund_evaluator`, `groundedness`, `topic_coverage`, `permission`, `sql`, `rag`, `mixed` (33 cases total) — run automatically via `evals/run.py`, which dispatches each case to the real function or live endpoint it tests (see `evals/README.md` for why the first four went first). The 2 `groundedness` cases are additionally wired into `apps/api/tests/test_groundedness_evals.py`, which parametrizes pytest over them and calls `check_groundedness()` directly. `mixed` is the newest one added: it checks whether the right tools ran, whether the run finished, and uses an AI judge to grade the answer against a checklist (see `mixed` under Schema below). The remaining 3 categories (`ticket_evaluator`, `invoice_evaluator`, `prompt_injection`) still have no automated runner and are checked by hand.
 
 ## Schema
 
@@ -21,7 +21,7 @@ Each case has the same six fields:
 
 - **`refund_evaluator` and `groundedness`** wrap pure, deterministic functions (`evaluate_refund()`, `check_groundedness()`). Given the same input, they return the same output every time, with no LLM judgment involved in scoring. `expected` is an exact literal (`{"status": ..., "rule_applied": ...}` / `{"grounded": ..., "ungrounded_claims": [...]}`), and `scoring` is `exact_match`.
 - **`sql` and `rag`** test retrieval and query-generation, not prose. There's no single "correct" SQL string or "correct" wording for a retrieved chunk — many different queries or phrasings can be equally right. `expected` instead specifies structural properties that any correct answer must satisfy (tables joined, columns that must never appear, whether the request is a read-only-violation attempt; which `rule_number`(s) must appear in top-3 retrieval), and `scoring` is `rule_based`.
-- **`mixed`** exercises the full `/query/analyze` orchestrator loop across both tools at once. There's no reliable automated way yet to score whether a free-text answer correctly combined a SQL result with a policy citation — that requires reading the answer. `expected` is a set of key points a correct answer should hit, and `scoring` is `manual_review`.
+- **`mixed`** exercises the full `/query/analyze` loop across both tools at once. `expected` says which tools should run (`expected_sql_used`, `expected_rag_used`) and lists `key_points` the answer should cover. A case passes only if the right tools ran, the run finished, and an AI judge confirms every key point is covered. Note: `scoring` still says `manual_review` in `cases.json` — that label is outdated now (see Known limitations).
 
 ## Category breakdown (55 cases)
 
@@ -56,8 +56,12 @@ These are two different failure directions, not one concept tested twice. A bug 
 Documented explicitly rather than left implicit:
 
 - **`groundedness` cases don't fit the single-`input`-field schema cleanly.** `check_groundedness()` takes two arguments (`answer`, `retrieved_chunks`), not one. Both cases in this suite encode both as a single JSON-stringified object in the `input` field to stay within the given schema. Worth revisiting if Part 4's runner ends up needing more multi-argument cases like this — a stringified-JSON `input` is a workable stopgap, not a pattern to scale indefinitely.
+- **`mixed`'s `scoring` field still says `manual_review`.** It's not manual anymore — `evals/run.py` now scores it automatically. The label just hasn't been renamed yet, since there's no good short name yet for "checks plus an AI judge."
+- **The judge often wraps its reply in a `​```json` code block**, even though it's asked to return plain JSON. We strip that wrapper before reading the reply, so it doesn't count as a real parsing failure — only actually broken JSON does.
+- **The judge uses the same AI model it's grading.** That's a real risk of bias we haven't tested for yet.
+- **The judge's own AI call isn't included in cost tracking.** The `cost_usd` shown for `mixed` cases only counts the original answer, not the grading step.
+- **We now record how many tool calls each `mixed` case makes, but don't grade it.** It's just a baseline for now, so we can notice later if a change quietly doubles the number of calls (and cost) without anyone meaning to.
 
 ## Out of scope for this pass
 
-- No runner yet for `sql`, `rag`, `mixed`, `ticket_evaluator`, `invoice_evaluator`, `prompt_injection` — `evals/run.py` (Part 4) currently covers `refund_evaluator`, `groundedness`, `topic_coverage`, and `permission` only.
-- No automated scoring for `mixed`/`manual_review` cases.
+- `ticket_evaluator`, `invoice_evaluator`, and `prompt_injection` still have no automated runner. Everything else does now.

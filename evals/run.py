@@ -37,6 +37,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app as fastapi_app  # noqa: E402
 from app.orchestrator.groundedness import check_groundedness  # noqa: E402
+from app.orchestrator.judge_client import judge_answer  # noqa: E402
 from app.orchestrator.refund_evaluator import evaluate_refund, resolve_order_item  # noqa: E402
 from app.orchestrator.topic_coverage import check_topic_coverage  # noqa: E402
 from app.proxy_secret import HEADER_NAME, INTERNAL_PROXY_SECRET  # noqa: E402
@@ -71,12 +72,15 @@ CATEGORY_METADATA = {
         "what_it_tests": "policy retrieval recall",
         "consequence": "wrong or missing policy rule cited",
     },
+    "mixed": {
+        "what_it_tests": "agentic tool routing + answer quality",
+        "consequence": "wrong tool routing or unverified free-text claims hidden behind a polished answer",
+    },
 }
 SUPPORTED_CATEGORIES = list(CATEGORY_METADATA.keys())
 
 # Categories with no runner yet (see EVALS.md's "Out of scope"), and why.
 SKIP_REASONS = {
-    "mixed": "needs judge",
     "prompt_injection": "needs judge; one case is image-only",
     "ticket_evaluator": "needs harness (draft/confirm flow)",
     "invoice_evaluator": "needs harness (draft/confirm flow)",
@@ -306,6 +310,89 @@ def run_rag_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
 
 
 # ---------------------------------------------------------------------------
+# mixed: exercises the full /query/analyze tool loop. The final response can
+# hide incorrect routing or an unfinished loop, so this combines three checks
+# that are independent from the final response:
+#   1. deterministic tool-selection: sql_used/rag_used vs expected_*_used
+#   2. loop completion: incomplete must be false
+#   3. trajectory length: sql/rag/total tool-call counts, pulled from the
+#      stored trace via /observability/requests — recorded as a baseline,
+#      not graded, per today's scope
+# A semantic judge (D, judge_client.judge_answer) for whether the answer
+# actually covers the case's required key points.
+# ---------------------------------------------------------------------------
+
+
+def _latest_analyze_trajectory(client: TestClient) -> dict:
+    logs = client.get("/observability/requests", params={"request_type": "analyze", "limit": 1}).json()["requests"]
+    detail = client.get(f"/observability/requests/{logs[0]['id']}").json()
+    tool_calls = detail["tool_calls"] or []
+    sql_calls = sum(1 for c in tool_calls if c["tool_name"] == "run_sql_query")
+    rag_calls = sum(1 for c in tool_calls if c["tool_name"] == "search_policy")
+    return {"sql_calls": sql_calls, "rag_calls": rag_calls, "total_tool_calls": len(tool_calls)}
+
+
+def run_mixed_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
+    expected = case["expected"]
+    response = client.post("/query/analyze", json={"question": case["input"]})
+    body = response.json()
+
+    failure_reasons: list[str] = []
+
+    if "expected_sql_used" in expected and body["sql_used"] != expected["expected_sql_used"]:
+        failure_reasons.append(f"expected sql_used: {json.dumps(expected['expected_sql_used'])}")
+        failure_reasons.append(f"actual sql_used:   {json.dumps(body['sql_used'])}")
+    if "expected_rag_used" in expected and body["rag_used"] != expected["expected_rag_used"]:
+        failure_reasons.append(f"expected rag_used: {json.dumps(expected['expected_rag_used'])}")
+        failure_reasons.append(f"actual rag_used:   {json.dumps(body['rag_used'])}")
+    if body["incomplete"]:
+        failure_reasons.append("incomplete: true (tool-call loop exhausted before a final answer)")
+
+    trajectory = _latest_analyze_trajectory(client)
+
+    # Judge is skipped, not failed, when the loop never produced a real answer.
+    # check_groundedness's incomplete path already flags that above
+    # and we don't grade the free-text answer.
+    judge_info: dict = {
+        "scored": False,
+        "verdict": None,
+        "points_covered": [],
+        "points_missed": [],
+        "evidence_summary": None,
+        "judge_error": None,
+    }
+    if not body["incomplete"]:
+        judge_result = judge_answer(case["input"], body["answer"], expected["key_points"])
+        if judge_result.judge_error is not None:
+            judge_info["judge_error"] = judge_result.judge_error
+            failure_reasons.append(f"judge unscored: {judge_result.judge_error}")
+        else:
+            judge_passed = not judge_result.verdict.points_missed
+            judge_info.update(
+                scored=True,
+                verdict="pass" if judge_passed else "fail",
+                points_covered=judge_result.verdict.points_covered,
+                points_missed=judge_result.verdict.points_missed,
+                evidence_summary=judge_result.verdict.evidence_summary,
+            )
+            if not judge_passed:
+                failure_reasons.append(
+                    f"key points missed: {judge_result.verdict.points_missed} "
+                    f"— {judge_result.verdict.evidence_summary}"
+                )
+
+    actual = {
+        "sql_used": body["sql_used"],
+        "rag_used": body["rag_used"],
+        "incomplete": body["incomplete"],
+        "answer": body["answer"],
+        "trajectory": trajectory,
+        "judge": judge_info,
+    }
+    return actual, failure_reasons
+
+
+# ---------------------------------------------------------------------------
 # cache: not a cases.json category — a deterministic regression check that
 # the same /query/sql question is served from cache the second time, with
 # zero tokens and zero cost on the hit. Mirrors
@@ -409,6 +496,12 @@ def run_case(case: dict, client: TestClient) -> CaseResult:
         elif category in ("sql", "rag"):
             actual, failure_reasons = (run_sql_case if category == "sql" else run_rag_case)(case, client)
             cost_usd = _latest_cost_usd(client, category)
+        elif category == "mixed":
+            actual, failure_reasons = run_mixed_case(case, client)
+            # Reflects only the /query/analyze call's logged cost — the
+            # judge's own Claude call isn't logged to request_log, so its
+            # cost isn't included here.
+            cost_usd = _latest_cost_usd(client, "analyze")
         else:
             actual = DISPATCH[category](case)
             failure_reasons = None
@@ -486,6 +579,10 @@ class CategoryStats:
     mean_latency_ms: float
     mean_cost_usd: float
     comparison_ready: bool
+    # Set only for "mixed" — how many cases hit MAX_TOOL_ITERATIONS without
+    # reaching a final answer. None for every other category.
+    incomplete_count: int | None = None
+    loop_exhaustion_rate: float | None = None
 
 
 def compute_category_stats(results: list[CaseResult]) -> list[CategoryStats]:
@@ -496,6 +593,11 @@ def compute_category_stats(results: list[CaseResult]) -> list[CategoryStats]:
         if n == 0:
             continue
         passed = sum(1 for r in cat_results if r.passed)
+        incomplete_count = None
+        loop_exhaustion_rate = None
+        if category == "mixed":
+            incomplete_count = sum(1 for r in cat_results if r.actual.get("incomplete"))
+            loop_exhaustion_rate = incomplete_count / n
         stats.append(
             CategoryStats(
                 category=category,
@@ -506,6 +608,8 @@ def compute_category_stats(results: list[CaseResult]) -> list[CategoryStats]:
                 mean_latency_ms=sum(r.latency_ms for r in cat_results) / n,
                 mean_cost_usd=sum(r.cost_usd or 0.0 for r in cat_results) / n,
                 comparison_ready=n >= COMPARISON_READY_THRESHOLD,
+                incomplete_count=incomplete_count,
+                loop_exhaustion_rate=loop_exhaustion_rate,
             )
         )
     return stats
@@ -535,6 +639,18 @@ def comparison_readiness_note(stats: list[CategoryStats]) -> str:
         lines.append("")
     lines.append("This threshold is a practical reporting rule for the sprint, not a claim of statistical significance.")
     return "\n".join(lines)
+
+
+def mixed_loop_completion_note(stats: list[CategoryStats]) -> str | None:
+    mixed = next((s for s in stats if s.category == "mixed"), None)
+    if mixed is None:
+        return None
+    return (
+        f"MIXED LOOP COMPLETION: {mixed.incomplete_count} of {mixed.n} mixed cases were incomplete "
+        f"(loop_exhaustion_rate={mixed.loop_exhaustion_rate:.2f}). The agent loop is capped at "
+        "MAX_TOOL_ITERATIONS, so an incomplete result is a workflow failure, not harmless variation — "
+        "track this rate across runs rather than a single sample."
+    )
 
 
 def render_overall_summary(
@@ -623,6 +739,10 @@ def render_report(
     sections.append(render_markdown_table(headers, rows))
     sections.append(comparison_readiness_note(stats))
 
+    loop_note = mixed_loop_completion_note(stats)
+    if loop_note is not None:
+        sections.append(loop_note)
+
     skip_width = max((len(c) for c in skipped_categories), default=0)
     skip_lines = "\n".join(
         f"{c} {'.' * max(3, skip_width - len(c) + 3)} {SKIP_REASONS.get(c, 'not yet runnable')}"
@@ -672,6 +792,8 @@ def build_results_json(
                 "mean_latency_ms": s.mean_latency_ms,
                 "mean_cost_usd": s.mean_cost_usd,
                 "comparison_ready": s.comparison_ready,
+                "incomplete_count": s.incomplete_count,
+                "loop_exhaustion_rate": s.loop_exhaustion_rate,
                 "what_it_tests": CATEGORY_METADATA[s.category]["what_it_tests"],
                 "consequence_of_failure": CATEGORY_METADATA[s.category]["consequence"],
             }
