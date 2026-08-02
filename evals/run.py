@@ -21,6 +21,7 @@ that's embedding + cosine search, no LLM call, so it stays deterministic.
 import json
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -207,6 +208,25 @@ def run_permission_case(case: dict, client: TestClient) -> dict:
     return {"status_code": response.status_code}
 
 
+# request_type strings match what /observability/requests filters on, per
+# apps/api/app/observability/router.py's RequestType literal.
+ENDPOINT_REQUEST_TYPE = {
+    "/query/sql": "sql",
+    "/query/rag": "rag",
+    "/tickets/draft": "ticket_draft",
+    "/tickets/confirm": "ticket_confirm",
+}
+
+
+def _latest_cost_usd(client: TestClient, request_type: str) -> float | None:
+    """Cost isn't in any endpoint's response body — only request_log has it.
+    Safe to just take the most recent row: run.py calls everything
+    sequentially, so it's always the row this case just created."""
+    rows = client.get("/observability/requests", params={"request_type": request_type, "limit": 1}).json()
+    rows = rows["requests"]
+    return rows[0]["estimated_cost_usd"] if rows else None
+
+
 # ---------------------------------------------------------------------------
 # sql: rule_based, not exact_match — checks structural properties of the
 # real generated SQL via substring matching, not a parser. See evals/
@@ -366,27 +386,42 @@ class CaseResult:
     passed: bool
     expected: dict
     actual: dict
-    # Set only for rule_based categories (sql) — a reason per failed
+    # Set only for rule_based categories (sql, rag) — a reason per failed
     # sub-check. None means "show expected/actual JSON instead" (exact_match).
     failure_reasons: list[str] | None = None
+    latency_ms: float = 0.0
+    # $0 for categories that never touch a paid API (refund_evaluator,
+    # groundedness, topic_coverage — pure functions, no LLM call, ever).
+    # None for a call that failed before any cost could be looked up.
+    cost_usd: float | None = 0.0
 
 
 def run_case(case: dict, client: TestClient) -> CaseResult:
     category = case["category"]
+    start = time.perf_counter()
     try:
         if category == "permission":
             actual = run_permission_case(case, client)
+            fixture = json.loads(case["input"])
+            request_type = ENDPOINT_REQUEST_TYPE.get(fixture["endpoint"])
+            cost_usd = _latest_cost_usd(client, request_type) if request_type else 0.0
+            failure_reasons = None
         elif category in ("sql", "rag"):
             actual, failure_reasons = (run_sql_case if category == "sql" else run_rag_case)(case, client)
-            return CaseResult(case["id"], category, not failure_reasons, case["expected"], actual, failure_reasons)
+            cost_usd = _latest_cost_usd(client, category)
         else:
             actual = DISPATCH[category](case)
+            failure_reasons = None
+            cost_usd = 0.0  # no endpoint call, no LLM call
     except Exception as e:
         # Fail loudly: surface the exception as `actual`, don't swallow it.
+        latency_ms = (time.perf_counter() - start) * 1000
         actual = {"exception": f"{type(e).__name__}: {e}"}
-        return CaseResult(case["id"], category, False, case["expected"], actual)
+        return CaseResult(case["id"], category, False, case["expected"], actual, None, latency_ms, None)
 
-    return CaseResult(case["id"], category, actual == case["expected"], case["expected"], actual)
+    latency_ms = (time.perf_counter() - start) * 1000
+    passed = not failure_reasons if failure_reasons is not None else actual == case["expected"]
+    return CaseResult(case["id"], category, passed, case["expected"], actual, failure_reasons, latency_ms, cost_usd)
 
 
 def load_cases() -> list[dict]:
@@ -438,6 +473,95 @@ def render_cache_check(result: CacheCheckResult) -> str:
     return "\n".join(lines)
 
 
+COMPARISON_READY_THRESHOLD = 8
+
+
+@dataclass
+class CategoryStats:
+    category: str
+    n: int
+    passed: int
+    failed: int
+    pass_rate: float
+    mean_latency_ms: float
+    mean_cost_usd: float
+    comparison_ready: bool
+
+
+def compute_category_stats(results: list[CaseResult]) -> list[CategoryStats]:
+    stats = []
+    for category in SUPPORTED_CATEGORIES:
+        cat_results = [r for r in results if r.category == category]
+        n = len(cat_results)
+        if n == 0:
+            continue
+        passed = sum(1 for r in cat_results if r.passed)
+        stats.append(
+            CategoryStats(
+                category=category,
+                n=n,
+                passed=passed,
+                failed=n - passed,
+                pass_rate=100 * passed / n,
+                mean_latency_ms=sum(r.latency_ms for r in cat_results) / n,
+                mean_cost_usd=sum(r.cost_usd or 0.0 for r in cat_results) / n,
+                comparison_ready=n >= COMPARISON_READY_THRESHOLD,
+            )
+        )
+    return stats
+
+
+def _fmt_latency(ms: float) -> str:
+    return f"{ms / 1000:.2f}s"
+
+
+def _fmt_cost(usd: float) -> str:
+    return f"${usd:.3f}"
+
+
+def comparison_readiness_note(stats: list[CategoryStats]) -> str:
+    small = [s for s in stats if not s.comparison_ready]
+    small_list = ", ".join(f"`{s.category}` (n={s.n})" for s in small)
+    lines = [
+        f"Categories with n >= {COMPARISON_READY_THRESHOLD} may be used for directional before-and-after comparison.",
+        "",
+    ]
+    if small:
+        lines.append(
+            f"{small_list} fall below that threshold and are treated as regression checks. Their "
+            "individual pass or fail results may be reported, but their percentages should not be "
+            "presented as evidence of quality improvement."
+        )
+        lines.append("")
+    lines.append("This threshold is a practical reporting rule for the sprint, not a claim of statistical significance.")
+    return "\n".join(lines)
+
+
+def render_overall_summary(
+    results: list[CaseResult],
+    cache_result: CacheCheckResult,
+    skipped_categories: list[str],
+    timestamp: str,
+    commit: str,
+) -> str:
+    total = len(results)
+    passed = sum(1 for r in results if r.passed)
+    failed = total - passed
+    pass_rate = round(100 * passed / total) if total else 0
+    mean_latency_ms = sum(r.latency_ms for r in results) / total if total else 0.0
+    mean_cost_usd = sum(r.cost_usd or 0.0 for r in results) / total if total else 0.0
+
+    return "\n".join(
+        [
+            f"Total: {total} run, {passed} passed, {failed} failed ({pass_rate}% pass rate)",
+            f"Mean latency: {_fmt_latency(mean_latency_ms)} | Mean cost: {_fmt_cost(mean_cost_usd)}",
+            f"Cache check: {'PASS' if cache_result.passed else 'FAIL'}",
+            f"Skipped categories: {', '.join(skipped_categories)}",
+            f"{timestamp} | commit {commit}",
+        ]
+    )
+
+
 def render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     widths = [len(h) for h in headers]
     for row in rows:
@@ -452,54 +576,133 @@ def render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
-def render_report(results: list[CaseResult], skipped_categories: list[str], cache_result: CacheCheckResult) -> str:
+def render_report(
+    results: list[CaseResult],
+    skipped_categories: list[str],
+    cache_result: CacheCheckResult,
+    stats: list[CategoryStats],
+    timestamp: str,
+    commit: str,
+) -> str:
     sections = []
 
     id_width = max((len(r.id) for r in results), default=0)
     sections.append("\n".join(format_case_line(r, id_width) for r in results))
 
     # Not a cases.json category — a deterministic regression check, kept out
-    # of the quality table below rather than made to look like one.
+    # of the quality tables below rather than made to look like one.
     sections.append(
         "CACHE CHECK (deterministic regression, not an AI-quality category):\n" + render_cache_check(cache_result)
     )
 
-    headers = ["category", "what it tests", "n", "pass", "fail", "rate", "consequence of failure"]
-    rows = []
-    for category in SUPPORTED_CATEGORIES:
-        cat_results = [r for r in results if r.category == category]
-        n = len(cat_results)
-        passed = sum(1 for r in cat_results if r.passed)
-        failed = n - passed
-        rate = f"{round(100 * passed / n)}%" if n else "n/a"
-        meta = CATEGORY_METADATA[category]
-        rows.append([category, meta["what_it_tests"], str(n), str(passed), str(failed), rate, meta["consequence"]])
+    headers = [
+        "category",
+        "what it tests",
+        "n",
+        "pass",
+        "fail",
+        "rate",
+        "mean latency",
+        "mean cost",
+        "consequence of failure",
+    ]
+    rows = [
+        [
+            s.category,
+            CATEGORY_METADATA[s.category]["what_it_tests"],
+            str(s.n),
+            str(s.passed),
+            str(s.failed),
+            f"{round(s.pass_rate)}%",
+            _fmt_latency(s.mean_latency_ms),
+            _fmt_cost(s.mean_cost_usd),
+            CATEGORY_METADATA[s.category]["consequence"],
+        ]
+        for s in stats
+    ]
     sections.append(render_markdown_table(headers, rows))
-
-    total = len(results)
-    total_passed = sum(1 for r in results if r.passed)
-    overall_rate = round(100 * total_passed / total) if total else 0
+    sections.append(comparison_readiness_note(stats))
 
     skip_width = max((len(c) for c in skipped_categories), default=0)
     skip_lines = "\n".join(
         f"{c} {'.' * max(3, skip_width - len(c) + 3)} {SKIP_REASONS.get(c, 'not yet runnable')}"
         for c in skipped_categories
     )
+    sections.append(f"SKIPPED, NOT YET RUNNABLE:\n{skip_lines}")
 
-    commit = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
-    ).stdout.strip()
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    footer = (
-        f"TOTAL: {total} run, {overall_rate}% pass. "
-        f"Cache check: {'PASS' if cache_result.passed else 'FAIL'}.\n\n"
-        f"SKIPPED, NOT YET RUNNABLE:\n{skip_lines}\n\n"
-        f"{timestamp} | commit {commit}"
-    )
-    sections.append(footer)
+    sections.append(render_overall_summary(results, cache_result, skipped_categories, timestamp, commit))
 
     return "\n\n".join(sections)
+
+
+def build_results_json(
+    results: list[CaseResult],
+    skipped_categories: list[str],
+    cache_result: CacheCheckResult,
+    stats: list[CategoryStats],
+    timestamp: str,
+    commit: str,
+) -> dict:
+    total = len(results)
+    passed = sum(1 for r in results if r.passed)
+
+    return {
+        "timestamp": timestamp,
+        "commit": commit,
+        "cases": [
+            {
+                "id": r.id,
+                "category": r.category,
+                "passed": r.passed,
+                "expected": r.expected,
+                "actual": r.actual,
+                "failure_reasons": r.failure_reasons,
+                "latency_ms": r.latency_ms,
+                "cost_usd": r.cost_usd,
+            }
+            for r in results
+        ],
+        "categories": [
+            {
+                "category": s.category,
+                "n": s.n,
+                "passed": s.passed,
+                "failed": s.failed,
+                "pass_rate": s.pass_rate,
+                "mean_latency_ms": s.mean_latency_ms,
+                "mean_cost_usd": s.mean_cost_usd,
+                "comparison_ready": s.comparison_ready,
+                "what_it_tests": CATEGORY_METADATA[s.category]["what_it_tests"],
+                "consequence_of_failure": CATEGORY_METADATA[s.category]["consequence"],
+            }
+            for s in stats
+        ],
+        "comparison_readiness": {
+            "threshold_n": COMPARISON_READY_THRESHOLD,
+            "note": "Categories with n below this threshold are regression checks, not comparison evidence.",
+        },
+        "cache_check": {
+            "passed": cache_result.passed,
+            "failure_reasons": cache_result.failure_reasons,
+            "first_cached": cache_result.first_cached,
+            "second_cached": cache_result.second_cached,
+            "first_latency_ms": cache_result.first_latency_ms,
+            "second_latency_ms": cache_result.second_latency_ms,
+            "first_tokens": cache_result.first_tokens,
+            "second_tokens": cache_result.second_tokens,
+            "first_cost_usd": cache_result.first_cost_usd,
+            "second_cost_usd": cache_result.second_cost_usd,
+        },
+        "skipped_categories": skipped_categories,
+        "overall": {
+            "total": total,
+            "passed": passed,
+            "failed": total - passed,
+            "pass_rate": 100 * passed / total if total else 0,
+            "mean_latency_ms": sum(r.latency_ms for r in results) / total if total else 0.0,
+            "mean_cost_usd": sum(r.cost_usd or 0.0 for r in results) / total if total else 0.0,
+        },
+    }
 
 
 def main() -> int:
@@ -511,14 +714,23 @@ def main() -> int:
     client = TestClient(fastapi_app, headers={HEADER_NAME: INTERNAL_PROXY_SECRET})
     results = [run_case(case, client) for case in run_cases]
     cache_result = run_cache_check(client)
+    stats = compute_category_stats(results)
 
-    report = render_report(results, skipped_categories, cache_result)
+    commit = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    report = render_report(results, skipped_categories, cache_result, stats, timestamp, commit)
     print(report)
+
+    results_json = build_results_json(results, skipped_categories, cache_result, stats, timestamp, commit)
 
     run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir = RESULTS_ROOT / run_timestamp
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(report + "\n")
+    (out_dir / "results.json").write_text(json.dumps(results_json, indent=2) + "\n")
 
     return 0 if all(r.passed for r in results) and cache_result.passed else 1
 
