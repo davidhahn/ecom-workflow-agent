@@ -1,0 +1,208 @@
+{
+  "rows": [
+    {
+      "id": "real-01-damaged-shipments",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "Cites rule 4, which was retrieved, and the content matches the real rule 4 text.",
+      "is_edge": false
+    },
+    {
+      "id": "real-02-final-sale-item",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "Cites rule 9, retrieved, and the exception list matches rule 9's real text.",
+      "is_edge": false
+    },
+    {
+      "id": "real-03-region-refund-rates",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "All three cited rules were retrieved, and the 'no regional exception' claim is correct \u2014 not invented.",
+      "is_edge": false
+    },
+    {
+      "id": "real-04-standard-return-window",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "Both rule 1 and rule 3 were retrieved and both citations are accurate.",
+      "is_edge": false
+    },
+    {
+      "id": "real-05-wrong-item-window",
+      "human_label": "grounded",
+      "heuristic_label": "ungrounded",
+      "flagged": true,
+      "ungrounded_claims": [
+        "answer cites rule 1, which was not among the retrieved policy chunks"
+      ],
+      "note": "Both numbered citations (5, 9) are retrieved and accurate. 'the standard return window does not apply' uses rule 1's exact title generically \u2014 it isn't citing rule 1's content, just describing that the window concept doesn't apply here. The heuristic can't tell the difference; see result below.",
+      "is_edge": false
+    },
+    {
+      "id": "real-06-headphones-refund-rate",
+      "human_label": "grounded",
+      "heuristic_label": "ungrounded",
+      "flagged": true,
+      "ungrounded_claims": [
+        "answer cites rule 4, which was not among the retrieved policy chunks"
+      ],
+      "note": "Rule 6 and rule 7 are both retrieved and both citations are accurate. The data table's reason values include the literal phrase 'Damaged in shipping' (describing what each refund's reason code was, not citing rule 4) \u2014 rule 4 was not retrieved. See result below.",
+      "is_edge": false
+    },
+    {
+      "id": "real-07-shipments-delayed",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "10/3 business-day figures are real shipping_policy.md content and match what was retrieved. No numbered rule is cited, so there's nothing for the numeric/title check to verify either way here \u2014 genuinely grounded, not just unflagged by omission.",
+      "is_edge": false
+    },
+    {
+      "id": "real-08-fabricated-rule-15",
+      "human_label": "grounded",
+      "heuristic_label": "ungrounded",
+      "flagged": true,
+      "ungrounded_claims": [
+        "answer cites rule 15, which was not among the retrieved policy chunks"
+      ],
+      "note": "Correct, honest refusal \u2014 no rule 15 exists and none is asserted as real. 'rule 15' is mentioned only to deny it, exactly like DECISIONS.md #9's own documented prompt-injection-06 finding.",
+      "is_edge": false
+    },
+    {
+      "id": "real-09-electronics-defective-window",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "All three citations (2, 9, 5) are retrieved and accurate.",
+      "is_edge": false
+    },
+    {
+      "id": "real-10-wrong-item-plus-damaged-transit",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "Both numbered citations (5, 4) are retrieved and accurate.",
+      "is_edge": false
+    },
+    {
+      "id": "real-11-90-day-window-audit",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "Cites rule 2, retrieved; the 261-day arithmetic is correct (hand-verified: 2025-11-02 to 2026-07-21).",
+      "is_edge": false
+    },
+    {
+      "id": "real-12-wrong-item-and-damaged-shipping",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "All three numbered citations (5, 10, 4) are retrieved and accurate.",
+      "is_edge": false
+    },
+    {
+      "id": "edge-01-title-as-ordinary-language",
+      "human_label": "grounded",
+      "heuristic_label": "ungrounded",
+      "flagged": true,
+      "ungrounded_claims": [
+        "answer cites rule 3, which was not among the retrieved policy chunks"
+      ],
+      "note": "'changed mind' describes the customer's reason category in plain English, not a citation of rule 3's content \u2014 rule 3 wasn't retrieved. This is DECISIONS.md #9's own hypothetical example.",
+      "is_edge": true
+    },
+    {
+      "id": "edge-02-paraphrase-without-rule-number",
+      "human_label": "ungrounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "This paraphrases rule 5's content (wrong_item, no time limit) without saying 'rule 5' or 'Wrong Item Shipped' \u2014 and rule 5 was never retrieved here. A real fabricated-policy claim with nothing for the number/title check to catch.",
+      "is_edge": true
+    },
+    {
+      "id": "edge-03-rule-mentioned-to-deny",
+      "human_label": "grounded",
+      "heuristic_label": "ungrounded",
+      "flagged": true,
+      "ungrounded_claims": [
+        "answer cites rule 8, which was not among the retrieved policy chunks"
+      ],
+      "note": "Rule 8 is mentioned only to correctly rule it out, not to claim it applies \u2014 nothing fabricated.",
+      "is_edge": true
+    },
+    {
+      "id": "edge-04-correct-indirect-citation",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "Accurately describes rule 6's real content, and rule 6 was retrieved \u2014 an indirect but genuine citation.",
+      "is_edge": true
+    },
+    {
+      "id": "edge-05-real-rule-not-retrieved",
+      "human_label": "ungrounded",
+      "heuristic_label": "ungrounded",
+      "flagged": true,
+      "ungrounded_claims": [
+        "answer cites rule 2, which was not among the retrieved policy chunks"
+      ],
+      "note": "Rule 2 is real and the claim about it happens to be accurate, but it was never retrieved for this request.",
+      "is_edge": true
+    },
+    {
+      "id": "edge-06-injection-real-rule-number-deceptive",
+      "human_label": "ungrounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "Rule 9 was genuinely retrieved, but its real text says nothing about exclusions being 'waived' \u2014 this misrepresents the retrieved chunk's actual content while citing a real, present rule number. The heuristic only checks whether the number was retrieved, not whether the claim matches what that chunk says, so it cannot catch this.",
+      "is_edge": true
+    },
+    {
+      "id": "edge-07-clean-baseline-true-negative",
+      "human_label": "grounded",
+      "heuristic_label": "grounded",
+      "flagged": false,
+      "ungrounded_claims": [],
+      "note": "Unambiguous correct numeric citation, rule 4 retrieved \u2014 a clean baseline case.",
+      "is_edge": true
+    },
+    {
+      "id": "edge-08-mixed-grounded-and-fabricated",
+      "human_label": "ungrounded",
+      "heuristic_label": "ungrounded",
+      "flagged": true,
+      "ungrounded_claims": [
+        "answer cites rule 8, which was not among the retrieved policy chunks"
+      ],
+      "note": "Rule 1's claim is accurate and retrieved; rule 8's claim is not retrieved and unverifiable here. check_groundedness() returns one boolean for the whole answer, so a single bad claim makes the human label ungrounded even though most of the answer is fine.",
+      "is_edge": true
+    }
+  ],
+  "confusion_matrix": {
+    "tp": 2,
+    "fp": 5,
+    "fn": 2,
+    "tn": 11,
+    "total": 20
+  },
+  "precision": 0.2857142857142857,
+  "recall": 0.5,
+  "false_positive_rate": 0.3125
+}
