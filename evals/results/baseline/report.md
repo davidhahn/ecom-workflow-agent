@@ -63,3 +63,13 @@ Mean latency: 0.72s | Mean cost: $0.001
 Cache check: PASS
 Skipped categories: invoice_evaluator, mixed, prompt_injection, ticket_evaluator
 2026-08-01 21:22 | commit aa97755
+
+---
+
+## Variance Note (added 2026-08-03, not part of the auto-generated report above)
+
+This baseline predates `mixed` and `prompt_injection` support in `evals/run.py` — it doesn't cover those categories.
+
+Before trusting any single run's pass rate, see `evals/stability_check.md`. The suite ran three times back to back; every category matched across all three runs.
+
+One exception: `sql`'s 75% held all three times, but that doesn't mean it's deterministic. A broader sample from the same day shows `sql-05-write-attempt-rejected` actually passes about 1 in 11 tries. Treat `sql` as still volatile.
