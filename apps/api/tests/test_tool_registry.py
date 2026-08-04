@@ -97,9 +97,17 @@ def test_run_sql_query_output_schema_matches_real_response():
     jsonschema.validate(result_payload, spec.output_schema)
 
 
-def test_run_sql_query_output_schema_matches_rejected_response():
-    """A rejected/error response must also validate, since output_schema
-    describes the whole response union, not just the success case."""
+def test_write_attempt_is_rejected_and_matches_output_schema():
+    """The write-rejection guarantee, tested directly: a hand-built UPDATE,
+    no Claude call, straight through validate_ast(). Must reject every time.
+
+    Also checks the rejected response validates against output_schema. Kept
+    as one test since both assertions need the same rejected response.
+
+    Replaces evals/cases.json's old sql-05 case, which asked Claude to turn
+    a write request into SQL first - flaky, since that step isn't
+    deterministic. Claude's own response to a write request is a separate
+    question, for a mixed/prompt_injection case to answer, not this one."""
     spec = TOOLS["run_sql_query"]
     executed = _run_run_sql_query_tool(
         "attempt a write",
