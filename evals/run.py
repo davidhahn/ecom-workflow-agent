@@ -236,13 +236,18 @@ ENDPOINT_REQUEST_TYPE = {
 }
 
 
-def _latest_cost_usd(client: TestClient, request_type: str) -> float | None:
-    """Cost isn't in any endpoint's response body — only request_log has it.
-    Safe to just take the most recent row: run.py calls everything
-    sequentially, so it's always the row this case just created."""
+def _latest_request_log_detail(client: TestClient, request_type: str) -> dict | None:
+    """Full detail row (tool_calls, tokens, cost, rag_chunks_retrieved, ...)
+    for the most recently logged request of this type. Safe to just take the
+    most recent row: run.py calls everything sequentially, so it's always
+    the row this case just created. None when this request_type never made
+    a request_log row (e.g. a permission case whose fixture endpoint isn't
+    logged)."""
     rows = client.get("/observability/requests", params={"request_type": request_type, "limit": 1}).json()
     rows = rows["requests"]
-    return rows[0]["estimated_cost_usd"] if rows else None
+    if not rows:
+        return None
+    return client.get(f"/observability/requests/{rows[0]['id']}").json()
 
 
 # ---------------------------------------------------------------------------
@@ -581,31 +586,41 @@ class CaseResult:
     # groundedness, topic_coverage — pure functions, no LLM call, ever).
     # None for a call that failed before any cost could be looked up.
     cost_usd: float | None = 0.0
+    # Full request_log row for whichever endpoint call this case made — None
+    # for pure-function categories with no endpoint call. Only consumed by
+    # write_failure_records(); everything else already has what it needs
+    # from cost_usd/actual.
+    request_log_detail: dict | None = None
 
 
 def run_case(case: dict, client: TestClient) -> CaseResult:
     category = case["category"]
     start = time.perf_counter()
+    detail: dict | None = None
     try:
         if category == "permission":
             actual = run_permission_case(case, client)
             fixture = json.loads(case["input"])
             request_type = ENDPOINT_REQUEST_TYPE.get(fixture["endpoint"])
-            cost_usd = _latest_cost_usd(client, request_type) if request_type else 0.0
+            detail = _latest_request_log_detail(client, request_type) if request_type else None
+            cost_usd = detail["estimated_cost_usd"] if detail else 0.0
             failure_reasons = None
         elif category in ("sql", "rag"):
             actual, failure_reasons = (run_sql_case if category == "sql" else run_rag_case)(case, client)
-            cost_usd = _latest_cost_usd(client, category)
+            detail = _latest_request_log_detail(client, category)
+            cost_usd = detail["estimated_cost_usd"] if detail else None
         elif category == "mixed":
             actual, failure_reasons = run_mixed_case(case, client)
             # Only counts the /query/analyze call — the judge's own call
             # isn't logged, so it's not included here.
-            cost_usd = _latest_cost_usd(client, "analyze")
+            detail = _latest_request_log_detail(client, "analyze")
+            cost_usd = detail["estimated_cost_usd"] if detail else None
         elif category == "prompt_injection":
             actual, failure_reasons = run_prompt_injection_case(case, client)
             # Same as mixed: the judge's own call isn't logged either.
             endpoint = PROMPT_INJECTION_ENDPOINTS[case["id"]]
-            cost_usd = _latest_cost_usd(client, ENDPOINT_REQUEST_TYPE[endpoint])
+            detail = _latest_request_log_detail(client, ENDPOINT_REQUEST_TYPE[endpoint])
+            cost_usd = detail["estimated_cost_usd"] if detail else None
         else:
             actual = DISPATCH[category](case)
             failure_reasons = None
@@ -614,11 +629,13 @@ def run_case(case: dict, client: TestClient) -> CaseResult:
         # Fail loudly: surface the exception as `actual`, don't swallow it.
         latency_ms = (time.perf_counter() - start) * 1000
         actual = {"exception": f"{type(e).__name__}: {e}"}
-        return CaseResult(case["id"], category, False, case["expected"], actual, None, latency_ms, None)
+        return CaseResult(case["id"], category, False, case["expected"], actual, None, latency_ms, None, None)
 
     latency_ms = (time.perf_counter() - start) * 1000
     passed = not failure_reasons if failure_reasons is not None else actual == case["expected"]
-    return CaseResult(case["id"], category, passed, case["expected"], actual, failure_reasons, latency_ms, cost_usd)
+    return CaseResult(
+        case["id"], category, passed, case["expected"], actual, failure_reasons, latency_ms, cost_usd, detail
+    )
 
 
 def load_cases() -> list[dict]:
@@ -940,6 +957,133 @@ def build_results_json(
     }
 
 
+# ---------------------------------------------------------------------------
+# failure records — one JSON file per failed case, written to
+# evals/results/<timestamp>/failures/<case_id>.json. Pure join: everything
+# here already exists in the CaseResult or the request_log row captured for
+# it in run_case() above. No new model calls, no re-running the case.
+# ---------------------------------------------------------------------------
+
+LABELS_PATH = RESULTS_ROOT.parent / "labels.json"
+
+
+def _load_human_verdicts() -> dict[str, str]:
+    """case_id -> human_verdict, from evals/labels.json's manual judge audit
+    (see evals/run_judge_calibration.py). Empty dict if that file doesn't
+    exist yet or a case was never part of that audit."""
+    if not LABELS_PATH.exists():
+        return {}
+    labels = json.loads(LABELS_PATH.read_text())
+    return {entry["case_id"]: entry["human_verdict"] for entry in labels}
+
+
+def _normalize_actual_fields(category: str, actual: dict) -> dict:
+    """Best-effort extraction of a common shape out of each category's very
+    different `actual` dict. Only pulls out a concept if that category's own
+    actual dict already has it — never fabricates a value."""
+    fields = {
+        "actual_answer": None,
+        "response_status": None,
+        "generated_sql": None,
+        "tool_calls": None,
+        "retrieved_chunks": None,
+        "judge_verdict": None,
+    }
+    if category == "sql":
+        fields["response_status"] = actual.get("status")
+        fields["generated_sql"] = actual.get("sql_executed")
+    elif category == "rag":
+        fields["retrieved_chunks"] = actual.get("retrieved_rules")
+    elif category == "refund_evaluator":
+        fields["response_status"] = actual.get("status")
+    elif category == "permission":
+        fields["response_status"] = actual.get("status_code")
+    elif category == "mixed":
+        fields["actual_answer"] = actual.get("answer")
+        fields["response_status"] = "incomplete" if actual.get("incomplete") else "complete"
+        judge = actual.get("judge") or {}
+        if judge.get("scored"):
+            fields["judge_verdict"] = judge.get("verdict")
+    elif category == "prompt_injection":
+        fields["actual_answer"] = actual.get("answer")
+        fields["tool_calls"] = actual.get("tool_calls")
+        judge = actual.get("judge") or {}
+        if judge.get("scored"):
+            fields["judge_verdict"] = judge.get("outcome")
+        # /refund/evaluate's "answer" is a JSON string with its own status;
+        # /query/analyze's is plain prose with no status concept at all.
+        try:
+            parsed = json.loads(actual.get("answer") or "")
+        except (json.JSONDecodeError, TypeError):
+            parsed = None
+        if isinstance(parsed, dict) and "status" in parsed:
+            fields["response_status"] = parsed["status"]
+    return fields
+
+
+def _build_failure_record(
+    case: dict, result: CaseResult, human_verdicts: dict[str, str], commit: str
+) -> dict:
+    normalized = _normalize_actual_fields(result.category, result.actual)
+    detail = result.request_log_detail or {}
+
+    # Prefer the request_log row's copy (the real, complete trace) over
+    # whatever a category's own `actual` dict happened to summarize.
+    tool_calls = detail.get("tool_calls") if detail.get("tool_calls") is not None else normalized["tool_calls"]
+    retrieved_chunks = (
+        detail.get("rag_chunks_retrieved")
+        if detail.get("rag_chunks_retrieved") is not None
+        else normalized["retrieved_chunks"]
+    )
+    failed_checks = (
+        result.failure_reasons
+        if result.failure_reasons is not None
+        else [f"expected {json.dumps(result.expected)}, got {json.dumps(result.actual)}"]
+    )
+
+    return {
+        "case_id": result.id,
+        "category": result.category,
+        "input": case["input"],
+        "expected": result.expected,
+        "actual_answer": normalized["actual_answer"],
+        "response_status": normalized["response_status"],
+        "generated_sql": normalized["generated_sql"],
+        "tool_calls": tool_calls,
+        "retrieved_chunks": retrieved_chunks,
+        # No versioned prompt scheme exists yet — the commit hash is the
+        # closest available proxy, since prompts live in versioned source.
+        "prompt_version": commit,
+        "judge_verdict": normalized["judge_verdict"],
+        "human_reviewed_verdict": human_verdicts.get(result.id),
+        "latency_ms": detail.get("latency_ms", result.latency_ms),
+        "input_tokens": detail.get("input_tokens"),
+        "output_tokens": detail.get("output_tokens"),
+        "estimated_cost_usd": detail.get("estimated_cost_usd", result.cost_usd),
+        "failed_checks": failed_checks,
+        # Filled in later, by hand, during manual triage — never guessed here.
+        "taxonomy_label": None,
+        "secondary_observations": [],
+        "review_note": None,
+    }
+
+
+def write_failure_records(
+    results: list[CaseResult], cases_by_id: dict[str, dict], out_dir: Path, commit: str
+) -> None:
+    failures = [r for r in results if not r.passed]
+    if not failures:
+        return
+
+    human_verdicts = _load_human_verdicts()
+    failures_dir = out_dir / "failures"
+    failures_dir.mkdir(parents=True, exist_ok=True)
+
+    for result in failures:
+        record = _build_failure_record(cases_by_id[result.id], result, human_verdicts, commit)
+        (failures_dir / f"{result.id}.json").write_text(json.dumps(record, indent=2) + "\n")
+
+
 def main() -> int:
     cases = load_cases()
     run_cases = [
@@ -971,6 +1115,9 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(report + "\n")
     (out_dir / "results.json").write_text(json.dumps(results_json, indent=2) + "\n")
+
+    cases_by_id = {c["id"]: c for c in run_cases}
+    write_failure_records(results, cases_by_id, out_dir, commit)
 
     return 0 if all(r.passed for r in results) and cache_result.passed else 1
 
