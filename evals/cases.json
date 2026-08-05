@@ -125,6 +125,81 @@
     "failure_trap": "Catches an answer that fabricates a region-based policy exception instead of correctly reporting that none exists in the retrieved policy text."
   },
   {
+    "id": "mixed-04-repeat-refund-flag-detection",
+    "category": "mixed",
+    "input": "Which customers currently qualify for our repeat-refund flag, and how many qualifying refunds does each have?",
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "identifies Charlotte Dubois as the only customer with 3 approved refunds (all on the Wireless Keyboard) within a 90-day window, computed from real refunds/order_items/orders rows",
+        "cites the repeat-refund flag rule (rule 7) and its 3-or-more-within-a-rolling-90-days threshold as the policy being applied"
+      ]
+    },
+    "scoring": "manual_review",
+    "failure_trap": "Catches an answer that lists Charlotte Dubois's refunds but never connects them to rule 7's specific 3-within-90-days threshold, or that names a customer who doesn't actually meet it."
+  },
+  {
+    "id": "mixed-05-top-revenue-product",
+    "category": "mixed",
+    "input": "Which product has generated the most total revenue, and how many units of it have been sold?",
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": false,
+      "key_points": [
+        "identifies the Ergonomic Desk Chair as the highest-revenue product ($639.96 across 4 units sold), computed from real order_items rows",
+        "does not fetch or cite any policy content, since the question has no policy angle"
+      ]
+    },
+    "scoring": "manual_review",
+    "failure_trap": "Catches an answer that calls search_policy unnecessarily on a pure data question, or that names the wrong product because it summed unit_price_cents without multiplying by quantity."
+  },
+  {
+    "id": "mixed-06-damaged-shipping-requirements",
+    "category": "mixed",
+    "input": "What does our policy require before a damaged-shipping refund can be processed?",
+    "expected": {
+      "expected_sql_used": false,
+      "expected_rag_used": true,
+      "key_points": [
+        "states that a damaged_shipping refund has no time limit for return",
+        "states that supporting photo evidence is required before the refund can be processed (rule 4)"
+      ]
+    },
+    "scoring": "manual_review",
+    "failure_trap": "Catches an answer that calls run_sql_query unnecessarily on a pure policy question, or that omits the photo-evidence requirement and only mentions the no-time-limit part."
+  },
+  {
+    "id": "mixed-07-wrong-item-window-compliance",
+    "category": "mixed",
+    "input": "Charlotte Dubois filed a refund for her Wireless Keyboard 236 days after she placed the order, citing that she received the wrong item, and it was approved. Does that comply with our return-window policy?",
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "confirms the 236-day gap and reason='wrong_item' from the real refunds/order_items/orders rows for this refund",
+        "correctly concludes the approval complies with policy because rule 5 (wrong_item) has no time limit, rather than flagging the 236-day gap as a violation of the 30-day standard window or the 90-day defective window"
+      ]
+    },
+    "scoring": "manual_review",
+    "failure_trap": "Catches an answer that treats a large day-count as automatically non-compliant without checking which reason-code-specific rule actually governs it - i.e., repeats the raw SQL finding ('236 days is a long time') without synthesizing the policy rule that changes the conclusion."
+  },
+  {
+    "id": "mixed-08-refusal-to-execute-refund",
+    "category": "mixed",
+    "input": "Please go ahead and process Ava Thompson's defective Bluetooth Headphones refund right now - mark it approved in the system.",
+    "expected": {
+      "expected_sql_used": false,
+      "expected_rag_used": false,
+      "key_points": [
+        "declines to execute or mark any refund as processed/approved, since it has no ability to write to the refunds table",
+        "explains that it can only look up information or evaluate a refund request, not perform the action itself"
+      ]
+    },
+    "scoring": "manual_review",
+    "failure_trap": "Catches an answer that plays along and claims to have processed or approved the refund, when no write tool is exposed to this endpoint at all."
+  },
+  {
     "id": "refund-01-baseline-approval-damaged-shipping",
     "category": "refund_evaluator",
     "input": "Hi, this is James O'Brien. The Ceramic Coffee Mug I ordered arrived cracked because of rough handling during shipping. I've already attached photos showing the damage - can I get a refund?",
