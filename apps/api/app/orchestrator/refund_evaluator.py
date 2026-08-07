@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, or_, select
 
 from app.db.models import Customer, Order, OrderItem, Product, Refund
-from app.db.session import SessionLocal
+from app.db.refund_readonly import RefundEvaluatorSessionLocal as SessionLocal
 
 # Reason -> return window in days; None means no time limit.
 # refund_policy.md rules 2 (defective), 3 (changed_mind), 4 (damaged_shipping),

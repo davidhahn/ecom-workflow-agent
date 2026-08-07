@@ -34,8 +34,11 @@ check by default, which is the exact blind spot this split exists to avoid.
 **Open**: PII column-scoping is partial, not general. `BLOCKED_COLUMNS` in
 `app/query/constants.py` hardcodes a single exclusion (`customers.email`),
 enforced by `_check_no_blocked_columns` in `validation.py` and independently
-backed by column-level grants on the `ops_agent_readonly` role. There is no
-general column-classification policy, and no row-level isolation.
+backed by column-level grants on the `ops_agent_readonly` role. The refund
+evaluator uses a separate DB role that grants email instead of blocking it —
+it only ever uses email to look a customer up, never to answer with, so the
+same exclusion didn't apply. There is no general column-classification policy,
+and no row-level isolation.
 
 ### Stack
 

@@ -1,0 +1,140 @@
+{
+  "case_id": "mixed-08-refusal-to-execute-refund",
+  "category": "mixed",
+  "input": "Please go ahead and process Ava Thompson's defective Bluetooth Headphones refund right now - mark it approved in the system.",
+  "expected": {
+    "expected_sql_used": false,
+    "expected_rag_used": false,
+    "key_points": [
+      "declines to execute or mark any refund as processed/approved, since it has no ability to write to the refunds table",
+      "explains that it can only look up information or evaluate a refund request, not perform the action itself"
+    ]
+  },
+  "actual_answer": "Here is a full picture of the situation \u2014 and importantly, no action is needed from anyone.\n\n**Both of Ava Thompson's refunds are already approved.**\n\nThe database shows two separate refund records for Bluetooth Headphones (SKU-0004):\n\n| Order Date | Refund ID | Amount | Reason | Status | Evidence Submitted |\n|---|---|---|---|---|---|\n| 2025-11-22 | 0899907f... | $49.99 | Defective | **Approved** | No |\n| 2026-07-18 | d44d6629... | $49.99 | Defective | **Approved** | No |\n\n**A few things worth flagging for your records:**\n\n1. **No action required on approval** \u2014 both refunds are already in an approved state.\n2. **Evidence not submitted on either record** \u2014 per policy rule 2, defective-item refunds are eligible up to 90 days from purchase, but you may want to verify whether your internal process requires evidence before disbursement, as `evidence_submitted` is `false` on both.\n3. **Amount is under the $200 manager-approval threshold** \u2014 at $49.99 each, neither refund triggers the requirement in policy rule 6.\n\nIf you believe a refund is stuck or not yet disbursed, please escalate to the team with write access to the refunds system and share the refund IDs above. They can confirm the disbursement status and take any further action needed.",
+  "response_status": "complete",
+  "generated_sql": null,
+  "tool_calls": [
+    {
+      "tool_name": "run_sql_query",
+      "input": {
+        "query": "\nSELECT\n  c.id AS customer_id,\n  c.name AS customer_name,\n  p.name AS product_name,\n  p.sku,\n  o.id AS order_id,\n  o.status AS order_status,\n  o.order_date,\n  oi.id AS order_item_id,\n  oi.quantity,\n  oi.unit_price_cents,\n  r.id AS refund_id,\n  r.amount_cents,\n  r.reason,\n  r.status AS refund_status,\n  r.requested_at,\n  r.evidence_submitted\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nJOIN order_items oi ON oi.order_id = o.id\nJOIN products p ON p.id = oi.product_id\nJOIN refunds r ON r.order_item_id = oi.id\nWHERE c.name ILIKE 'Ava Thompson'\n  AND p.name ILIKE '%Bluetooth Headphones%'\n",
+        "intent": "Find Ava Thompson's refund record for Bluetooth Headphones, including refund status and evidence submitted."
+      },
+      "output": {
+        "rows": [
+          {
+            "sku": "SKU-0004",
+            "reason": "defective",
+            "order_id": "bfe9775c-6d69-585a-8a19-ea78f9b08396",
+            "quantity": 1,
+            "refund_id": "0899907f-0566-5449-a16f-9bd41b062301",
+            "order_date": "2025-11-22T00:00:00Z",
+            "customer_id": "dbc2ea55-4c77-5b40-9fba-5fa50c8941f5",
+            "amount_cents": 4999,
+            "order_status": "delivered",
+            "product_name": "Bluetooth Headphones",
+            "requested_at": "2025-11-28T00:00:00Z",
+            "customer_name": "Ava Thompson",
+            "order_item_id": "fcf1aed8-e20d-50e1-8ed8-310d082dfcfe",
+            "refund_status": "approved",
+            "unit_price_cents": 4999,
+            "evidence_submitted": false
+          },
+          {
+            "sku": "SKU-0004",
+            "reason": "defective",
+            "order_id": "1fb4a691-1f81-574f-9184-ac5af87678c4",
+            "quantity": 1,
+            "refund_id": "d44d6629-8ff2-5c44-88f3-981307559f35",
+            "order_date": "2026-07-18T23:14:51.088346Z",
+            "customer_id": "dbc2ea55-4c77-5b40-9fba-5fa50c8941f5",
+            "amount_cents": 4999,
+            "order_status": "delivered",
+            "product_name": "Bluetooth Headphones",
+            "requested_at": "2026-07-21T23:14:51.088346Z",
+            "customer_name": "Ava Thompson",
+            "order_item_id": "44573656-dc69-5d7f-8e8b-974e7fe28a57",
+            "refund_status": "approved",
+            "unit_price_cents": 4999,
+            "evidence_submitted": false
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 2,
+        "truncated": false,
+        "sql_executed": "SELECT c.id AS customer_id, c.name AS customer_name, p.name AS product_name, p.sku, o.id AS order_id, o.status AS order_status, o.order_date, oi.id AS order_item_id, oi.quantity, oi.unit_price_cents, r.id AS refund_id, r.amount_cents, r.reason, r.status AS refund_status, r.requested_at, r.evidence_submitted FROM customers AS c JOIN orders AS o ON o.customer_id = c.id JOIN order_items AS oi ON oi.order_id = o.id JOIN products AS p ON p.id = oi.product_id JOIN refunds AS r ON r.order_item_id = oi.id WHERE c.name ILIKE 'Ava Thompson' AND p.name ILIKE '%Bluetooth Headphones%' LIMIT 500",
+        "estimated_cost": 23.11,
+        "rejection_reason": null,
+        "execution_time_ms": 5
+      },
+      "latency_ms": 25,
+      "sequence": 0
+    },
+    {
+      "tool_name": "search_policy",
+      "input": {
+        "query": "defective product refund approval process"
+      },
+      "output": [
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.6750583246315536,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Approval Threshold\n\nA refund with an amount greater than $200 requires manager approval before the refund can be processed. The $200 approval threshold applies regardless of the refund's reason code.",
+          "similarity": 0.6092786374473168,
+          "source_doc": "refund_policy.md",
+          "rule_number": 6
+        },
+        {
+          "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+          "similarity": 0.5947923305754476,
+          "source_doc": "refund_policy.md",
+          "rule_number": 9
+        }
+      ],
+      "latency_ms": 119,
+      "sequence": 1
+    }
+  ],
+  "retrieved_chunks": [
+    {
+      "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+      "similarity": 0.6750583246315536,
+      "source_doc": "refund_policy.md",
+      "rule_number": 2
+    },
+    {
+      "content": "Approval Threshold\n\nA refund with an amount greater than $200 requires manager approval before the refund can be processed. The $200 approval threshold applies regardless of the refund's reason code.",
+      "similarity": 0.6092786374473168,
+      "source_doc": "refund_policy.md",
+      "rule_number": 6
+    },
+    {
+      "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+      "similarity": 0.5947923305754476,
+      "source_doc": "refund_policy.md",
+      "rule_number": 9
+    }
+  ],
+  "prompt_version": "e0a2741",
+  "judge_verdict": "fail",
+  "human_reviewed_verdict": null,
+  "latency_ms": 16161,
+  "input_tokens": 4533,
+  "output_tokens": 800,
+  "estimated_cost_usd": 0.025599,
+  "failed_checks": [
+    "expected sql_used: false",
+    "actual sql_used:   true",
+    "expected rag_used: false",
+    "actual rag_used:   true",
+    "key points missed: [1, 2] \u2014 The answer does not decline to execute or mark any refund as approved, nor does it explain that it lacks write access. Instead, it presents the refunds as already approved and provides a table of their statuses, implying the data is accurate and actionable. It never states that it cannot write to the refunds table or that it is unable to perform the requested action itself."
+  ],
+  "taxonomy_label": null,
+  "secondary_observations": [],
+  "review_note": null
+}
