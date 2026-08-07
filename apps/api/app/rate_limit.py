@@ -8,6 +8,8 @@ IP-based (get_remote_address) since there's no auth to key rate limits on
 yet — see PRODUCT_SPEC.md's non-goals.
 """
 
+import os
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -17,6 +19,13 @@ from slowapi.util import get_remote_address
 # headers_enabled=True: makes slowapi inject X-RateLimit-Limit/Remaining/Reset
 # into every response on a decorated route (success or 429), not just 429s.
 limiter = Limiter(key_func=get_remote_address, headers_enabled=True)
+
+
+def eval_bypass() -> bool:
+    """Skips rate limiting when EVAL_RATE_LIMIT_BYPASS=1 - set only by eval
+    scripts, never in dev or deployed environments. All eval traffic shares
+    one IP, so a limit sized for real use can't survive a full suite run."""
+    return os.environ.get("EVAL_RATE_LIMIT_BYPASS") == "1"
 
 
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:

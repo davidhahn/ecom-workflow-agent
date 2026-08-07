@@ -8,13 +8,13 @@ from app.invoices.schemas import (
 )
 from app.invoices.service import confirm_invoice, draft_invoice
 from app.permissions import require_permission
-from app.rate_limit import limiter
+from app.rate_limit import eval_bypass, limiter
 
 router = APIRouter()
 
 
 @router.post("/invoices/draft", response_model=InvoiceDraftResponse)
-@limiter.limit("20/hour")
+@limiter.limit("20/hour", exempt_when=eval_bypass)
 def invoices_draft_endpoint(
     request: Request,
     response: Response,
@@ -25,7 +25,7 @@ def invoices_draft_endpoint(
 
 
 @router.post("/invoices/confirm", response_model=InvoiceConfirmResponse)
-@limiter.limit("20/hour")
+@limiter.limit("20/hour", exempt_when=eval_bypass)
 def invoices_confirm_endpoint(
     request: Request,
     response: Response,

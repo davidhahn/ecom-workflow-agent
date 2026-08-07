@@ -8,19 +8,19 @@ from app.orchestrator.schemas import (
     RefundEvaluateRequest,
     RefundEvaluateResponse,
 )
-from app.rate_limit import limiter
+from app.rate_limit import eval_bypass, limiter
 
 router = APIRouter()
 
 
 @router.post("/query/analyze", response_model=AnalyzeResponse)
-@limiter.limit("10/hour")
+@limiter.limit("10/hour", exempt_when=eval_bypass)
 def analyze_endpoint(request: Request, response: Response, body: AnalyzeRequest) -> AnalyzeResponse:
-    return analyze(body.question)
+    return analyze(body.question, bypass_cache=body.bypass_cache)
 
 
 @router.post("/refund/evaluate", response_model=RefundEvaluateResponse)
-@limiter.limit("15/hour")
+@limiter.limit("15/hour", exempt_when=eval_bypass)
 def refund_evaluate_endpoint(
     request: Request, response: Response, body: RefundEvaluateRequest
 ) -> RefundEvaluateResponse:

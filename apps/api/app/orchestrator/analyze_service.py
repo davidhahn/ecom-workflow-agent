@@ -77,10 +77,10 @@ def _build_sources(chunks: list[RagChunkResult]) -> list[SourceRef]:
     return sources
 
 
-def analyze(question: str) -> AnalyzeResponse:
+def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
     with request_log_span("analyze", question) as log:
         cache_key = normalize_key(question)
-        cached = cache_get("analyze", cache_key)
+        cached = None if bypass_cache else cache_get("analyze", cache_key)
         if cached is not None:
             log.cached = True
             log.input_tokens = 0
@@ -222,5 +222,6 @@ def analyze(question: str) -> AnalyzeResponse:
         )
         log.tool_calls = tool_calls
         log.output = result.model_dump(mode="json")
-        cache_set("analyze", cache_key, result)
+        if not bypass_cache:
+            cache_set("analyze", cache_key, result)
         return result

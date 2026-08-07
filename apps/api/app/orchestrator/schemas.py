@@ -5,6 +5,10 @@ from pydantic import BaseModel
 
 class AnalyzeRequest(BaseModel):
     question: str
+    # Eval-only: skips the app cache for this call. Lets eval scripts ask
+    # the same question multiple times and get independent answers instead
+    # of a cached repeat. Off by default, so normal traffic is unaffected.
+    bypass_cache: bool = False
 
 
 class SourceRef(BaseModel):

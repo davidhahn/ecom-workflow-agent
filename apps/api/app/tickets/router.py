@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Response
 
 from app.permissions import require_permission
-from app.rate_limit import limiter
+from app.rate_limit import eval_bypass, limiter
 from app.tickets.schemas import (
     TicketConfirmRequest,
     TicketConfirmResponse,
@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.post("/tickets/draft", response_model=TicketDraftResponse)
-@limiter.limit("20/hour")
+@limiter.limit("20/hour", exempt_when=eval_bypass)
 def tickets_draft_endpoint(
     request: Request,
     response: Response,
@@ -25,7 +25,7 @@ def tickets_draft_endpoint(
 
 
 @router.post("/tickets/confirm", response_model=TicketConfirmResponse)
-@limiter.limit("20/hour")
+@limiter.limit("20/hour", exempt_when=eval_bypass)
 def tickets_confirm_endpoint(
     request: Request,
     response: Response,

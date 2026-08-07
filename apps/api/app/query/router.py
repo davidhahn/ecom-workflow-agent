@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends, Request, Response
 from app.permissions import require_permission
 from app.query.schemas import SqlQueryRequest, SqlQueryResponse
 from app.query.service import run_sql_query
-from app.rate_limit import limiter
+from app.rate_limit import eval_bypass, limiter
 
 router = APIRouter()
 
 
 @router.post("/query/sql", response_model=SqlQueryResponse)
-@limiter.limit("20/hour")
+@limiter.limit("20/hour", exempt_when=eval_bypass)
 def query_sql(
     request: Request,
     response: Response,

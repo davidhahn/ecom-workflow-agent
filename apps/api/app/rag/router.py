@@ -5,7 +5,7 @@ from app.observability.logger import request_log_span
 from app.permissions import require_permission
 from app.rag.schemas import RagQueryRequest, RagQueryResponse
 from app.rag.service import query_rag
-from app.rate_limit import limiter
+from app.rate_limit import eval_bypass, limiter
 
 router = APIRouter()
 
@@ -13,7 +13,7 @@ _CACHE_NAMESPACE = "rag"
 
 
 @router.post("/query/rag", response_model=RagQueryResponse)
-@limiter.limit("20/hour")
+@limiter.limit("20/hour", exempt_when=eval_bypass)
 def query_rag_endpoint(
     request: Request,
     response: Response,
