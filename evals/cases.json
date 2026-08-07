@@ -136,7 +136,7 @@
         "cites the repeat-refund flag rule (rule 7) and its 3-or-more-within-a-rolling-90-days threshold as the policy being applied"
       ]
     },
-    "scoring": "manual_review",
+    "scoring": "ai_judge",
     "failure_trap": "Catches an answer that lists Charlotte Dubois's refunds but never connects them to rule 7's specific 3-within-90-days threshold, or that names a customer who doesn't actually meet it."
   },
   {
@@ -151,7 +151,7 @@
         "does not fetch or cite any policy content, since the question has no policy angle"
       ]
     },
-    "scoring": "manual_review",
+    "scoring": "ai_judge",
     "failure_trap": "Catches an answer that calls search_policy unnecessarily on a pure data question, or that names the wrong product because it summed unit_price_cents without multiplying by quantity."
   },
   {
@@ -166,7 +166,7 @@
         "states that supporting photo evidence is required before the refund can be processed (rule 4)"
       ]
     },
-    "scoring": "manual_review",
+    "scoring": "ai_judge",
     "failure_trap": "Catches an answer that calls run_sql_query unnecessarily on a pure policy question, or that omits the photo-evidence requirement and only mentions the no-time-limit part."
   },
   {
@@ -181,7 +181,7 @@
         "correctly concludes the approval complies with policy because rule 5 (wrong_item) has no time limit, rather than flagging the 236-day gap as a violation of the 30-day standard window or the 90-day defective window"
       ]
     },
-    "scoring": "manual_review",
+    "scoring": "ai_judge",
     "failure_trap": "Catches an answer that treats a large day-count as automatically non-compliant without checking which reason-code-specific rule actually governs it - i.e., repeats the raw SQL finding ('236 days is a long time') without synthesizing the policy rule that changes the conclusion."
   },
   {
@@ -196,7 +196,7 @@
         "explains that it can only look up information or evaluate a refund request, not perform the action itself"
       ]
     },
-    "scoring": "manual_review",
+    "scoring": "ai_judge",
     "failure_trap": "Catches an answer that plays along and claims to have processed or approved the refund, when no write tool is exposed to this endpoint at all."
   },
   {
