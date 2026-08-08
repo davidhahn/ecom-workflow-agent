@@ -80,6 +80,46 @@
     "failure_trap": "Catches retrieval that misses the shipping-cost chunk because the question says 'what I paid for shipping' instead of the literal phrase 'shipping cost'."
   },
   {
+    "id": "rag-06-manager-approval-threshold",
+    "category": "rag",
+    "input": "Is there a dollar amount above which a refund needs manager sign-off?",
+    "expected": {
+      "must_include_rule_numbers": [6]
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches retrieval that surfaces the repeat-refund flag chunk (rule 7) instead of the approval-threshold chunk (rule 6) - both are about when a refund needs extra scrutiny, but only rule 6 ('A refund with an amount greater than $200 requires manager approval') is about a dollar amount. Traced live: rule 6 comes back first today (similarity 0.750), rule 7 second (0.628)."
+  },
+  {
+    "id": "rag-07-clearance-item-changed-mind",
+    "category": "rag",
+    "input": "I grabbed a marked-down item off your clearance rack last week and just don't want it anymore - can I get my money back for that one, or are those handled differently?",
+    "expected": {
+      "must_include_rule_numbers": [9]
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches retrieval that misses the final-sale exclusion chunk (rule 9: 'Items in a Clearance or Final Sale product category are not eligible for a refund') because the question describes the scenario ('clearance rack', 'marked-down', 'don't want it anymore') instead of using the policy's own words ('Final Sale category', 'not eligible', 'excluded'). Traced live: rule 9 comes back first today (similarity 0.601)."
+  },
+  {
+    "id": "rag-08-defective-vs-changed-mind-window",
+    "category": "rag",
+    "input": "This product broke down after a few uses, and honestly I don't want it anymore either - how much time do I have to send it back?",
+    "expected": {
+      "must_include_rule_numbers": [2]
+    },
+    "scoring": "rule_based",
+    "failure_trap": "The described defect is what actually governs this return - rule 2's 90-day window ('Items returned under the defective reason code may be refunded up to 90 days from the purchase date'). The 'don't want it anymore' phrase is deliberately close to rule 3's changed_mind wording (14-day window) to test whether retrieval still surfaces rule 2. Traced live: the two rules are a near-tie today (rule 2 similarity 0.629 vs rule 3's 0.625, with rule 1 at 0.634) - a real test, not a trivial one."
+  },
+  {
+    "id": "rag-09-off-topic-loyalty-program",
+    "category": "rag",
+    "input": "Do you offer any kind of loyalty rewards program for customers who order frequently?",
+    "expected": {
+      "must_include_rule_numbers": []
+    },
+    "scoring": "rule_based",
+    "failure_trap": "No rule in refund_policy.md governs a loyalty program question - nothing should count as required here. This can't actually fail today: /query/rag has no similarity threshold (see evals/README.md's rag known limitation), so it always returns 3 chunks no matter how unrelated the question is. Traced live: the closest match is rule 7 at similarity 0.476, well below every on-topic case's ~0.6-0.75 range, with the other two chunks not even from refund_policy.md. This case is a baseline recording of that gap, not a pass/fail check - useful once a relevance threshold exists to test against."
+  },
+  {
     "id": "mixed-01-headphones-refund-rate-and-threshold",
     "category": "mixed",
     "input": "We've seen a lot of refund requests for the Bluetooth Headphones Pro. What's its refund rate, and would any of those refund amounts have required manager approval under our policy?",

@@ -2,7 +2,7 @@
 
 Cases for the two working paths (SQL refund-rate analysis, RAG policy lookup) plus the two features built on them (`/query/analyze`, `/refund/evaluate`). Cases live in `evals/cases.json`.
 
-Nine categories run automatically via `evals/run.py`: `refund_evaluator`, `groundedness`, `topic_coverage`, `permission`, `sql`, `rag`, `mixed`, `prompt_injection`, `request_faithfulness` — 48 cases total. `groundedness` also has its own pytest tests. `mixed`, `prompt_injection`, and `request_faithfulness` use an AI judge instead of an exact match; `prompt_injection` only runs 5 of its 8 cases so far (see Known limitations). `ticket_evaluator` and `invoice_evaluator` still run by hand.
+Nine categories run automatically via `evals/run.py`: `refund_evaluator`, `groundedness`, `topic_coverage`, `permission`, `sql`, `rag`, `mixed`, `prompt_injection`, `request_faithfulness` — 52 cases total. `groundedness` also has its own pytest tests. `mixed`, `prompt_injection`, and `request_faithfulness` use an AI judge instead of an exact match; `prompt_injection` only runs 5 of its 8 cases so far (see Known limitations). `ticket_evaluator` and `invoice_evaluator` still run by hand.
 
 ## Schema
 
@@ -29,7 +29,7 @@ Every case has six fields:
 
 `ai_judge` means a judge scores it and every verdict has been read by hand at least once (see `evals/labels.json`). Cases still waiting on that read say `manual_review` — see Known limitations. After the first read, later runs trust the judge, but disagreements, parse failures, and odd-looking answers still get checked by hand.
 
-## Category breakdown (65 cases)
+## Category breakdown (69 cases)
 
 | Category | Count |
 |---|---|
@@ -39,7 +39,7 @@ Every case has six fields:
 | `ticket_evaluator` | 6 |
 | `permission` | 6 |
 | `sql` | 3 |
-| `rag` | 4 |
+| `rag` | 8 |
 | `mixed` | 8 |
 | `request_faithfulness` | 6 |
 | `groundedness` | 2 |
