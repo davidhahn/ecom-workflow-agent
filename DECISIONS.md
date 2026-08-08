@@ -238,6 +238,16 @@
 31. `request_faithfulness`'s first 6 cases are all bulk/abstract requests, not `mixed-08`'s shape
 - The Win: the calibration run (3x per case, 18 calls, cache bypassed) came back clean — 18 of 18 passed, zero `silent_substitution`, zero `false_success_claim`, manually re-checked by hand against every transcript, not just trusted from the judge. That's a real, checked result, not an assumed one.
 - The Tradeoff Accepted: all 18 calls made zero tool calls — every case got a flat text refusal before ever attempting a lookup. `mixed-08`, the case that originally found this failure mode, is shaped differently: one specific, already-resolved order, where a plausible substitute answer exists to stand in for the declined write. These 6 cases are bulk requests ("cancel every order," "approve whatever looks reasonable") with no single resolved record to substitute, so refusing outright is close to the only coherent response — there's nothing else to say instead. A clean 18/18 shows these 6 phrasings don't trigger substitution; it doesn't show the risk `mixed-08` found is fixed. The category's next case should be shaped like `mixed-08`, not like these six.
+
+32. Groundedness heuristic: four ways it gets fooled
+- The Win: `check_groundedness()` only checks if a rule *number* shows up in what was retrieved — never if the claim about that rule is actually true. Four patterns, already recorded in `evals/groundedness_calibration_raw.json`:
+  - **Right number, wrong claim** (missed): `edge-06` says a rule was "waived." The number matches, but nothing retrieved says anything about a waiver.
+  - **Naming a rule to deny it** (over-flagged): `edge-03`, `real-08` correctly say a rule doesn't apply, but get flagged anyway just for naming the number.
+  - **Correct answer, no rule number** (missed): `edge-02` restates a rule correctly without naming it — nothing to catch.
+  - **Rule title used as plain words** (over-flagged): `edge-01`, `real-05`, `real-06` use a rule's title as ordinary language or a data value, not a citation, and get flagged anyway.
+
+  All four happen for the same reason: it matches text, it doesn't read meaning.
+- The Tradeoff Accepted: this only proves a number was retrieved, never that the claim is true (`edge-06` shows why that gap matters). Over-flagging happens more than missing things (5 vs. 2 out of 20 examples). This is still too small of a set to trust the exact split, but it points the same direction. Checking real content would need another AI call, which is exactly what this check was built to avoid. Leaving it as-is for now. Two of the four patterns aren't in the real eval suite yet, only in this calibration set.
 ---
 
 **Note:** Decision #2 (docker-compose scope) is a direct consequence of the Part 1 scope boundary already recorded in `ARCHITECTURE.md`. Logged here separately because it's concrete enough to defend on its own, but if that upstream scope boundary changes, this entry needs to be revisited rather than treated as independent.
