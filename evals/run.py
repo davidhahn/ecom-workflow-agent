@@ -295,6 +295,73 @@ def _check_read_only_violation_attempt(sql_lower: str, expected_attempt: bool) -
     return []
 
 
+# ---------------------------------------------------------------------------
+# expected_result: only for cases that run a real query and return data.
+# Rejection cases skip this - nothing ran, so there's no value to check.
+#
+# Compares against the structured rows /query/sql returns, never prose (this
+# endpoint has none). Claude picks its own column names, so matching is by
+# value, not by key: is the expected number/string anywhere in the row.
+# ---------------------------------------------------------------------------
+
+
+def _as_number(value: object) -> float | None:
+    """Postgres decimal columns arrive as strings like "236.97", not
+    floats. Try to read one as a number before giving up on it."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _value_matches(actual_value: object, expected_value: object, tolerance: float) -> bool:
+    if isinstance(expected_value, str):
+        return isinstance(actual_value, str) and actual_value.strip().lower() == expected_value.strip().lower()
+    if isinstance(expected_value, (int, float)):
+        actual_number = _as_number(actual_value)
+        return actual_number is not None and abs(actual_number - float(expected_value)) <= tolerance
+    return actual_value == expected_value
+
+
+def _row_matches(actual_row: dict, expected_row: dict, tolerance: float) -> bool:
+    return all(
+        any(_value_matches(v, expected_value, tolerance) for v in actual_row.values())
+        for expected_value in expected_row.values()
+    )
+
+
+def _check_expected_result(expected_result: dict, actual_rows: list[dict]) -> list[str]:
+    result_type = expected_result["type"]
+
+    if result_type == "scalar":
+        value = expected_result["value"]
+        tolerance = expected_result["tolerance"] if expected_result["comparison"] == "absolute_tolerance" else 0
+        # A rate might come back as 0-1 or as 0-100 (a percent column) -
+        # both are correct, just different scales. Accept either.
+        candidates = (value, value * 100) if 0 <= value <= 1 else (value,)
+        if not any(
+            _value_matches(v, candidate, tolerance) for row in actual_rows for v in row.values() for candidate in candidates
+        ):
+            return [f"expected_result: no returned value within {tolerance} of {value} (or {value * 100} as a percent)"]
+        return []
+
+    if result_type == "rows":
+        tolerance = expected_result.get("numeric_tolerance", 0)
+        return [
+            f"expected_result: no returned row matches {expected_row}"
+            for expected_row in expected_result["rows"]
+            if not any(_row_matches(actual_row, expected_row, tolerance) for actual_row in actual_rows)
+        ]
+
+    raise ValueError(f"unknown expected_result.type: {result_type!r}")
+
+
 def run_sql_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
     expected = case["expected"]
     response = client.post("/query/sql", json={"question": case["input"]})
@@ -302,6 +369,7 @@ def run_sql_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
     actual_status = body.get("status")
     sql_executed = body.get("sql_executed") or ""
     sql_lower = sql_executed.lower()
+    rows = body.get("rows") or []
 
     failure_reasons: list[str] = []
     if "tables_joined" in expected:
@@ -315,10 +383,12 @@ def run_sql_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
     if "expected_status" in expected and actual_status != expected["expected_status"]:
         failure_reasons.append(f"expected status: {expected['expected_status']}")
         failure_reasons.append(f"actual status:   {actual_status}")
+    if "expected_result" in expected:
+        failure_reasons += _check_expected_result(expected["expected_result"], rows)
     # expected_rejection_layer isn't checked — /query/sql never returns
     # which layer rejected a query, only rejection_reason and status.
 
-    actual = {"status": actual_status, "sql_executed": sql_executed}
+    actual = {"status": actual_status, "sql_executed": sql_executed, "rows": rows}
     return actual, failure_reasons
 
 

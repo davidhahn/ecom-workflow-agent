@@ -1,0 +1,42 @@
+{
+  "case_id": "sql-01-refund-rate-by-category",
+  "category": "sql",
+  "input": "What is the refund rate for products in the Electronics category?",
+  "expected": {
+    "tables_joined": [
+      "order_items",
+      "products",
+      "refunds"
+    ],
+    "columns_excluded": [
+      "customers.email"
+    ],
+    "read_only_violation_attempt": false,
+    "expected_status": "success",
+    "expected_result": {
+      "type": "scalar",
+      "value": 0.4348,
+      "comparison": "absolute_tolerance",
+      "tolerance": 0.01,
+      "derivation": "psql, independent of the app: SUM(order_items.quantity) for Electronics order_items with an approved refund (10) divided by SUM(order_items.quantity) for all Electronics order_items regardless of refund status (23) = 10/23 = 0.4348. Verified against the 20 raw Electronics order_item rows by hand; confirmed no order_item has more than one refund row, and no Electronics refund is denied or pending, so this definition has no edge case to argue about here."
+    }
+  },
+  "actual_answer": null,
+  "response_status": "success",
+  "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / COUNT(DISTINCT oi.id) AS DECIMAL), 2) AS refund_rate_pct FROM products AS p JOIN order_items AS oi ON oi.product_id = p.id LEFT JOIN refunds AS r ON r.order_item_id = oi.id WHERE p.category = 'Electronics' LIMIT 500",
+  "tool_calls": null,
+  "retrieved_chunks": null,
+  "prompt_version": "5bca237",
+  "judge_verdict": null,
+  "human_reviewed_verdict": null,
+  "latency_ms": 3539,
+  "input_tokens": 1209,
+  "output_tokens": 194,
+  "estimated_cost_usd": 0.006537,
+  "failed_checks": [
+    "expected_result: no returned value within 0.01 of 0.4348 (or 43.480000000000004 as a percent)"
+  ],
+  "taxonomy_label": null,
+  "secondary_observations": [],
+  "review_note": null
+}

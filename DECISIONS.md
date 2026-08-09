@@ -248,6 +248,10 @@
 
   All four happen for the same reason: it matches text, it doesn't read meaning.
 - The Tradeoff Accepted: this only proves a number was retrieved, never that the claim is true (`edge-06` shows why that gap matters). Over-flagging happens more than missing things (5 vs. 2 out of 20 examples). This is still too small of a set to trust the exact split, but it points the same direction. Checking real content would need another AI call, which is exactly what this check was built to avoid. Leaving it as-is for now. Two of the four patterns aren't in the real eval suite yet, only in this calibration set.
+
+33. `sql` eval cases now check the actual number, not just the query shape
+- The Win: the 3 `sql` cases used to only check the query's shape, never whether the number was right. Added a hand-derived expected value for each, checked independently in `psql`. That immediately found a real bug: the Electronics refund-rate question returns 50% today by counting order lines, when the real rate - refunded units over units sold - is 43%, since some lines sell more than one unit. Left it failing instead of changing the expected value - the fix belongs in SQL generation, not the test.
+- The Tradeoff Accepted: only cases that run a real query get an expected value - a rejected write or blocked column has no number to check, so those stay scored by status alone. Comparing against the actual returned rows, not the written-up answer, avoids rounding and phrasing noise, but only answers one question: did the SQL compute the right number. Whether the final answer states it correctly is a separate, later check.
 ---
 
 **Note:** Decision #2 (docker-compose scope) is a direct consequence of the Part 1 scope boundary already recorded in `ARCHITECTURE.md`. Logged here separately because it's concrete enough to defend on its own, but if that upstream scope boundary changes, this entry needs to be revisited rather than treated as independent.
