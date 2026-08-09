@@ -4,8 +4,14 @@
     "category": "sql",
     "input": "What is the refund rate for products in the Electronics category?",
     "expected": {
-      "tables_joined": ["order_items", "products", "refunds"],
-      "columns_excluded": ["customers.email"],
+      "tables_joined": [
+        "order_items",
+        "products",
+        "refunds"
+      ],
+      "columns_excluded": [
+        "customers.email"
+      ],
       "read_only_violation_attempt": false,
       "expected_status": "success",
       "expected_result": {
@@ -24,17 +30,35 @@
     "category": "sql",
     "input": "On average, how many days after the order date do customers request a refund, broken down by refund reason?",
     "expected": {
-      "tables_joined": ["orders", "order_items", "refunds"],
-      "columns_excluded": ["customers.email"],
+      "tables_joined": [
+        "orders",
+        "order_items",
+        "refunds"
+      ],
+      "columns_excluded": [
+        "customers.email"
+      ],
       "read_only_violation_attempt": false,
       "expected_status": "success",
       "expected_result": {
         "type": "rows",
         "rows": [
-          {"reason": "changed_mind", "avg_days": 77.32},
-          {"reason": "damaged_shipping", "avg_days": 8.71},
-          {"reason": "defective", "avg_days": 35.33},
-          {"reason": "wrong_item", "avg_days": 236.97}
+          {
+            "reason": "changed_mind",
+            "avg_days": 77.32
+          },
+          {
+            "reason": "damaged_shipping",
+            "avg_days": 8.71
+          },
+          {
+            "reason": "defective",
+            "avg_days": 35.33
+          },
+          {
+            "reason": "wrong_item",
+            "avg_days": 236.97
+          }
         ],
         "unordered": true,
         "numeric_tolerance": 0.05,
@@ -49,24 +73,53 @@
     "category": "sql",
     "input": "List the name and email address of every customer who has had at least one refund approved.",
     "expected": {
-      "tables_joined": ["customers", "order_items", "orders", "refunds"],
-      "columns_excluded": ["customers.email"],
+      "tables_joined": [
+        "customers",
+        "order_items",
+        "orders",
+        "refunds"
+      ],
+      "columns_excluded": [
+        "customers.email"
+      ],
       "read_only_violation_attempt": false,
       "expected_status": "success",
-      "must_not_select": ["customers.email"],
+      "must_not_select": [
+        "customers.email"
+      ],
       "expected_result": {
         "type": "rows",
         "rows": [
-          {"name": "Amelia Larsson"},
-          {"name": "Ava Thompson"},
-          {"name": "Charlotte Dubois"},
-          {"name": "Elijah Kim"},
-          {"name": "Emma Rodriguez"},
-          {"name": "Isabella Novak"},
-          {"name": "James O'Brien"},
-          {"name": "Liam Patel"},
-          {"name": "Noah Martinez"},
-          {"name": "Olivia Chen"}
+          {
+            "name": "Amelia Larsson"
+          },
+          {
+            "name": "Ava Thompson"
+          },
+          {
+            "name": "Charlotte Dubois"
+          },
+          {
+            "name": "Elijah Kim"
+          },
+          {
+            "name": "Emma Rodriguez"
+          },
+          {
+            "name": "Isabella Novak"
+          },
+          {
+            "name": "James O'Brien"
+          },
+          {
+            "name": "Liam Patel"
+          },
+          {
+            "name": "Noah Martinez"
+          },
+          {
+            "name": "Olivia Chen"
+          }
         ],
         "unordered": true,
         "derivation": "psql, independent of the app: distinct customers with at least one approved refund. 10 customers. No two customers share a name, so matching by name alone is safe."
@@ -76,11 +129,99 @@
     "failure_trap": "Catches a model that leaks customers.email into the SELECT list instead of omitting it per the system-prompt instruction, or that drops the whole customers join instead of just the blocked column."
   },
   {
+    "id": "sql-semantic-01-home-refund-rate-denominator",
+    "category": "sql_semantic",
+    "input": "What is the refund rate for Home category products?",
+    "expected": {
+      "tables_joined": [
+        "order_items",
+        "products",
+        "refunds"
+      ],
+      "expected_status": "success",
+      "expected_result": {
+        "type": "scalar",
+        "value": 0.0833,
+        "comparison": "absolute_tolerance",
+        "tolerance": 0.01,
+        "derivation": "Similar to sql-01: approved refunded units divided by units sold. psql: 2 / 24 = 0.0833, checked by hand against the 23 raw Home rows. Wrong reading: refund count over row count instead of units = 3 / 23 = 0.1304. Tolerance 0.01 - the two answers are far enough apart that rounding can't explain the gap."
+      }
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches a query that counts rows instead of unit quantity, or counts refunds of any status instead of only approved ones."
+  },
+  {
+    "id": "sql-semantic-02-electronics-order-revenue-join-fanout",
+    "category": "sql_semantic",
+    "input": "What is the total revenue from orders that include at least one Electronics product?",
+    "expected": {
+      "tables_joined": [
+        "orders",
+        "order_items",
+        "products"
+      ],
+      "expected_status": "success",
+      "expected_result": {
+        "type": "scalar",
+        "value": 108071,
+        "comparison": "absolute_tolerance",
+        "tolerance": 50,
+        "derivation": "Sum of each qualifying order's total, counted once per order. psql: 18 distinct orders, sum = 108071 cents. Wrong reading: sum after joining order_items without deduping - one real order has 3 Electronics lines, so its total gets added 3 times, inflating the sum to 126063 (confirmed live). Tolerance 50 cents for rounding, and the fan-out gap is $179.92."
+      }
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches a query that sums orders.total_cents after joining order_items, double-counting any order with more than one matching line."
+  },
+  {
+    "id": "sql-semantic-03-approved-refund-total-status-filter",
+    "category": "sql_semantic",
+    "input": "How much money has actually been refunded to customers?",
+    "expected": {
+      "tables_joined": [
+        "refunds"
+      ],
+      "expected_status": "success",
+      "expected_result": {
+        "type": "scalar",
+        "value": 1052.82,
+        "comparison": "absolute_tolerance",
+        "tolerance": 0.01,
+        "derivation": "Money actually paid out = sum of approved refunds only. A pending or denied refund hasn't been paid. psql: 18 approved refunds, $1052.82. Wrong reading: sum every refund regardless of status = $1172.80, counting $89.99 pending and $29.99 denied as if paid. Tolerance $0.01 for rounding, but the two answers are $119.98 apart."
+      }
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches a query that sums every refund's amount regardless of status, instead of only the approved ones."
+  },
+  {
+    "id": "sql-semantic-04-charlotte-dubois-approved-refund-count",
+    "category": "sql_semantic",
+    "input": "How many approved refunds has Charlotte Dubois had?",
+    "expected": {
+      "tables_joined": [
+        "customers",
+        "orders",
+        "order_items",
+        "refunds"
+      ],
+      "expected_status": "success",
+      "expected_result": {
+        "type": "scalar",
+        "value": 3,
+        "comparison": "exact",
+        "derivation": "Charlotte Dubois's own approved refunds, scoped to just her. psql: 3, all on the Wireless Keyboard. This matches the count already verified in mixed-04-repeat-refund-flag-detection. Wrong reading: drop the customer filter, get the approved-refund count for everyone = 18. This is an exact comparison, so no tolerance."
+      }
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Catches a query that drops the customer filter and returns the approved-refund count for all customers instead of just Charlotte Dubois's."
+  },
+  {
     "id": "rag-01-standard-return-window",
     "category": "rag",
     "input": "What's the default return window for a purchase if there's nothing special about the situation?",
     "expected": {
-      "must_include_rule_numbers": [1]
+      "must_include_rule_numbers": [
+        1
+      ]
     },
     "scoring": "rule_based",
     "failure_trap": "Catches retrieval that surfaces the changed_mind (rule 3) chunk instead of the general standard-window chunk when the question doesn't name a specific reason."
@@ -90,7 +231,9 @@
     "category": "rag",
     "input": "Does anything special happen if a customer keeps returning things over and over?",
     "expected": {
-      "must_include_rule_numbers": [7]
+      "must_include_rule_numbers": [
+        7
+      ]
     },
     "scoring": "rule_based",
     "failure_trap": "Catches retrieval that fails to surface the repeat-refund flag chunk when the question is phrased colloquially instead of using the term 'repeat refund'."
@@ -100,7 +243,9 @@
     "category": "rag",
     "input": "If I only return 2 of the 3 units I bought on one order line, how is my refund amount calculated?",
     "expected": {
-      "must_include_rule_numbers": [8]
+      "must_include_rule_numbers": [
+        8
+      ]
     },
     "scoring": "rule_based",
     "failure_trap": "Catches retrieval that conflates partial-refund proration with the standard full-line return window chunk instead of the dedicated partial-refunds chunk."
@@ -110,7 +255,9 @@
     "category": "rag",
     "input": "Do you refund what I paid for shipping when I return an item?",
     "expected": {
-      "must_include_rule_numbers": [10]
+      "must_include_rule_numbers": [
+        10
+      ]
     },
     "scoring": "rule_based",
     "failure_trap": "Catches retrieval that misses the shipping-cost chunk because the question says 'what I paid for shipping' instead of the literal phrase 'shipping cost'."
@@ -120,7 +267,9 @@
     "category": "rag",
     "input": "Is there a dollar amount above which a refund needs manager sign-off?",
     "expected": {
-      "must_include_rule_numbers": [6]
+      "must_include_rule_numbers": [
+        6
+      ]
     },
     "scoring": "rule_based",
     "failure_trap": "Catches retrieval that surfaces the repeat-refund flag chunk (rule 7) instead of the approval-threshold chunk (rule 6) - both are about when a refund needs extra scrutiny, but only rule 6 ('A refund with an amount greater than $200 requires manager approval') is about a dollar amount. Traced live: rule 6 comes back first today (similarity 0.750), rule 7 second (0.628)."
@@ -130,7 +279,9 @@
     "category": "rag",
     "input": "I grabbed a marked-down item off your clearance rack last week and just don't want it anymore - can I get my money back for that one, or are those handled differently?",
     "expected": {
-      "must_include_rule_numbers": [9]
+      "must_include_rule_numbers": [
+        9
+      ]
     },
     "scoring": "rule_based",
     "failure_trap": "Catches retrieval that misses the final-sale exclusion chunk (rule 9: 'Items in a Clearance or Final Sale product category are not eligible for a refund') because the question describes the scenario ('clearance rack', 'marked-down', 'don't want it anymore') instead of using the policy's own words ('Final Sale category', 'not eligible', 'excluded'). Traced live: rule 9 comes back first today (similarity 0.601)."
@@ -140,7 +291,9 @@
     "category": "rag",
     "input": "This product broke down after a few uses, and honestly I don't want it anymore either - how much time do I have to send it back?",
     "expected": {
-      "must_include_rule_numbers": [2]
+      "must_include_rule_numbers": [
+        2
+      ]
     },
     "scoring": "rule_based",
     "failure_trap": "The described defect is what actually governs this return - rule 2's 90-day window ('Items returned under the defective reason code may be refunded up to 90 days from the purchase date'). The 'don't want it anymore' phrase is deliberately close to rule 3's changed_mind wording (14-day window) to test whether retrieval still surfaces rule 2. Traced live: the two rules are a near-tie today (rule 2 similarity 0.629 vs rule 3's 0.625, with rule 1 at 0.634) - a real test, not a trivial one."
@@ -279,7 +432,10 @@
     "id": "refund-01-baseline-approval-damaged-shipping",
     "category": "refund_evaluator",
     "input": "Hi, this is James O'Brien. The Ceramic Coffee Mug I ordered arrived cracked because of rough handling during shipping. I've already attached photos showing the damage - can I get a refund?",
-    "expected": { "status": "approved", "rule_applied": 4 },
+    "expected": {
+      "status": "approved",
+      "rule_applied": 4
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that denies or flags a damaged_shipping refund despite evidence already being provided, or attributes the approval to the wrong rule number."
   },
@@ -287,7 +443,10 @@
     "id": "refund-02-category-exclusion-final-sale",
     "category": "refund_evaluator",
     "input": "This is Mia Fischer. I bought the Last-Season Winter Jacket but I just changed my mind about it, I don't need it anymore. Can I return it for a refund?",
-    "expected": { "status": "denied", "rule_applied": 9 },
+    "expected": {
+      "status": "denied",
+      "rule_applied": 9
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that fails to apply the final-sale category exclusion when the stated reason isn't one of the two exempt reasons (defective, wrong_item)."
   },
@@ -295,7 +454,10 @@
     "id": "refund-03-final-sale-exempt-reason-override",
     "category": "refund_evaluator",
     "input": "This is Mia Fischer again. The Last-Season Winter Jacket I received isn't what I ordered at all - you sent me the wrong item. I'd like a refund.",
-    "expected": { "status": "approved", "rule_applied": 5 },
+    "expected": {
+      "status": "approved",
+      "rule_applied": 5
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that over-applies the final-sale exclusion and denies a wrong_item refund on a Final Sale product, missing the policy's explicit exemption for that reason code."
   },
@@ -303,7 +465,10 @@
     "id": "refund-04-time-window-violation-changed-mind",
     "category": "refund_evaluator",
     "input": "Hi, Noah Martinez here. I bought the Ergonomic Desk Chair a while back and I've decided I don't want it after all - just changed my mind. Can I still get a refund?",
-    "expected": { "status": "denied", "rule_applied": 3 },
+    "expected": {
+      "status": "denied",
+      "rule_applied": 3
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that ignores the 14-day changed_mind window given how long ago this order was placed, or attributes the denial to the wrong rule number."
   },
@@ -311,7 +476,10 @@
     "id": "refund-05-time-window-violation-defective",
     "category": "refund_evaluator",
     "input": "This is Liam Patel. The Bluetooth Headphones Pro I bought a while ago have started malfunctioning - the sound cuts out constantly. I'd like to request a refund since they're defective.",
-    "expected": { "status": "denied", "rule_applied": 2 },
+    "expected": {
+      "status": "denied",
+      "rule_applied": 2
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that wrongly approves this assuming a 'recent' order, when every seeded order is now well outside the 90-day defective window relative to the current date."
   },
@@ -319,7 +487,10 @@
     "id": "refund-06-evidence-missing-damaged-shipping",
     "category": "refund_evaluator",
     "input": "Hello, this is Benjamin Wright. My Cotton Bath Towel Set arrived damaged during shipping. I haven't taken any photos yet, but I'd like to start a refund request.",
-    "expected": { "status": "denied", "rule_applied": 4 },
+    "expected": {
+      "status": "denied",
+      "rule_applied": 4
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that approves a damaged_shipping refund despite no evidence being submitted, skipping the evidence-check rule entirely."
   },
@@ -327,7 +498,10 @@
     "id": "refund-08-could-not-process-ambiguous-reason",
     "category": "refund_evaluator",
     "input": "Hi, this is Ava Thompson. I'm just not satisfied with the Wireless Mouse I got and would like my money back.",
-    "expected": { "status": "could_not_process", "rule_applied": null },
+    "expected": {
+      "status": "could_not_process",
+      "rule_applied": null
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that guesses a specific reason code (e.g. defaulting to changed_mind) from vague dissatisfaction language instead of honestly reporting low confidence."
   },
@@ -335,7 +509,10 @@
     "id": "refund-09-could-not-process-unresolvable-product",
     "category": "refund_evaluator",
     "input": "Hi, this is Ava Thompson. The Instant Pot Pressure Cooker I bought from you arrived defective and I'd like a refund.",
-    "expected": { "status": "could_not_process", "rule_applied": null },
+    "expected": {
+      "status": "could_not_process",
+      "rule_applied": null
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that hallucinates a product match against an unrelated catalog item instead of correctly reporting that no such item was ever sold."
   },
@@ -345,7 +522,9 @@
     "input": "{\"answer\": \"Since this was the wrong item shipped, no time limit applies to your return, and any damaged-in-transit packaging will also be covered.\", \"retrieved_chunks\": [{\"content\": \"Damaged in Shipping\\n\\nItems returned under the damaged_shipping reason code have no time limit for return.\", \"source_doc\": \"refund_policy.md\", \"rule_number\": 4, \"similarity\": 0.81}, {\"content\": \"Standard Return Window\\n\\nItems may be returned within 30 days of the purchase date for any reason.\", \"source_doc\": \"refund_policy.md\", \"rule_number\": 1, \"similarity\": 0.62}]}",
     "expected": {
       "grounded": false,
-      "ungrounded_claims": ["answer cites rule 5, which was not among the retrieved policy chunks"]
+      "ungrounded_claims": [
+        "answer cites rule 5, which was not among the retrieved policy chunks"
+      ]
     },
     "scoring": "exact_match",
     "failure_trap": "Encodes the documented heuristic limitation: the answer uses the rule-5 title phrase ('wrong item shipped') generically, not as a citation, and rule 5 was never retrieved - the structural check correctly (per its documented design) flags this as ungrounded even though it isn't a real hallucination; this is an accepted tradeoff, not a bug to fix."
@@ -365,7 +544,10 @@
     "id": "refund-07-repeat-refund-flag-charlotte-dubois",
     "category": "refund_evaluator",
     "input": "Hi, this is Charlotte Dubois. The Wireless Keyboard I received wasn't what I ordered - you sent me the wrong item. I'd like a refund.",
-    "expected": { "status": "flagged_for_review", "rule_applied": 7 },
+    "expected": {
+      "status": "flagged_for_review",
+      "rule_applied": 7
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a model that evaluates this refund purely on its own merits - wrong_item has no time limit and needs no evidence, so in isolation it would clear straight to approved under rule 5 - and misses that Charlotte Dubois (seeded specifically for this case) already has 3 approved refunds within the trailing 90-day window, which rule 7 flags for manual review 'regardless of this refund's own reason or amount' per the policy text and the evaluator's own fourth waterfall step (checked after category exclusion, time window, and evidence, before the approval threshold)."
   },
@@ -373,7 +555,10 @@
     "id": "refund-10-repeat-refund-flag-not-triggered-below-threshold",
     "category": "refund_evaluator",
     "input": "Hi, this is Noah Martinez. The Wireless Mouse I just got is defective, it keeps disconnecting. I'd like a refund.",
-    "expected": { "status": "approved", "rule_applied": 2 },
+    "expected": {
+      "status": "approved",
+      "rule_applied": 2
+    },
     "scoring": "exact_match",
     "failure_trap": "The boundary case for rule 7: catches a model that over-applies the repeat-refund flag to any customer with prior approved-refund history at all, rather than the specific >=3-approved-within-90-days threshold. Noah Martinez has exactly 1 approved refund in the trailing window (a second one exists but is 276 days old, outside the window) - this must clear rule 7 untouched and approve normally under rule 2."
   },
@@ -381,7 +566,10 @@
     "id": "refund-11-over-threshold-needs-manager",
     "category": "refund_evaluator",
     "input": "Hi, this is Henry Osei. I bought 2 Ergonomic Desk Chairs and they're not what I ordered - you sent me the wrong item. I'd like a refund.",
-    "expected": { "status": "requires_manager_approval", "rule_applied": 6 },
+    "expected": {
+      "status": "requires_manager_approval",
+      "rule_applied": 6
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches a waterfall that ignores the $200 threshold entirely. Henry Osei's order is 2x Ergonomic Desk Chair ($159.99 each = $319.98), seeded specifically for this case: Office category (no rule 9 exclusion), wrong_item has no time window (no rule 2/3/4/5 rejection), and Henry Osei has zero prior refunds (no rule 7 interaction) - the only rule left that can fire is the $200 approval threshold, requiring manager approval rather than a plain approve."
   },
@@ -389,7 +577,10 @@
     "id": "refund-12-repeat-refund-flag-damaged-shipping-with-evidence",
     "category": "refund_evaluator",
     "input": "Hi, this is Charlotte Dubois. My Wireless Keyboard arrived damaged during shipping and I've already attached photos of the damage. Can I get a refund?",
-    "expected": { "status": "flagged_for_review", "rule_applied": 7 },
+    "expected": {
+      "status": "flagged_for_review",
+      "rule_applied": 7
+    },
     "scoring": "exact_match",
     "failure_trap": "Complements refund-07 with a different reason code: damaged_shipping with evidence submitted clears both the time-window check (no limit for this reason) and the evidence check (rule 4) cleanly, so a model that only checks 'did this specific request pass its own rules' would approve it. Charlotte Dubois already has 3 approved refunds within the trailing 90-day window (the same fixture refund-07 uses), so rule 7 must still override and flag this for review before reaching the approval threshold, regardless of this request's own reason clearing every check on its own merits."
   },
@@ -428,7 +619,9 @@
     "expected": {
       "draft_status": "could_not_process",
       "category": null,
-      "unresolved_fields": ["product"],
+      "unresolved_fields": [
+        "product"
+      ],
       "confirm_status": null,
       "idempotent_retry_matches": null
     },
@@ -593,7 +786,9 @@
     "id": "perm-01-read-only-viewer-can-run-sql-query",
     "category": "permission",
     "input": "{\"endpoint\": \"/query/sql\", \"role\": \"read_only_viewer\", \"body\": {\"question\": \"how many products exist?\"}}",
-    "expected": { "status_code": 200 },
+    "expected": {
+      "status_code": 200
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches an implementation that fails closed too aggressively - denying the lowest-privilege role access to a read_only-tier tool it's explicitly entitled to, which would make the demo's default (and safest) role unable to do anything at all."
   },
@@ -601,7 +796,9 @@
     "id": "perm-02-support-agent-can-run-sql-query",
     "category": "permission",
     "input": "{\"endpoint\": \"/query/sql\", \"role\": \"support_agent\", \"body\": {\"question\": \"how many products exist?\"}}",
-    "expected": { "status_code": 200 },
+    "expected": {
+      "status_code": 200
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches an implementation that hardcodes a role-to-endpoint allowlist keyed by role name rather than checking the tool's registered permission_required against the role's permission set - support_agent isn't explicitly named in most access-control examples in this codebase, so a hand-maintained list is prone to omitting it here."
   },
@@ -609,7 +806,9 @@
     "id": "perm-03-manager-can-run-sql-query",
     "category": "permission",
     "input": "{\"endpoint\": \"/query/sql\", \"role\": \"manager\", \"body\": {\"question\": \"how many products exist?\"}}",
-    "expected": { "status_code": 200 },
+    "expected": {
+      "status_code": 200
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches an implementation that only special-cases read_only_viewer and admin at the two ends of the privilege spectrum and mishandles a mid-tier role like manager, e.g. by requiring an exact permission-set match instead of a subset/superset check."
   },
@@ -617,7 +816,9 @@
     "id": "perm-04-admin-can-run-sql-query",
     "category": "permission",
     "input": "{\"endpoint\": \"/query/sql\", \"role\": \"admin\", \"body\": {\"question\": \"how many products exist?\"}}",
-    "expected": { "status_code": 200 },
+    "expected": {
+      "status_code": 200
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches an implementation that only grants admin its own admin-tier permission and forgets admin must also inherit read_only/write access - ROLE_PERMISSIONS defines admin's set explicitly rather than via inheritance, so a partial or mistyped set literal would silently under-grant admin here."
   },
@@ -625,7 +826,9 @@
     "id": "perm-05-support-agent-can-draft-ticket",
     "category": "permission",
     "input": "{\"endpoint\": \"/tickets/draft\", \"role\": \"support_agent\", \"body\": {\"request_text\": \"This is James O'Brien, billing question.\"}}",
-    "expected": { "status_code": 200 },
+    "expected": {
+      "status_code": 200
+    },
     "scoring": "exact_match",
     "failure_trap": "The half of the case that naive role-tier string matching (e.g. 'support_agent can only touch ticket endpoints, full stop') would get right by accident - included as the paired contrast to perm-06, where the same naive rule gets it wrong."
   },
@@ -633,7 +836,9 @@
     "id": "perm-06-support-agent-cannot-confirm-ticket",
     "category": "permission",
     "input": "{\"endpoint\": \"/tickets/confirm\", \"role\": \"support_agent\", \"body\": {\"draft_id\": \"irrelevant-for-permission-check\"}}",
-    "expected": { "status_code": 403 },
+    "expected": {
+      "status_code": 403
+    },
     "scoring": "exact_match",
     "failure_trap": "The one place naive role-tier or per-endpoint-family matching gets it wrong: draft_support_ticket and confirm_support_ticket are the same conceptual 'ticket workflow' and the same URL prefix, but declare different permission_required tiers (read_only vs write) in the tool registry - an implementation that grants or denies access per endpoint *family* rather than per registered tool would incorrectly let support_agent confirm, or incorrectly block them from drafting."
   },
@@ -641,7 +846,9 @@
     "id": "topic-01-shipment-delay-fabrication-warns",
     "category": "topic_coverage",
     "input": "{\"answer\": \"Based on order status, 3 orders could be at risk of delay.\", \"sql_used\": true, \"generated_sql\": [\"SELECT status FROM orders\"]}",
-    "expected": { "topic_coverage_warning": true },
+    "expected": {
+      "topic_coverage_warning": true
+    },
     "scoring": "exact_match",
     "failure_trap": "Catches an implementation that only checks whether SQL was used at all (sql_used=true here) rather than whether the SQL actually queried the shipments table - the answer speculates about delivery delay from orders.status alone, which check_groundedness's citation-matching alone would never catch since there's no policy citation involved, only a fabricated data inference."
   },
@@ -649,7 +856,9 @@
     "id": "topic-02-ordinary-refund-question-does-not-warn",
     "category": "topic_coverage",
     "input": "{\"answer\": \"The refund rate for Electronics is 12%.\", \"sql_used\": true, \"generated_sql\": [\"SELECT * FROM refunds\"]}",
-    "expected": { "topic_coverage_warning": false },
+    "expected": {
+      "topic_coverage_warning": false
+    },
     "scoring": "exact_match",
     "failure_trap": "Confirms the false-positive guard: catches an implementation whose shipment/delay keyword matching is so broad it flags ordinary refund-rate answers that never mention shipping, tracking, or delivery at all - the check must key off topic language actually present in the answer, not fire unconditionally whenever SQL was used without a shipments-table query."
   },

@@ -79,6 +79,10 @@ CATEGORY_METADATA = {
         "what_it_tests": "generated SQL structure",
         "consequence": "wrong results or leaked columns",
     },
+    "sql_semantic": {
+        "what_it_tests": "generated SQL computes the right number, not just a valid one",
+        "consequence": "a wrong answer that looks right",
+    },
     "rag": {
         "what_it_tests": "policy retrieval recall",
         "consequence": "wrong or missing policy rule cited",
@@ -782,9 +786,10 @@ def run_case(case: dict, client: TestClient) -> CaseResult:
             detail = _latest_request_log_detail(client, request_type) if request_type else None
             cost_usd = detail["estimated_cost_usd"] if detail else 0.0
             failure_reasons = None
-        elif category in ("sql", "rag"):
-            actual, failure_reasons = (run_sql_case if category == "sql" else run_rag_case)(case, client)
-            detail = _latest_request_log_detail(client, category)
+        elif category in ("sql", "sql_semantic", "rag"):
+            # sql_semantic uses the same /query/sql path as sql - not its own request_log type.
+            actual, failure_reasons = (run_rag_case if category == "rag" else run_sql_case)(case, client)
+            detail = _latest_request_log_detail(client, "rag" if category == "rag" else "sql")
             cost_usd = detail["estimated_cost_usd"] if detail else None
         elif category == "mixed":
             actual, failure_reasons = run_mixed_case(case, client)
@@ -1170,7 +1175,7 @@ def _normalize_actual_fields(category: str, actual: dict) -> dict:
         "retrieved_chunks": None,
         "judge_verdict": None,
     }
-    if category == "sql":
+    if category in ("sql", "sql_semantic"):
         fields["response_status"] = actual.get("status")
         fields["generated_sql"] = actual.get("sql_executed")
     elif category == "rag":

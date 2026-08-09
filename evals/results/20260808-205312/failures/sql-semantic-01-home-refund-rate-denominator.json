@@ -1,0 +1,38 @@
+{
+  "case_id": "sql-semantic-01-home-refund-rate-denominator",
+  "category": "sql_semantic",
+  "input": "What is the refund rate for Home category products?",
+  "expected": {
+    "tables_joined": [
+      "order_items",
+      "products",
+      "refunds"
+    ],
+    "expected_status": "success",
+    "expected_result": {
+      "type": "scalar",
+      "value": 0.0833,
+      "comparison": "absolute_tolerance",
+      "tolerance": 0.01,
+      "derivation": "Definition (same shape as sql-01): approved refunded Home item quantity divided by total Home item quantity sold. psql: 2 approved-refunded units / 24 total units = 0.0833, checked against the 23 raw Home order_item rows by hand. Plausible wrong reading: refund count of any status divided by order_item row count instead of unit quantity = 3/23 = 0.1304 - this exact value came back from the live system, so it's a real, not hypothetical, mistake. Tolerance 0.01 covers rounding; the correct and wrong answers are 0.047-0.05 apart, well outside it."
+    }
+  },
+  "actual_answer": null,
+  "response_status": "success",
+  "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(100.0 * COUNT(DISTINCT r.id) / COUNT(DISTINCT oi.id) AS DECIMAL), 2) AS refund_rate_pct FROM order_items AS oi JOIN products AS p ON oi.product_id = p.id LEFT JOIN refunds AS r ON oi.id = r.order_item_id WHERE p.category = 'Home' LIMIT 500",
+  "tool_calls": null,
+  "retrieved_chunks": null,
+  "prompt_version": "c7820a3",
+  "judge_verdict": null,
+  "human_reviewed_verdict": null,
+  "latency_ms": 3569,
+  "input_tokens": 1207,
+  "output_tokens": 186,
+  "estimated_cost_usd": 0.006411,
+  "failed_checks": [
+    "expected_result: no returned value within 0.01 of 0.0833 (or 8.33 as a percent)"
+  ],
+  "taxonomy_label": null,
+  "secondary_observations": [],
+  "review_note": null
+}
