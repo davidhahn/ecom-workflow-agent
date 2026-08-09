@@ -1,0 +1,48 @@
+{
+  "case_id": "sql-semantic-01-home-refund-rate-denominator",
+  "category": "sql_semantic",
+  "input": "What is the refund rate for Home category products?",
+  "expected": {
+    "tables_joined": [
+      "order_items",
+      "products",
+      "refunds"
+    ],
+    "expected_status": "success",
+    "expected_result": {
+      "type": "scalar",
+      "value": 0.0833,
+      "comparison": "absolute_tolerance",
+      "tolerance": 0.01,
+      "derivation": "Similar to sql-01: approved refunded units divided by units sold. psql: 2 / 24 = 0.0833, checked by hand against the 23 raw Home rows. Wrong reading: refund count over row count instead of units = 3 / 23 = 0.1304. Tolerance 0.01 - the two answers are far enough apart that rounding can't explain the gap.",
+      "review_note": "Same root cause as sql-01: generated SQL counts order_item rows instead of unit quantity, and also doesn't filter refunds to approved-only, confirmed by reading the generated SQL directly."
+    }
+  },
+  "actual_answer": null,
+  "response_status": "success",
+  "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / COUNT(DISTINCT oi.id) AS DECIMAL), 2) AS refund_rate_pct FROM order_items AS oi JOIN products AS p ON oi.product_id = p.id LEFT JOIN refunds AS r ON oi.id = r.order_item_id WHERE p.category = 'Home' LIMIT 500",
+  "returned_rows": [
+    {
+      "total_refunds": 3,
+      "total_order_items": 23,
+      "refund_rate_pct": "13.04"
+    }
+  ],
+  "tool_calls": null,
+  "retrieved_chunks": null,
+  "prompt_version": "4dddfe4",
+  "judge_verdict": null,
+  "human_reviewed_verdict": null,
+  "latency_ms": 2945,
+  "input_tokens": 1207,
+  "output_tokens": 187,
+  "estimated_cost_usd": 0.006426,
+  "failed_checks": [
+    "expected result: 0.0833 \u00b1 0.01",
+    "actual result:   3.0",
+    "Same root cause as sql-01: generated SQL counts order_item rows instead of unit quantity, and also doesn't filter refunds to approved-only, confirmed by reading the generated SQL directly."
+  ],
+  "taxonomy_label": null,
+  "secondary_observations": [],
+  "review_note": null
+}

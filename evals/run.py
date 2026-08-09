@@ -301,11 +301,15 @@ def _check_read_only_violation_attempt(sql_lower: str, expected_attempt: bool) -
 
 # ---------------------------------------------------------------------------
 # expected_result: only for cases that run a real query and return data.
-# Rejection cases skip this - nothing ran, so there's no value to check.
+# A rejected or failed query has nothing to check, so this is skipped then.
 #
 # Compares against the structured rows /query/sql returns, never prose (this
-# endpoint has none). Claude picks its own column names, so matching is by
-# value, not by key: is the expected number/string anywhere in the row.
+# endpoint has none). Claude names its own columns, so matching is by value,
+# not by key - is the expected number or string anywhere in the row.
+#
+# Every failure gets its own specific reason, never one generic "mismatch."
+# The scorer never guesses why a value is wrong - that line only shows up
+# if a human already wrote one after looking at the failure themselves.
 # ---------------------------------------------------------------------------
 
 
@@ -324,6 +328,10 @@ def _as_number(value: object) -> float | None:
     return None
 
 
+def _fmt(value: object) -> str:
+    return json.dumps(value) if isinstance(value, dict) else str(value)
+
+
 def _value_matches(actual_value: object, expected_value: object, tolerance: float) -> bool:
     if isinstance(expected_value, str):
         return isinstance(actual_value, str) and actual_value.strip().lower() == expected_value.strip().lower()
@@ -333,36 +341,84 @@ def _value_matches(actual_value: object, expected_value: object, tolerance: floa
     return actual_value == expected_value
 
 
-def _row_matches(actual_row: dict, expected_row: dict, tolerance: float) -> bool:
+def _row_key_and_value_fields(row: dict) -> tuple[dict, dict]:
+    """Splits a row into text fields (which row this is) and number fields
+    (what's being checked) - by type, not by guessing what's meant."""
+    keys = {k: v for k, v in row.items() if isinstance(v, str)}
+    values = {k: v for k, v in row.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    return keys, values
+
+
+def _row_contains_all(actual_row: dict, expected_fields: dict, tolerance: float) -> bool:
     return all(
         any(_value_matches(v, expected_value, tolerance) for v in actual_row.values())
-        for expected_value in expected_row.values()
+        for expected_value in expected_fields.values()
     )
 
 
-def _check_expected_result(expected_result: dict, actual_rows: list[dict]) -> list[str]:
-    result_type = expected_result["type"]
+def _append_review_note(reasons: list[str], expected_result: dict) -> list[str]:
+    note = expected_result.get("review_note")
+    if reasons and note:
+        reasons.append(note)
+    return reasons
 
-    if result_type == "scalar":
-        value = expected_result["value"]
-        tolerance = expected_result["tolerance"] if expected_result["comparison"] == "absolute_tolerance" else 0
-        # A rate might come back as 0-1 or as 0-100 (a percent column) -
-        # both are correct, just different scales. Accept either.
-        candidates = (value, value * 100) if 0 <= value <= 1 else (value,)
-        if not any(
-            _value_matches(v, candidate, tolerance) for row in actual_rows for v in row.values() for candidate in candidates
-        ):
-            return [f"expected_result: no returned value within {tolerance} of {value} (or {value * 100} as a percent)"]
+
+def _check_scalar_result(expected_result: dict, actual_rows: list[dict]) -> list[str]:
+    value = expected_result["value"]
+    tolerance = expected_result["tolerance"] if expected_result["comparison"] == "absolute_tolerance" else 0
+    # A rate might come back as 0-1 or as 0-100 (a percent column) - both
+    # are correct, just different scales. Accept either.
+    candidates = (value, value * 100) if 0 <= value <= 1 else (value,)
+
+    all_values = [v for row in actual_rows for v in row.values()]
+    if any(_value_matches(v, c, tolerance) for v in all_values for c in candidates):
         return []
 
-    if result_type == "rows":
-        tolerance = expected_result.get("numeric_tolerance", 0)
-        return [
-            f"expected_result: no returned row matches {expected_row}"
-            for expected_row in expected_result["rows"]
-            if not any(_row_matches(actual_row, expected_row, tolerance) for actual_row in actual_rows)
-        ]
+    numeric_values = [n for v in all_values if (n := _as_number(v)) is not None]
+    if not numeric_values:
+        return ["result could not be normalized: no numeric value found in the returned rows"]
 
+    reasons: list[str] = []
+    if len(actual_rows) != 1:
+        reasons.append(f"wrong number of rows: expected 1 for a scalar result, got {len(actual_rows)}")
+    # Check the percent form too, so a real rate column isn't passed over
+    # for an unrelated count that just happens to be a closer raw number.
+    closest = min(numeric_values, key=lambda n: min(abs(n - value), abs(n - value * 100)))
+    tolerance_note = f" ± {tolerance}" if expected_result["comparison"] == "absolute_tolerance" else ""
+    reasons.append(f"expected result: {value}{tolerance_note}")
+    reasons.append(f"actual result:   {closest}")
+    return _append_review_note(reasons, expected_result)
+
+
+def _check_rows_result(expected_result: dict, actual_rows: list[dict]) -> list[str]:
+    tolerance = expected_result.get("numeric_tolerance", 0)
+    expected_rows = expected_result["rows"]
+    reasons: list[str] = []
+
+    for expected_row in expected_rows:
+        keys, _ = _row_key_and_value_fields(expected_row)
+        candidates = [r for r in actual_rows if _row_contains_all(r, keys, tolerance)] if keys else actual_rows
+        if not candidates:
+            reasons.append(f"expected row missing:\n      {_fmt(expected_row)}")
+        elif not any(_row_contains_all(r, expected_row, tolerance) for r in candidates):
+            reasons.append(f"expected row missing:\n      {_fmt(expected_row)}")
+            reasons.append(f"unexpected actual row:\n      {_fmt(candidates[0])}")
+
+    if reasons and len(actual_rows) != len(expected_rows):
+        reasons.append(f"wrong number of rows: expected {len(expected_rows)}, got {len(actual_rows)}")
+
+    return _append_review_note(reasons, expected_result)
+
+
+def _check_expected_result(expected_result: dict, actual_rows: list[dict]) -> list[str]:
+    if not actual_rows:
+        return ["structured result unavailable: query succeeded but returned no rows"]
+
+    result_type = expected_result["type"]
+    if result_type == "scalar":
+        return _check_scalar_result(expected_result, actual_rows)
+    if result_type == "rows":
+        return _check_rows_result(expected_result, actual_rows)
     raise ValueError(f"unknown expected_result.type: {result_type!r}")
 
 
@@ -371,6 +427,7 @@ def run_sql_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
     response = client.post("/query/sql", json={"question": case["input"]})
     body = response.json()
     actual_status = body.get("status")
+    rejection_reason = body.get("rejection_reason")
     sql_executed = body.get("sql_executed") or ""
     sql_lower = sql_executed.lower()
     rows = body.get("rows") or []
@@ -387,8 +444,16 @@ def run_sql_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
     if "expected_status" in expected and actual_status != expected["expected_status"]:
         failure_reasons.append(f"expected status: {expected['expected_status']}")
         failure_reasons.append(f"actual status:   {actual_status}")
+
+    # A rejected or failed query has no result to check - confirm it
+    # actually succeeded first.
     if "expected_result" in expected:
-        failure_reasons += _check_expected_result(expected["expected_result"], rows)
+        if actual_status == "rejected":
+            failure_reasons.append(f"query rejected: {rejection_reason or '(no reason given)'}")
+        elif actual_status == "error":
+            failure_reasons.append(f"query failed: {rejection_reason or '(no reason given)'}")
+        elif actual_status == "success":
+            failure_reasons += _check_expected_result(expected["expected_result"], rows)
     # expected_rejection_layer isn't checked — /query/sql never returns
     # which layer rejected a query, only rejection_reason and status.
 
@@ -1171,6 +1236,7 @@ def _normalize_actual_fields(category: str, actual: dict) -> dict:
         "actual_answer": None,
         "response_status": None,
         "generated_sql": None,
+        "returned_rows": None,
         "tool_calls": None,
         "retrieved_chunks": None,
         "judge_verdict": None,
@@ -1178,6 +1244,7 @@ def _normalize_actual_fields(category: str, actual: dict) -> dict:
     if category in ("sql", "sql_semantic"):
         fields["response_status"] = actual.get("status")
         fields["generated_sql"] = actual.get("sql_executed")
+        fields["returned_rows"] = actual.get("rows")
     elif category == "rag":
         fields["retrieved_chunks"] = actual.get("retrieved_rules")
     elif category == "refund_evaluator":
@@ -1235,6 +1302,7 @@ def _build_failure_record(
         "actual_answer": normalized["actual_answer"],
         "response_status": normalized["response_status"],
         "generated_sql": normalized["generated_sql"],
+        "returned_rows": normalized["returned_rows"],
         "tool_calls": tool_calls,
         "retrieved_chunks": retrieved_chunks,
         # No versioned prompt scheme exists yet — the commit hash is the

@@ -73,6 +73,8 @@ These are two different failure modes, not the same one twice. A bug that applie
 - **`sql-01` fails today, on purpose.** Checking the real number (not just the SQL's shape) found a bug: it counts order lines instead of units sold, so lines selling 2+ units get undercounted. Real rate is 43%, the app returns 50%. Left failing on purpose — the fix belongs in SQL generation, not the test.
 - **`sql-semantic-01` fails the same way, on a different category.** Home's refund rate comes back 13% instead of 8% - same row-vs-quantity bug as `sql-01`, plus counting non-approved refunds too. Same cause, caught twice from two different questions.
 - **`sql-semantic-03` found a bigger, unrelated bug by accident.** It was built to test a missing status filter, but any query using `COUNT(*)` gets rejected as a bare `SELECT *` - the validator can't tell a wildcard column from the ordinary `*` inside a count. `COUNT(*)` is common, so this case looks randomly flaky until that's fixed. See `DECISIONS.md` #34.
+- **A failing `sql`/`sql_semantic` case now says exactly what went wrong**, instead of one generic message. It still never guesses *why* a value is wrong - that only shows up if the case carries a `review_note` written by hand after looking at the failure (`sql-01`, `sql-semantic-01` have one). See `DECISIONS.md` #35.
+- **Picking the "actual result" to show has no column names to go on.** On `sql-semantic-01` it shows an unrelated count (3) instead of the real, wrong rate (13.04) - both happen to be about as close to the correct answer, with no column name to tell them apart. The full row is still saved in the failure record either way.
 
 ## Out of scope for this pass
 

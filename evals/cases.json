@@ -19,7 +19,8 @@
         "value": 0.4348,
         "comparison": "absolute_tolerance",
         "tolerance": 0.01,
-        "derivation": "psql, independent of the app: approved refunded Electronics units (10) divided by total Electronics units sold (23) = 0.4348. Checked by hand against the 20 raw order_item rows - no order_item has more than one refund, and none are denied or pending."
+        "derivation": "psql, independent of the app: approved refunded Electronics units (10) divided by total Electronics units sold (23) = 0.4348. Checked by hand against the 20 raw order_item rows - no order_item has more than one refund, and none are denied or pending.",
+        "review_note": "Generated SQL counts order_item rows instead of unit quantity as the denominator - confirmed by reading the SQL directly."
       }
     },
     "scoring": "rule_based",
@@ -144,7 +145,8 @@
         "value": 0.0833,
         "comparison": "absolute_tolerance",
         "tolerance": 0.01,
-        "derivation": "Similar to sql-01: approved refunded units divided by units sold. psql: 2 / 24 = 0.0833, checked by hand against the 23 raw Home rows. Wrong reading: refund count over row count instead of units = 3 / 23 = 0.1304. Tolerance 0.01 - the two answers are far enough apart that rounding can't explain the gap."
+        "derivation": "Similar to sql-01: approved refunded units divided by units sold. psql: 2 / 24 = 0.0833, checked by hand against the 23 raw Home rows. Wrong reading: refund count over row count instead of units = 3 / 23 = 0.1304. Tolerance 0.01 - the two answers are far enough apart that rounding can't explain the gap.",
+        "review_note": "Same root cause as sql-01, plus refunds aren't filtered to approved-only - confirmed by reading the SQL directly."
       }
     },
     "scoring": "rule_based",

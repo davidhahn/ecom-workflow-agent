@@ -1,0 +1,52 @@
+{
+  "case_id": "sql-01-refund-rate-by-category",
+  "category": "sql",
+  "input": "What is the refund rate for products in the Electronics category?",
+  "expected": {
+    "tables_joined": [
+      "order_items",
+      "products",
+      "refunds"
+    ],
+    "columns_excluded": [
+      "customers.email"
+    ],
+    "read_only_violation_attempt": false,
+    "expected_status": "success",
+    "expected_result": {
+      "type": "scalar",
+      "value": 0.4348,
+      "comparison": "absolute_tolerance",
+      "tolerance": 0.01,
+      "derivation": "psql, independent of the app: approved refunded Electronics units (10) divided by total Electronics units sold (23) = 0.4348. Checked by hand against the 20 raw order_item rows - no order_item has more than one refund, and none are denied or pending.",
+      "review_note": "Generated SQL counts order_item rows instead of unit quantity as the denominator (COUNT(DISTINCT oi.id) instead of SUM(oi.quantity)), confirmed by reading the generated SQL directly."
+    }
+  },
+  "actual_answer": null,
+  "response_status": "success",
+  "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / NULLIF(COUNT(DISTINCT oi.id), 0) AS DECIMAL), 2) AS refund_rate_pct FROM products AS p JOIN order_items AS oi ON oi.product_id = p.id LEFT JOIN refunds AS r ON r.order_item_id = oi.id WHERE p.category = 'Electronics' LIMIT 500",
+  "returned_rows": [
+    {
+      "total_refunds": 10,
+      "total_order_items": 20,
+      "refund_rate_pct": "50.00"
+    }
+  ],
+  "tool_calls": null,
+  "retrieved_chunks": null,
+  "prompt_version": "4dddfe4",
+  "judge_verdict": null,
+  "human_reviewed_verdict": null,
+  "latency_ms": 3111,
+  "input_tokens": 1209,
+  "output_tokens": 207,
+  "estimated_cost_usd": 0.006732,
+  "failed_checks": [
+    "expected result: 0.4348 \u00b1 0.01",
+    "actual result:   50.0",
+    "Generated SQL counts order_item rows instead of unit quantity as the denominator (COUNT(DISTINCT oi.id) instead of SUM(oi.quantity)), confirmed by reading the generated SQL directly."
+  ],
+  "taxonomy_label": null,
+  "secondary_observations": [],
+  "review_note": null
+}
