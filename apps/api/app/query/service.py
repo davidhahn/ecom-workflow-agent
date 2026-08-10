@@ -47,10 +47,10 @@ def _get_estimated_cost(sql: str) -> float:
     return float(plan[0]["Plan"]["Total Cost"])
 
 
-def run_sql_query(question: str) -> SqlQueryResponse:
+def run_sql_query(question: str, *, bypass_cache: bool = False) -> SqlQueryResponse:
     with request_log_span("sql", question) as log:
         cache_key = normalize_key(question)
-        cached = cache_get("sql", cache_key)
+        cached = None if bypass_cache else cache_get("sql", cache_key)
         if cached is not None:
             log.cached = True
             log.input_tokens = 0
@@ -79,7 +79,8 @@ def run_sql_query(question: str) -> SqlQueryResponse:
         executed = execute_proposed_query(question, proposed)
         log.sql_query_audit_id = executed.audit_id
         log.output = executed.response.model_dump(mode="json")
-        cache_set("sql", cache_key, executed.response)
+        if not bypass_cache:
+            cache_set("sql", cache_key, executed.response)
         return executed.response
 
 

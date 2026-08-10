@@ -422,9 +422,9 @@ def _check_expected_result(expected_result: dict, actual_rows: list[dict]) -> li
     raise ValueError(f"unknown expected_result.type: {result_type!r}")
 
 
-def run_sql_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
+def run_sql_case(case: dict, client: TestClient, *, bypass_cache: bool = False) -> tuple[dict, list[str]]:
     expected = case["expected"]
-    response = client.post("/query/sql", json={"question": case["input"]})
+    response = client.post("/query/sql", json={"question": case["input"], "bypass_cache": bypass_cache})
     body = response.json()
     actual_status = body.get("status")
     rejection_reason = body.get("rejection_reason")

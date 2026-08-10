@@ -5,6 +5,9 @@ from pydantic import BaseModel
 
 class SqlQueryRequest(BaseModel):
     question: str
+    # Eval-only: skips the app cache for this call - see AnalyzeRequest's
+    # bypass_cache. Off by default.
+    bypass_cache: bool = False
 
 
 class SqlQueryResponse(BaseModel):

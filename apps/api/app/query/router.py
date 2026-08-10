@@ -22,4 +22,4 @@ def query_sql(
     # *which rows* — every caller of this endpoint sees the same full table
     # contents subject to that column restriction. Approval-routing / the
     # $200 threshold rule is also out of scope here; see ARCHITECTURE.md.
-    return run_sql_query(body.question)
+    return run_sql_query(body.question, bypass_cache=body.bypass_cache)

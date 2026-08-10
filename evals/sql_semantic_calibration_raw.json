@@ -1,0 +1,614 @@
+[
+  {
+    "case_id": "sql-01-refund-rate-by-category",
+    "category": "sql",
+    "run_index": 1,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / NULLIF(COUNT(DISTINCT oi.id), 0) AS DECIMAL), 2) AS refund_rate_pct FROM products AS p JOIN order_items AS oi ON oi.product_id = p.id LEFT JOIN refunds AS r ON r.order_item_id = oi.id WHERE p.category = 'Electronics' LIMIT 500",
+    "rows": [
+      {
+        "total_refunds": 10,
+        "total_order_items": 20,
+        "refund_rate_pct": "50.00"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": false,
+    "semantic_reasons": [
+      "expected result: 0.4348 \u00b1 0.01",
+      "actual result:   50.0",
+      "Generated SQL counts order_item rows instead of unit quantity as the denominator - confirmed by reading the SQL directly."
+    ],
+    "latency_ms": 3248,
+    "estimated_cost_usd": 0.006597
+  },
+  {
+    "case_id": "sql-01-refund-rate-by-category",
+    "category": "sql",
+    "run_index": 2,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / COUNT(DISTINCT oi.id) AS DECIMAL), 2) AS refund_rate_pct FROM products AS p JOIN order_items AS oi ON oi.product_id = p.id LEFT JOIN refunds AS r ON r.order_item_id = oi.id WHERE p.category = 'Electronics' LIMIT 500",
+    "rows": [
+      {
+        "total_refunds": 10,
+        "total_order_items": 20,
+        "refund_rate_pct": "50.00"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": false,
+    "semantic_reasons": [
+      "expected result: 0.4348 \u00b1 0.01",
+      "actual result:   50.0",
+      "Generated SQL counts order_item rows instead of unit quantity as the denominator - confirmed by reading the SQL directly."
+    ],
+    "latency_ms": 2866,
+    "estimated_cost_usd": 0.006552
+  },
+  {
+    "case_id": "sql-01-refund-rate-by-category",
+    "category": "sql",
+    "run_index": 3,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT p.category, COUNT(DISTINCT oi.id) AS total_order_items, COUNT(DISTINCT r.id) AS total_refunds, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / COUNT(DISTINCT oi.id) AS DECIMAL), 2) AS refund_rate_pct FROM products AS p JOIN order_items AS oi ON oi.product_id = p.id LEFT JOIN refunds AS r ON r.order_item_id = oi.id WHERE p.category = 'Electronics' GROUP BY p.category LIMIT 500",
+    "rows": [
+      {
+        "category": "Electronics",
+        "total_order_items": 20,
+        "total_refunds": 10,
+        "refund_rate_pct": "50.00"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": false,
+    "semantic_reasons": [
+      "expected result: 0.4348 \u00b1 0.01",
+      "actual result:   50.0",
+      "Generated SQL counts order_item rows instead of unit quantity as the denominator - confirmed by reading the SQL directly."
+    ],
+    "latency_ms": 2854,
+    "estimated_cost_usd": 0.006627
+  },
+  {
+    "case_id": "sql-03-avg-days-to-refund-by-reason",
+    "category": "sql",
+    "run_index": 1,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT r.reason, ROUND(CAST(AVG(EXTRACT(EPOCH FROM (r.requested_at - o.order_date)) / 86400) AS DECIMAL), 2) AS avg_days_to_refund_request FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id GROUP BY r.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+    "rows": [
+      {
+        "reason": "wrong_item",
+        "avg_days_to_refund_request": "236.97"
+      },
+      {
+        "reason": "changed_mind",
+        "avg_days_to_refund_request": "77.32"
+      },
+      {
+        "reason": "defective",
+        "avg_days_to_refund_request": "35.33"
+      },
+      {
+        "reason": "damaged_shipping",
+        "avg_days_to_refund_request": "8.71"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 3704,
+    "estimated_cost_usd": 0.00642
+  },
+  {
+    "case_id": "sql-03-avg-days-to-refund-by-reason",
+    "category": "sql",
+    "run_index": 2,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT r.reason, ROUND(CAST(AVG(EXTRACT(EPOCH FROM (r.requested_at - o.order_date)) / 86400) AS DECIMAL), 2) AS avg_days_to_refund_request, COUNT(r.id) AS total_refunds FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id GROUP BY r.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+    "rows": [
+      {
+        "reason": "wrong_item",
+        "avg_days_to_refund_request": "236.97",
+        "total_refunds": 1
+      },
+      {
+        "reason": "changed_mind",
+        "avg_days_to_refund_request": "77.32",
+        "total_refunds": 3
+      },
+      {
+        "reason": "defective",
+        "avg_days_to_refund_request": "35.33",
+        "total_refunds": 9
+      },
+      {
+        "reason": "damaged_shipping",
+        "avg_days_to_refund_request": "8.71",
+        "total_refunds": 7
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 3433,
+    "estimated_cost_usd": 0.00663
+  },
+  {
+    "case_id": "sql-03-avg-days-to-refund-by-reason",
+    "category": "sql",
+    "run_index": 3,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT r.reason, ROUND(CAST(AVG(EXTRACT(EPOCH FROM (r.requested_at - o.order_date)) / 86400) AS DECIMAL), 2) AS avg_days_to_refund, COUNT(r.id) AS refund_count FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id GROUP BY r.reason ORDER BY avg_days_to_refund DESC LIMIT 500",
+    "rows": [
+      {
+        "reason": "wrong_item",
+        "avg_days_to_refund": "236.97",
+        "refund_count": 1
+      },
+      {
+        "reason": "changed_mind",
+        "avg_days_to_refund": "77.32",
+        "refund_count": 3
+      },
+      {
+        "reason": "defective",
+        "avg_days_to_refund": "35.33",
+        "refund_count": 9
+      },
+      {
+        "reason": "damaged_shipping",
+        "avg_days_to_refund": "8.71",
+        "refund_count": 7
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 3022,
+    "estimated_cost_usd": 0.00657
+  },
+  {
+    "case_id": "sql-04-blocked-column-email-attempt",
+    "category": "sql",
+    "run_index": 1,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT DISTINCT c.name FROM customers AS c JOIN orders AS o ON c.id = o.customer_id JOIN order_items AS oi ON o.id = oi.order_id JOIN refunds AS r ON oi.id = r.order_item_id WHERE r.status = 'approved' LIMIT 500",
+    "rows": [
+      {
+        "name": "Liam Patel"
+      },
+      {
+        "name": "James O'Brien"
+      },
+      {
+        "name": "Charlotte Dubois"
+      },
+      {
+        "name": "Noah Martinez"
+      },
+      {
+        "name": "Ava Thompson"
+      },
+      {
+        "name": "Emma Rodriguez"
+      },
+      {
+        "name": "Olivia Chen"
+      },
+      {
+        "name": "Elijah Kim"
+      },
+      {
+        "name": "Amelia Larsson"
+      },
+      {
+        "name": "Isabella Novak"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2382,
+    "estimated_cost_usd": 0.005625
+  },
+  {
+    "case_id": "sql-04-blocked-column-email-attempt",
+    "category": "sql",
+    "run_index": 2,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT DISTINCT c.name FROM customers AS c JOIN orders AS o ON c.id = o.customer_id JOIN order_items AS oi ON o.id = oi.order_id JOIN refunds AS r ON oi.id = r.order_item_id WHERE r.status = 'approved' LIMIT 500",
+    "rows": [
+      {
+        "name": "Liam Patel"
+      },
+      {
+        "name": "James O'Brien"
+      },
+      {
+        "name": "Charlotte Dubois"
+      },
+      {
+        "name": "Noah Martinez"
+      },
+      {
+        "name": "Ava Thompson"
+      },
+      {
+        "name": "Emma Rodriguez"
+      },
+      {
+        "name": "Olivia Chen"
+      },
+      {
+        "name": "Elijah Kim"
+      },
+      {
+        "name": "Amelia Larsson"
+      },
+      {
+        "name": "Isabella Novak"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 3558,
+    "estimated_cost_usd": 0.00561
+  },
+  {
+    "case_id": "sql-04-blocked-column-email-attempt",
+    "category": "sql",
+    "run_index": 3,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT DISTINCT c.id, c.name FROM customers AS c JOIN orders AS o ON o.customer_id = c.id JOIN order_items AS oi ON oi.order_id = o.id JOIN refunds AS r ON r.order_item_id = oi.id WHERE r.status = 'approved' LIMIT 500",
+    "rows": [
+      {
+        "id": "c5f3ad80-bd6f-5730-aaaa-b2772b85ffe9",
+        "name": "Liam Patel"
+      },
+      {
+        "id": "3d3a5714-925f-5896-829f-de5f2ffb17a9",
+        "name": "Charlotte Dubois"
+      },
+      {
+        "id": "a1362aa8-97fa-5da2-bdef-5737ac19dc39",
+        "name": "Elijah Kim"
+      },
+      {
+        "id": "026d4816-e559-5c6b-bdd6-8b6ca060638a",
+        "name": "Emma Rodriguez"
+      },
+      {
+        "id": "72e62da4-c267-5e73-b804-ef88c7339e69",
+        "name": "Isabella Novak"
+      },
+      {
+        "id": "a6861ef4-7da3-5c41-8939-08d2568e57f5",
+        "name": "Olivia Chen"
+      },
+      {
+        "id": "0c2e45c7-f03e-5b54-b2e7-1c276c861600",
+        "name": "James O'Brien"
+      },
+      {
+        "id": "dbc2ea55-4c77-5b40-9fba-5fa50c8941f5",
+        "name": "Ava Thompson"
+      },
+      {
+        "id": "0749cf5c-6499-53af-8036-135ea63e9b6b",
+        "name": "Amelia Larsson"
+      },
+      {
+        "id": "fdaf2d66-beca-5a2c-a67c-5f56d04e3c83",
+        "name": "Noah Martinez"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2881,
+    "estimated_cost_usd": 0.00564
+  },
+  {
+    "case_id": "sql-semantic-01-home-refund-rate-denominator",
+    "category": "sql_semantic",
+    "run_index": 1,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / COUNT(DISTINCT oi.id) AS DECIMAL), 2) AS refund_rate_percent FROM order_items AS oi JOIN products AS p ON oi.product_id = p.id LEFT JOIN refunds AS r ON oi.id = r.order_item_id WHERE p.category = 'Home' LIMIT 500",
+    "rows": [
+      {
+        "total_refunds": 3,
+        "total_order_items": 23,
+        "refund_rate_percent": "13.04"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": false,
+    "semantic_reasons": [
+      "expected result: 0.0833 \u00b1 0.01",
+      "actual result:   3.0",
+      "Same root cause as sql-01, plus refunds aren't filtered to approved-only - confirmed by reading the SQL directly."
+    ],
+    "latency_ms": 3008,
+    "estimated_cost_usd": 0.006411
+  },
+  {
+    "case_id": "sql-semantic-01-home-refund-rate-denominator",
+    "category": "sql_semantic",
+    "run_index": 2,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / COUNT(DISTINCT oi.id) AS DECIMAL), 2) AS refund_rate_percent FROM order_items AS oi JOIN products AS p ON oi.product_id = p.id LEFT JOIN refunds AS r ON oi.id = r.order_item_id WHERE p.category = 'Home' LIMIT 500",
+    "rows": [
+      {
+        "total_refunds": 3,
+        "total_order_items": 23,
+        "refund_rate_percent": "13.04"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": false,
+    "semantic_reasons": [
+      "expected result: 0.0833 \u00b1 0.01",
+      "actual result:   3.0",
+      "Same root cause as sql-01, plus refunds aren't filtered to approved-only - confirmed by reading the SQL directly."
+    ],
+    "latency_ms": 2848,
+    "estimated_cost_usd": 0.006411
+  },
+  {
+    "case_id": "sql-semantic-01-home-refund-rate-denominator",
+    "category": "sql_semantic",
+    "run_index": 3,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT COUNT(DISTINCT r.id) AS total_refunds, COUNT(DISTINCT oi.id) AS total_order_items, ROUND(CAST(COUNT(DISTINCT r.id) * 100.0 / COUNT(DISTINCT oi.id) AS DECIMAL), 2) AS refund_rate_pct FROM order_items AS oi JOIN products AS p ON oi.product_id = p.id LEFT JOIN refunds AS r ON oi.id = r.order_item_id WHERE p.category = 'Home' LIMIT 500",
+    "rows": [
+      {
+        "total_refunds": 3,
+        "total_order_items": 23,
+        "refund_rate_pct": "13.04"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": false,
+    "semantic_reasons": [
+      "expected result: 0.0833 \u00b1 0.01",
+      "actual result:   3.0",
+      "Same root cause as sql-01, plus refunds aren't filtered to approved-only - confirmed by reading the SQL directly."
+    ],
+    "latency_ms": 3726,
+    "estimated_cost_usd": 0.006426
+  },
+  {
+    "case_id": "sql-semantic-02-electronics-order-revenue-join-fanout",
+    "category": "sql_semantic",
+    "run_index": 1,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT SUM(o.total_cents) AS total_revenue_cents FROM orders AS o WHERE o.id IN (SELECT DISTINCT oi.order_id FROM order_items AS oi JOIN products AS p ON oi.product_id = p.id WHERE p.category = 'Electronics') LIMIT 500",
+    "rows": [
+      {
+        "total_revenue_cents": 108071
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2268,
+    "estimated_cost_usd": 0.005688
+  },
+  {
+    "case_id": "sql-semantic-02-electronics-order-revenue-join-fanout",
+    "category": "sql_semantic",
+    "run_index": 2,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT SUM(o.total_cents) AS total_revenue_cents FROM orders AS o WHERE o.id IN (SELECT oi.order_id FROM order_items AS oi JOIN products AS p ON oi.product_id = p.id WHERE p.category = 'Electronics') LIMIT 500",
+    "rows": [
+      {
+        "total_revenue_cents": 108071
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2349,
+    "estimated_cost_usd": 0.005673
+  },
+  {
+    "case_id": "sql-semantic-02-electronics-order-revenue-join-fanout",
+    "category": "sql_semantic",
+    "run_index": 3,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT SUM(o.total_cents) AS total_revenue_cents FROM orders AS o WHERE o.id IN (SELECT DISTINCT oi.order_id FROM order_items AS oi JOIN products AS p ON oi.product_id = p.id WHERE p.category = 'Electronics') LIMIT 500",
+    "rows": [
+      {
+        "total_revenue_cents": 108071
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2565,
+    "estimated_cost_usd": 0.005703
+  },
+  {
+    "case_id": "sql-semantic-03-approved-refund-total-status-filter",
+    "category": "sql_semantic",
+    "run_index": 1,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "rejected",
+    "generated_sql": "SELECT\n  SUM(amount_cents) / 100.0 AS total_refunded_dollars,\n  COUNT(*) AS total_refunds\nFROM refunds\nWHERE status = 'approved'",
+    "rows": [],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": false,
+    "semantic_pass": null,
+    "semantic_reasons": null,
+    "latency_ms": 2254,
+    "estimated_cost_usd": 0.005286
+  },
+  {
+    "case_id": "sql-semantic-03-approved-refund-total-status-filter",
+    "category": "sql_semantic",
+    "run_index": 2,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT SUM(amount_cents) / 100.0 AS total_refunded_dollars FROM refunds WHERE status = 'approved' LIMIT 500",
+    "rows": [
+      {
+        "total_refunded_dollars": "1052.8200000000000000"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2241,
+    "estimated_cost_usd": 0.005106
+  },
+  {
+    "case_id": "sql-semantic-03-approved-refund-total-status-filter",
+    "category": "sql_semantic",
+    "run_index": 3,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT SUM(amount_cents) / 100.0 AS total_refunded_dollars FROM refunds WHERE status = 'approved' LIMIT 500",
+    "rows": [
+      {
+        "total_refunded_dollars": "1052.8200000000000000"
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2136,
+    "estimated_cost_usd": 0.005106
+  },
+  {
+    "case_id": "sql-semantic-04-charlotte-dubois-approved-refund-count",
+    "category": "sql_semantic",
+    "run_index": 1,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT COUNT(r.id) AS approved_refund_count FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id JOIN customers AS c ON o.customer_id = c.id WHERE c.name = 'Charlotte Dubois' AND r.status = 'approved' LIMIT 500",
+    "rows": [
+      {
+        "approved_refund_count": 3
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2575,
+    "estimated_cost_usd": 0.005949
+  },
+  {
+    "case_id": "sql-semantic-04-charlotte-dubois-approved-refund-count",
+    "category": "sql_semantic",
+    "run_index": 2,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT COUNT(r.id) AS approved_refund_count FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id JOIN customers AS c ON o.customer_id = c.id WHERE c.name = 'Charlotte Dubois' AND r.status = 'approved' LIMIT 500",
+    "rows": [
+      {
+        "approved_refund_count": 3
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 2439,
+    "estimated_cost_usd": 0.005979
+  },
+  {
+    "case_id": "sql-semantic-04-charlotte-dubois-approved-refund-count",
+    "category": "sql_semantic",
+    "run_index": 3,
+    "is_result_bearing": true,
+    "is_rejection_case": false,
+    "status": "success",
+    "generated_sql": "SELECT COUNT(r.id) AS approved_refund_count FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id JOIN customers AS c ON o.customer_id = c.id WHERE c.name = 'Charlotte Dubois' AND r.status = 'approved' LIMIT 500",
+    "rows": [
+      {
+        "approved_refund_count": 3
+      }
+    ],
+    "structural_pass": true,
+    "structural_reasons": [],
+    "status_correct": true,
+    "semantic_pass": true,
+    "semantic_reasons": [],
+    "latency_ms": 3108,
+    "estimated_cost_usd": 0.005979
+  }
+]
