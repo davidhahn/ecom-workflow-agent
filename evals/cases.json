@@ -311,6 +311,46 @@
     "failure_trap": "No rule in refund_policy.md governs a loyalty program question - nothing should count as required here. This can't actually fail today: /query/rag has no similarity threshold (see evals/README.md's rag known limitation), so it always returns 3 chunks no matter how unrelated the question is. Traced live: the closest match is rule 7 at similarity 0.476, well below every on-topic case's ~0.6-0.75 range, with the other two chunks not even from refund_policy.md. This case is a baseline recording of that gap, not a pass/fail check - useful once a relevance threshold exists to test against."
   },
   {
+    "id": "rag-10-off-topic-gift-card",
+    "category": "rag",
+    "input": "What is your gift card balance and expiration policy?",
+    "expected": {
+      "must_include_rule_numbers": []
+    },
+    "scoring": "rule_based",
+    "failure_trap": "No rule covers gift cards or store credit, so nothing should be required here. Same gap as rag-09: /query/rag has no similarity threshold, so it still returns 3 chunks. Traced live: the closest match is rule 3 (Changed Mind) at similarity 0.494, well below the 0.6-0.75 range for on-topic questions."
+  },
+  {
+    "id": "rag-11-off-topic-price-match",
+    "category": "rag",
+    "input": "Do you offer price matching or price adjustments if an item goes on sale after I buy it?",
+    "expected": {
+      "must_include_rule_numbers": []
+    },
+    "scoring": "rule_based",
+    "failure_trap": "No rule covers price matching or price adjustments, so nothing should be required here. Traced live: the closest match is rule 9 (Final-Sale Exclusion) at similarity 0.518 - still below the on-topic range, but pulled up by shared words like 'price' and 'sale'. Same gap as rag-09: no similarity threshold means this can't fail today. Worth rechecking once a threshold exists."
+  },
+  {
+    "id": "rag-12-off-topic-international-shipping",
+    "category": "rag",
+    "input": "What are the customs duties or import taxes on an international order?",
+    "expected": {
+      "must_include_rule_numbers": []
+    },
+    "scoring": "rule_based",
+    "failure_trap": "shipping_policy.md only covers domestic delivery windows - no rule covers customs, duties, or international orders. Nothing should be required here. Traced live: the closest match is Expedited Shipping at similarity 0.513, as low as rag-09's baseline. Same gap: no similarity threshold, so this can't fail today."
+  },
+  {
+    "id": "rag-13-off-topic-order-cancellation",
+    "category": "rag",
+    "input": "Can I cancel my order before it ships?",
+    "expected": {
+      "must_include_rule_numbers": []
+    },
+    "scoring": "rule_based",
+    "failure_trap": "Orders can be marked 'cancelled' in the schema, but no policy rule covers canceling an order before it ships (refund_policy.md only covers returns after delivery). Nothing should be required here. Traced live: this is the closest of the four cases to the on-topic range. Damaged in Transit at 0.575, Damaged in Shipping (rule 4) at 0.574, Wrong Item Shipped (rule 5) at 0.571, all pulled in by 'ship'/'shipped' wording, not actual relevance. Same gap as rag-09 means it can't fail today, but it's the most likely of the four to false-positive once a threshold exists."
+  },
+  {
     "id": "mixed-01-headphones-refund-rate-and-threshold",
     "category": "mixed",
     "input": "We've seen a lot of refund requests for the Bluetooth Headphones Pro. What's its refund rate, and would any of those refund amounts have required manager approval under our policy?",
