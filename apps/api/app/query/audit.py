@@ -15,6 +15,7 @@ def record_attempt(
     row_count: int | None = None,
     execution_time_ms: int | None = None,
     estimated_cost: float | None = None,
+    prompt_version: str | None = None,
 ) -> uuid.UUID:
     """Layer 4 — log this attempt regardless of outcome. Uses the normal app
     DB connection (not the restricted ops_agent_readonly role, which has no
@@ -34,6 +35,7 @@ def record_attempt(
                 row_count=row_count,
                 execution_time_ms=execution_time_ms,
                 estimated_cost=estimated_cost,
+                prompt_version=prompt_version,
             )
         )
         session.commit()

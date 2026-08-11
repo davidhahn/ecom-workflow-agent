@@ -457,7 +457,12 @@ def run_sql_case(case: dict, client: TestClient, *, bypass_cache: bool = False) 
     # expected_rejection_layer isn't checked — /query/sql never returns
     # which layer rejected a query, only rejection_reason and status.
 
-    actual = {"status": actual_status, "sql_executed": sql_executed, "rows": rows}
+    actual = {
+        "status": actual_status,
+        "sql_executed": sql_executed,
+        "rows": rows,
+        "prompt_version": body.get("prompt_version"),
+    }
     return actual, failure_reasons
 
 

@@ -90,6 +90,7 @@ def main() -> None:
                 "is_result_bearing": is_result_bearing,
                 "is_rejection_case": is_rejection_case,
                 "status": actual["status"],
+                "prompt_version": actual["prompt_version"],
                 "generated_sql": actual["sql_executed"],
                 "rows": actual["rows"],
                 "structural_pass": not structural_reasons,
@@ -166,12 +167,15 @@ def _build_report(cases: list[dict], raw: list[dict]) -> str:
     header = "| metric | " + " | ".join(f"run {i}" for i in range(1, RUNS_PER_CASE + 1)) + " |"
     sep = "|---" * (RUNS_PER_CASE + 1) + "|"
 
+    prompt_versions = sorted({r["prompt_version"] for r in raw if r["prompt_version"]})
+    version_label = "/".join(prompt_versions) if prompt_versions else "unknown"
+
     return "\n".join(
         [
-            "# SQL / SQL Semantic Calibration - 3 Runs, Cache Bypassed",
+            f"# SQL / SQL Semantic Calibration - Prompt {version_label} - 3 Runs, Cache Bypassed",
             "",
             f"{len(cases)} cases (`sql` + `sql_semantic`), {RUNS_PER_CASE} runs each, "
-            f"{len(raw)} total calls. `bypass_cache=true` on every call.",
+            f"{len(raw)} total calls, cache bypassed on every call.",
             "",
             "## Result-Bearing vs. Rejection Cases",
             "",

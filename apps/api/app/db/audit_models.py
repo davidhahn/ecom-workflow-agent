@@ -28,6 +28,9 @@ class QueryAuditLog(Base):
     row_count: Mapped[int | None] = mapped_column(Integer)
     execution_time_ms: Mapped[int | None] = mapped_column(Integer)
     estimated_cost: Mapped[float | None] = mapped_column(Float)
+    # Which prompt version generated this attempt. Null for attempts logged
+    # before this column existed, or where Claude never returned a query.
+    prompt_version: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[object] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )

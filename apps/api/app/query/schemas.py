@@ -20,3 +20,6 @@ class SqlQueryResponse(BaseModel):
     execution_time_ms: int | None = None
     estimated_cost: float | None = None
     cached: bool = False
+    # Which prompt version generated this query. None if nothing was
+    # ever proposed (e.g. Claude never returned a tool call).
+    prompt_version: str | None = None

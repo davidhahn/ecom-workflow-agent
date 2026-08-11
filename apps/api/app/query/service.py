@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from app.caching.cache import cache_get, cache_set, normalize_key
 from app.observability.logger import request_log_span
 from app.query.audit import record_attempt
-from app.query.claude_client import ClaudeProposalError, ProposedQuery, propose_sql
+from app.query.claude_client import PROMPT_VERSION, ClaudeProposalError, ProposedQuery, propose_sql
 from app.query.db_readonly import readonly_engine
 from app.query.schemas import SqlQueryResponse
 from app.query.validation import (
@@ -69,9 +69,10 @@ def run_sql_query(question: str, *, bypass_cache: bool = False) -> SqlQueryRespo
                 status="error",
                 layer_outcomes={"claude_proposal": {"passed": False, "reason": str(e)}},
                 rejection_reason=str(e),
+                prompt_version=PROMPT_VERSION,
             )
             log.sql_query_audit_id = audit_id
-            response = SqlQueryResponse(status="error", rejection_reason=str(e))
+            response = SqlQueryResponse(status="error", rejection_reason=str(e), prompt_version=PROMPT_VERSION)
             log.output = response.model_dump(mode="json")
             return response
 
@@ -107,10 +108,14 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
             status="rejected",
             layer_outcomes=layer_outcomes,
             rejection_reason=e.reason,
+            prompt_version=proposed.prompt_version,
         )
         return ExecutedQuery(
             response=SqlQueryResponse(
-                status="rejected", sql_executed=proposed.query, rejection_reason=e.reason
+                status="rejected",
+                sql_executed=proposed.query,
+                rejection_reason=e.reason,
+                prompt_version=proposed.prompt_version,
             ),
             audit_id=audit_id,
         )
@@ -135,10 +140,14 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
                 status="rejected",
                 layer_outcomes=layer_outcomes,
                 rejection_reason=reason,
+                prompt_version=proposed.prompt_version,
             )
             return ExecutedQuery(
                 response=SqlQueryResponse(
-                    status="rejected", sql_executed=final_sql, rejection_reason=reason
+                    status="rejected",
+                    sql_executed=final_sql,
+                    rejection_reason=reason,
+                    prompt_version=proposed.prompt_version,
                 ),
                 audit_id=audit_id,
             )
@@ -151,10 +160,14 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
             status="error",
             layer_outcomes=layer_outcomes,
             rejection_reason=reason,
+            prompt_version=proposed.prompt_version,
         )
         return ExecutedQuery(
             response=SqlQueryResponse(
-                status="error", sql_executed=final_sql, rejection_reason=reason
+                status="error",
+                sql_executed=final_sql,
+                rejection_reason=reason,
+                prompt_version=proposed.prompt_version,
             ),
             audit_id=audit_id,
         )
@@ -175,6 +188,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
             layer_outcomes=layer_outcomes,
             rejection_reason=e.reason,
             estimated_cost=estimated_cost,
+            prompt_version=proposed.prompt_version,
         )
         return ExecutedQuery(
             response=SqlQueryResponse(
@@ -182,6 +196,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
                 sql_executed=final_sql,
                 rejection_reason=e.reason,
                 estimated_cost=estimated_cost,
+                prompt_version=proposed.prompt_version,
             ),
             audit_id=audit_id,
         )
@@ -217,6 +232,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
             rejection_reason=reason,
             execution_time_ms=execution_time_ms,
             estimated_cost=estimated_cost,
+            prompt_version=proposed.prompt_version,
         )
         return ExecutedQuery(
             response=SqlQueryResponse(
@@ -225,6 +241,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
                 rejection_reason=reason,
                 execution_time_ms=execution_time_ms,
                 estimated_cost=estimated_cost,
+                prompt_version=proposed.prompt_version,
             ),
             audit_id=audit_id,
         )
@@ -244,6 +261,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
         row_count=row_count,
         execution_time_ms=execution_time_ms,
         estimated_cost=estimated_cost,
+        prompt_version=proposed.prompt_version,
     )
 
     return ExecutedQuery(
@@ -255,6 +273,7 @@ def execute_proposed_query(question: str, proposed: ProposedQuery) -> ExecutedQu
             truncated=truncated,
             execution_time_ms=execution_time_ms,
             estimated_cost=estimated_cost,
+            prompt_version=proposed.prompt_version,
         ),
         audit_id=audit_id,
     )
