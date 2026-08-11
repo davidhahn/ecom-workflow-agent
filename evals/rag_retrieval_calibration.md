@@ -100,3 +100,16 @@ Both runs used a freshly started API instance. The corpus is 21 chunks, not 17: 
 - Every off-topic case (rag-09 through rag-13) stays at distance ≥ 0.40 with no `yes` or `maybe` labels — the corpus really has nothing for these.
 - mixed-03 is the one case with no `maybe` at all: the policy has no region-based rule, so all three retrieved chunks are equally beside the point.
 - `maybe` marks a chunk that's a real, policy-connected exception or cross-reference (e.g. rag-05's rules 4/5, mixed-06's rule 10), not a coincidental word match. Off-topic cases never reach that bar.
+
+## Threshold Selection
+
+Based on the `yes` (13 rows) and `no` (34 rows) labels above. `maybe` (7 rows) is left out since it's not clearly one or the other.
+
+- **Highest distance among clearly relevant examples:** 0.455 — rag-03, rule 7 (Repeat-Refund Flag).
+- **Lowest distance among clearly irrelevant examples:** 0.288 — mixed-07, rule 2 (Defective Items), rank 1.
+
+**Overlap:** quite substantial. `yes` ranges `[0.185, 0.455]`, `no` ranges `[0.288, 0.557]`. They overlap across `[0.288, 0.455]` (most of the `yes` range). 9 of 13 `yes` examples fall in that band, and so do 14 of 34 `no` examples. Clearest example: for mixed-07, the correct chunk (rule 5, distance 0.299) ranks *behind* a wrong one (rule 2, distance 0.288), so it seems that distance alone doesn't cleanly tell relevant from irrelevant here.
+
+**Threshold: 0.46** (0.455 rounded up). The strictest value that still keeps every relevant example in this set. 14 of 34 irrelevant examples still fall under it and would count as relevant, so it doesn't fix the overlap. Going stricter would start rejecting correct rules too (rag-03 first, then rag-07 at 0.397, rag-08 at 0.366), which we want to avoid.
+
+**Small sample:** 13 `yes` + 34 `no` labels from 18 questions. Enough to rule out a bad threshold, but not enough to tune a precise one. Treat 0.46 as a starting point, not a final value. Should be revisited once real `/query/analyze` traffic gives a bigger sample.
