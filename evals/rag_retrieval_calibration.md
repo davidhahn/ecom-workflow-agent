@@ -113,3 +113,24 @@ Based on the `yes` (13 rows) and `no` (34 rows) labels above. `maybe` (7 rows) i
 **Threshold: 0.46** (0.455 rounded up). The strictest value that still keeps every relevant example in this set. 14 of 34 irrelevant examples still fall under it and would count as relevant, so it doesn't fix the overlap. Going stricter would start rejecting correct rules too (rag-03 first, then rag-07 at 0.397, rag-08 at 0.366), which we want to avoid.
 
 **Small sample:** 13 `yes` + 34 `no` labels from 18 questions. Enough to rule out a bad threshold, but not enough to tune a precise one. Treat 0.46 as a starting point, not a final value. Should be revisited once real `/query/analyze` traffic gives a bigger sample.
+
+## Post-Threshold Rerun
+
+The 0.46 cutoff now lives in `query_rag()`. I reran the same 18 questions against a fresh instance. The 12 `rag` cases went straight through `/query/rag`. The 6 `mixed` cases went through `/query/analyze` with `bypass_cache: true`.
+
+| metric | before | after |
+|---|---|---|
+| off-topic refusal rate (5 cases) | 0/5 | 4/5 |
+| on-topic expected-rule retrieval (12 cases) | 12/12 | 12/12 |
+
+Four off-topic cases come back empty now. rag-09, rag-10, rag-11, and rag-12 all return zero chunks and the explicit message. rag-13 does not. Its three chunks sit at 0.425 to 0.429, just under the cutoff, so the question still reads as answerable. This is the exact gap the calibration table already flagged.
+
+Every on-topic case kept its correct rule. rag-03 came back with one chunk instead of three. The other two were noise anyway, so nothing useful got dropped.
+
+mixed-03: no rule in the policy governs regional exceptions, so it never had a real answer to retrieve. It used to come back with three unrelated rules as padding. Now it comes back empty, and the model says plainly that no policy covers this.
+
+One separate thing turned up: mixed-01 came back `grounded: false` this run. Retrieval was fine. Rule 6 landed first, at distance 0.185. The flag came from a data table in the answer that listed a refund reason as "Damaged in shipping," which happens to match rule 4's title word for word. That's a known quirk in `check_groundedness()`, already written up in `DECISIONS.md` #32 and `evals/groundedness_calibration.md`. It has nothing to do with this threshold.
+
+The threshold rejects irrelevant evidence in four of five off-topic cases. It costs nothing on the on-topic side. rag-13 stays open, the known price of a cutoff built to protect recall first.
+
+Raw output: `evals/rag_retrieval_calibration_raw.json`, `post_threshold_rerun` key.

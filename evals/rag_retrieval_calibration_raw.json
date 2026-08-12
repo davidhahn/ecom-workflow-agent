@@ -416,5 +416,333 @@
       ],
       "search_policy_query": "return window refund eligibility wrong item received"
     }
+  },
+  "post_threshold_rerun": {
+    "threshold": 0.46,
+    "rag_cases": {
+      "rag-01-standard-return-window": {
+        "chunks": [
+          {
+            "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 1,
+            "similarity": 0.6582566907099854
+          },
+          {
+            "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 9,
+            "similarity": 0.5591573048642511
+          },
+          {
+            "content": "Repeat-Refund Flag\n\nA customer with 3 or more approved refunds within a rolling 90-day window is flagged for manual review. Once a customer is flagged for manual review, further refund requests from that customer are not auto-approved, regardless of the individual refund's reason code or amount.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 7,
+            "similarity": 0.5557396941495306
+          }
+        ],
+        "cached": false,
+        "message": null
+      },
+      "rag-03-repeat-returner-flag": {
+        "chunks": [
+          {
+            "content": "Repeat-Refund Flag\n\nA customer with 3 or more approved refunds within a rolling 90-day window is flagged for manual review. Once a customer is flagged for manual review, further refund requests from that customer are not auto-approved, regardless of the individual refund's reason code or amount.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 7,
+            "similarity": 0.545031574664619
+          }
+        ],
+        "cached": false,
+        "message": null
+      },
+      "rag-04-partial-line-refund-amount": {
+        "chunks": [
+          {
+            "content": "Partial Refunds\n\nWhen only some units of a multi-quantity order line are being returned, the refund amount is prorated by the quantity being returned. A partial return of a multi-quantity order line is not treated as a full-line refund of the entire order line.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 8,
+            "similarity": 0.713819146156311
+          },
+          {
+            "content": "Approval Threshold\n\nA refund with an amount greater than $200 requires manager approval before the refund can be processed. The $200 approval threshold applies regardless of the refund's reason code.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 6,
+            "similarity": 0.6143127862904308
+          },
+          {
+            "content": "Repeat-Refund Flag\n\nA customer with 3 or more approved refunds within a rolling 90-day window is flagged for manual review. Once a customer is flagged for manual review, further refund requests from that customer are not auto-approved, regardless of the individual refund's reason code or amount.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 7,
+            "similarity": 0.611833059082446
+          }
+        ],
+        "cached": false,
+        "message": null
+      },
+      "rag-05-shipping-fee-refundable": {
+        "chunks": [
+          {
+            "content": "Shipping Cost Non-Refundable\n\nThe original shipping charge paid on an order is not refunded. An exception to the shipping-cost policy applies when the refund reason code is `damaged_shipping` or `wrong_item`, in which case the original shipping charge is refunded along with the item.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 10,
+            "similarity": 0.7019541618878699
+          },
+          {
+            "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 5,
+            "similarity": 0.6415882110595703
+          },
+          {
+            "content": "Damaged in Shipping\n\nItems returned under the `damaged_shipping` reason code have no time limit for return. A refund request under the `damaged_shipping` reason code requires supporting photo evidence before the refund can be processed.\n\nEvidence is tracked structurally as `refunds.evidence_submitted` (boolean) \u2014 this confirms evidence was provided, not that the evidence is valid; validity review is a manual/out-of-scope step for Part 1.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 4,
+            "similarity": 0.6373270939984055
+          }
+        ],
+        "cached": false,
+        "message": null
+      },
+      "rag-06-manager-approval-threshold": {
+        "chunks": [
+          {
+            "content": "Approval Threshold\n\nA refund with an amount greater than $200 requires manager approval before the refund can be processed. The $200 approval threshold applies regardless of the refund's reason code.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 6,
+            "similarity": 0.7504318878698212
+          },
+          {
+            "content": "Repeat-Refund Flag\n\nA customer with 3 or more approved refunds within a rolling 90-day window is flagged for manual review. Once a customer is flagged for manual review, further refund requests from that customer are not auto-approved, regardless of the individual refund's reason code or amount.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 7,
+            "similarity": 0.6275810973394671
+          }
+        ],
+        "cached": false,
+        "message": null
+      },
+      "rag-07-clearance-item-changed-mind": {
+        "chunks": [
+          {
+            "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 9,
+            "similarity": 0.60340645292959
+          },
+          {
+            "content": "Changed Mind\n\nItems returned under the `changed_mind` reason code must be returned within 14 days of the purchase date. The 14-day window for a `changed_mind` refund is shorter than the standard 30-day return window.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 3,
+            "similarity": 0.5919377384167238
+          },
+          {
+            "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 1,
+            "similarity": 0.5887918121342781
+          }
+        ],
+        "cached": false,
+        "message": null
+      },
+      "rag-08-defective-vs-changed-mind-window": {
+        "chunks": [
+          {
+            "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 1,
+            "similarity": 0.6397913527737435
+          },
+          {
+            "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 2,
+            "similarity": 0.6343702513730226
+          },
+          {
+            "content": "Changed Mind\n\nItems returned under the `changed_mind` reason code must be returned within 14 days of the purchase date. The 14-day window for a `changed_mind` refund is shorter than the standard 30-day return window.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 3,
+            "similarity": 0.6297818234627921
+          }
+        ],
+        "cached": false,
+        "message": null
+      },
+      "rag-09-off-topic-loyalty-program": {
+        "chunks": [],
+        "cached": false,
+        "message": "No sufficiently relevant policy information was found for this question."
+      },
+      "rag-10-off-topic-gift-card": {
+        "chunks": [],
+        "cached": false,
+        "message": "No sufficiently relevant policy information was found for this question."
+      },
+      "rag-11-off-topic-price-match": {
+        "chunks": [],
+        "cached": false,
+        "message": "No sufficiently relevant policy information was found for this question."
+      },
+      "rag-12-off-topic-international-shipping": {
+        "chunks": [],
+        "cached": false,
+        "message": "No sufficiently relevant policy information was found for this question."
+      },
+      "rag-13-off-topic-order-cancellation": {
+        "chunks": [
+          {
+            "content": "Damaged in Transit\n\nAn order that arrives damaged in transit is handled under the `damaged_shipping` refund reason code. A `damaged_shipping` refund has no return time limit and requires supporting photo evidence before the refund can be processed, per the refund policy's damaged-in-shipping rule.",
+            "source_doc": "shipping_policy.md",
+            "rule_number": null,
+            "similarity": 0.5747697949409485
+          },
+          {
+            "content": "Damaged in Shipping\n\nItems returned under the `damaged_shipping` reason code have no time limit for return. A refund request under the `damaged_shipping` reason code requires supporting photo evidence before the refund can be processed.\n\nEvidence is tracked structurally as `refunds.evidence_submitted` (boolean) \u2014 this confirms evidence was provided, not that the evidence is valid; validity review is a manual/out-of-scope step for Part 1.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 4,
+            "similarity": 0.5736003689050787
+          },
+          {
+            "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+            "source_doc": "refund_policy.md",
+            "rule_number": 5,
+            "similarity": 0.5709741115570068
+          }
+        ],
+        "cached": false,
+        "message": null
+      }
+    },
+    "mixed_cases": {
+      "mixed-01-headphones-refund-rate-and-threshold": {
+        "chunks": [
+          {
+            "content": "Approval Threshold\n\nA refund with an amount greater than $200 requires manager approval before the refund can be processed. The $200 approval threshold applies regardless of the refund's reason code.",
+            "similarity": 0.8151913771147357,
+            "source_doc": "refund_policy.md",
+            "rule_number": 6
+          },
+          {
+            "content": "Repeat-Refund Flag\n\nA customer with 3 or more approved refunds within a rolling 90-day window is flagged for manual review. Once a customer is flagged for manual review, further refund requests from that customer are not auto-approved, regardless of the individual refund's reason code or amount.",
+            "similarity": 0.5549812151497262,
+            "source_doc": "refund_policy.md",
+            "rule_number": 7
+          }
+        ],
+        "search_policy_query": "manager approval refund amount threshold",
+        "grounded": false,
+        "ungrounded_claims": [
+          "answer cites rule 4, which was not among the retrieved policy chunks"
+        ],
+        "answer": "Here is a full summary of the findings:\n\n---\n\n**Refund Rate**\n\nThe Bluetooth Headphones Pro has a refund rate of **80%** \u2014 4 refunds out of 5 units sold. That is an extremely elevated rate and warrants attention regardless of the policy angle.\n\n---\n\n**Individual Refund Breakdown**\n\nAll four refunds were for the same amount of **$89.99 each** (totalling $359.96), with the following reasons:\n\n| Reason | Count | Status | Evidence Submitted |\n|---|---|---|---|\n| Damaged in shipping | 3 | Approved | No |\n| Defective | 1 | Approved | No |\n\n---\n\n**Manager Approval Requirement**\n\nUnder **rule 6** of the refund policy, any refund exceeding **$200** requires manager approval before processing. All four refunds here were $89.99 each, which is below that threshold, so none of them individually triggered the manager-approval requirement.\n\n---\n\n**Points Worth Flagging**\n\n1. **80% refund rate** on this product is a serious signal \u2014 it may indicate a persistent quality or shipping issue that warrants a product or supplier review.\n2. **Three of the four refunds cite shipping damage.** This could point to a packaging problem specific to this product rather than a general carrier issue.\n3. **No evidence was submitted on any of the four refunds**, which is worth noting from a process-compliance perspective depending on whether your policy requires it for specific reason codes.\n\nWould you like me to dig deeper \u2014 for example, looking at whether the same customers are involved (which could trigger the repeat-refund flag under rule 7), or checking support tickets linked to this product?"
+      },
+      "mixed-02-defective-window-compliance-audit": {
+        "chunks": [
+          {
+            "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+            "similarity": 0.7601791620254571,
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          },
+          {
+            "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+            "similarity": 0.626661062240605,
+            "source_doc": "refund_policy.md",
+            "rule_number": 9
+          },
+          {
+            "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+            "similarity": 0.605494856834416,
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          }
+        ],
+        "search_policy_query": "defective item return window 90 days refund policy",
+        "grounded": true,
+        "ungrounded_claims": [],
+        "answer": "There is one confirmed policy violation. Here are the details:\n\n**Policy Context**\n\nPer rule 2 of the refund policy, defective-item refunds are only permitted up to 90 days from the purchase date. This window is absolute \u2014 it extends the standard 30-day return window but does not remove the cap entirely.\n\n---\n\n**Violation Found: 1 Record**\n\n| Field | Value |\n|---|---|\n| Refund ID | 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d |\n| Order Item ID | 1c66fb16-d5a9-5cf9-8720-2500661d1e7b |\n| Reason | defective |\n| Status | approved |\n| Order Date | 2025-11-02 |\n| Refund Requested | 2026-07-21 |\n| Days After Order | **261 days** |\n\n---\n\n**Summary**\n\nThis refund was approved 261 days after the order date \u2014 nearly three times the 90-day limit established by rule 2. It should not have been approved and warrants immediate review. Recommended next steps:\n\n1. **Investigate the approval** \u2014 identify who or what process approved this refund and whether it was a manual override or a system gap.\n2. **Assess recoverability** \u2014 determine whether the refund has already been disbursed and whether any chargeback or clawback is appropriate.\n3. **Audit the approval workflow** \u2014 add a hard guard in the refund approval flow that blocks defective-reason refunds requested more than 90 days post-purchase, to prevent recurrence."
+      },
+      "mixed-03-region-refund-rate-and-policy-exceptions": {
+        "chunks": null,
+        "search_policy_query": "regional exceptions refund policy by region",
+        "grounded": true,
+        "ungrounded_claims": [],
+        "answer": "Here is a summary of both findings.\n\n**Refund Rates by Region**\n\n| Region | Total Orders | Total Refunds | Refund Rate |\n|---|---|---|---|\n| EU-West | 10 | 5 | 50.00% |\n| US-East | 13 | 5 | 38.46% |\n| APAC | 9 | 3 | 33.33% |\n| *(unassigned)* | 11 | 3 | 27.27% |\n| US-West | 8 | 2 | 25.00% |\n| US-Central | 12 | 2 | 16.67% |\n\nEU-West has the highest refund rate at 50%, followed by US-East at 38.5% and APAC at 33.3%. US-Central is the best-performing region at 16.7%. It is worth noting that order volumes are relatively small across all regions (8\u201313 orders each), so these percentages should be interpreted with caution \u2014 a single order swing can meaningfully shift a region's rate.\n\n**Policy \u2014 Regional Exceptions**\n\nThe policy search returned no relevant results. The refund policy does not appear to contain any region-specific carve-outs or exceptions. If regional rules exist (for example, consumer-protection obligations in the EU), they have not been captured in the policy documents available to this tool. It would be worth confirming directly with your legal or compliance team whether EU-specific regulations apply, particularly given EU-West's elevated refund rate."
+      },
+      "mixed-04-repeat-refund-flag-detection": {
+        "chunks": [
+          {
+            "content": "Repeat-Refund Flag\n\nA customer with 3 or more approved refunds within a rolling 90-day window is flagged for manual review. Once a customer is flagged for manual review, further refund requests from that customer are not auto-approved, regardless of the individual refund's reason code or amount.",
+            "similarity": 0.6753246381685365,
+            "source_doc": "refund_policy.md",
+            "rule_number": 7
+          },
+          {
+            "content": "Approval Threshold\n\nA refund with an amount greater than $200 requires manager approval before the refund can be processed. The $200 approval threshold applies regardless of the refund's reason code.",
+            "similarity": 0.6208645290393989,
+            "source_doc": "refund_policy.md",
+            "rule_number": 6
+          }
+        ],
+        "search_policy_query": "repeat refund flag qualification criteria",
+        "grounded": true,
+        "ungrounded_claims": [],
+        "answer": "Here are the results, properly filtered against the policy definition.\n\n---\n\n**Repeat-Refund Flag \u2014 Currently Qualifying Customers**\n\nPer refund policy rule 7, a customer is flagged for manual review when they have **3 or more approved refunds within a rolling 90-day window**.\n\n| Customer Name | Customer ID | Qualifying Approved Refunds (last 90 days) |\n|---|---|---|\n| Charlotte Dubois | 3d3a5714-925f-5896-829f-de5f2ffb17a9 | 3 |\n\n**Charlotte Dubois** is the only customer currently meeting the threshold. As a consequence of rule 7, any further refund requests from her should not be auto-approved and must be routed to manual review, regardless of the reason code or refund amount.\n\nAll other customers in the database have fewer than 3 approved refunds within the 90-day window and do not currently qualify for the flag."
+      },
+      "mixed-06-damaged-shipping-requirements": {
+        "chunks": [
+          {
+            "content": "Damaged in Shipping\n\nItems returned under the `damaged_shipping` reason code have no time limit for return. A refund request under the `damaged_shipping` reason code requires supporting photo evidence before the refund can be processed.\n\nEvidence is tracked structurally as `refunds.evidence_submitted` (boolean) \u2014 this confirms evidence was provided, not that the evidence is valid; validity review is a manual/out-of-scope step for Part 1.",
+            "similarity": 0.7121813509518314,
+            "source_doc": "refund_policy.md",
+            "rule_number": 4
+          },
+          {
+            "content": "Damaged in Transit\n\nAn order that arrives damaged in transit is handled under the `damaged_shipping` refund reason code. A `damaged_shipping` refund has no return time limit and requires supporting photo evidence before the refund can be processed, per the refund policy's damaged-in-shipping rule.",
+            "similarity": 0.7117589712142944,
+            "source_doc": "shipping_policy.md",
+            "rule_number": null
+          },
+          {
+            "content": "Shipping Cost Non-Refundable\n\nThe original shipping charge paid on an order is not refunded. An exception to the shipping-cost policy applies when the refund reason code is `damaged_shipping` or `wrong_item`, in which case the original shipping charge is refunded along with the item.",
+            "similarity": 0.6483632745309786,
+            "source_doc": "refund_policy.md",
+            "rule_number": 10
+          }
+        ],
+        "search_policy_query": "damaged shipping refund requirements",
+        "grounded": true,
+        "ungrounded_claims": [],
+        "answer": "Before a damaged-shipping refund can be processed, the policy requires the following:\n\n1. **Supporting photo evidence must be submitted.** A refund request under the `damaged_shipping` reason code cannot be processed until photo evidence of the damage has been provided. This is tracked in the system via the `refunds.evidence_submitted` boolean field, which confirms that evidence was supplied (note that validating the quality or sufficiency of that evidence is a separate manual review step). (Refund policy, rule 4.)\n\n2. **No return time limit applies.** Unlike other refund reasons, there is no deadline for submitting a damaged-shipping refund request \u2014 customers may file at any time.\n\nAdditionally, per rule 10 of the refund policy, when the reason code is `damaged_shipping` the original shipping charge is refunded along with the item cost, as an exception to the general rule that shipping fees are non-refundable."
+      },
+      "mixed-07-wrong-item-window-compliance": {
+        "chunks": [
+          {
+            "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+            "similarity": 0.7350994664312045,
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          },
+          {
+            "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+            "similarity": 0.7063910540109257,
+            "source_doc": "refund_policy.md",
+            "rule_number": 5
+          },
+          {
+            "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+            "similarity": 0.6907312046609873,
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          }
+        ],
+        "search_policy_query": "return window refund eligibility deadline wrong item received",
+        "grounded": true,
+        "ungrounded_claims": [],
+        "answer": "Yes, the approval complies with policy. Here is the full picture:\n\n**What the database shows**\n\nCharlotte Dubois has a refund on a Wireless Keyboard with reason code `wrong_item`, requested 236 days after the order date of 7 November 2025, and it was approved.\n\n**What policy says**\n\nUnder rule 5 of the refund policy, items returned under the `wrong_item` reason code have **no time limit**. The rationale is explicit: because the shipping error is the company's responsibility, the burden of the delay cannot be placed on the customer. The standard 30-day window (rule 1) does not apply.\n\n**Conclusion**\n\nThe 236-day gap is entirely within policy for a `wrong_item` refund, and the approval was correct.\n\n---\n\nOne additional note worth flagging: Charlotte also has a second approved refund on a Wireless Keyboard with reason code `changed_mind`, filed 206 days after the order. That one would **not** comply with the standard 30-day return window (rule 1), and is worth a separate review."
+      }
+    }
   }
 }
