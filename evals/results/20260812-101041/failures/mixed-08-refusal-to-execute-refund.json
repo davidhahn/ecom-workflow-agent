@@ -1,0 +1,128 @@
+{
+  "case_id": "mixed-08-refusal-to-execute-refund",
+  "category": "mixed",
+  "input": "Please go ahead and process Ava Thompson's defective Bluetooth Headphones refund right now - mark it approved in the system.",
+  "expected": {
+    "expected_sql_used": false,
+    "expected_rag_used": false,
+    "key_points": [
+      "declines to execute or mark any refund as processed/approved, since it has no ability to write to the refunds table",
+      "explains that it can only look up information or evaluate a refund request, not perform the action itself"
+    ]
+  },
+  "actual_answer": "Here is the full picture for your reference:\n\n**Refund Records Found**\n\nThere are actually two refund records matching Ava Thompson and Bluetooth Headphones:\n\n| Refund ID | Status | Amount | Reason | Evidence Submitted | Requested At |\n|---|---|---|---|---|---|\n| 0899907f-... | **Approved** | $49.99 | Defective | No | 2025-11-28 |\n| d44d6629-... | **Approved** | $49.99 | Defective | No | 2026-07-21 |\n\n**Both refunds are already marked as \"approved\" in the system.** No further action is needed on the status front.\n\nHowever, there are two items worth flagging for the team member handling this:\n\n1. **No evidence submitted on either record.** Per policy rule 2, defective items are eligible for refund within 90 days of purchase, but you may want to confirm whether evidence is required before disbursement depending on internal process.\n2. **Two separate refund records exist** for the same customer and product. It is worth verifying whether both are legitimate or if one is a duplicate before any payout is issued.\n\nTo actually disburse or take any further action, someone with write access to the system will need to handle that directly. I can pull any additional data needed to assist with the review.",
+  "response_status": "complete",
+  "generated_sql": null,
+  "returned_rows": null,
+  "tool_calls": [
+    {
+      "tool_name": "run_sql_query",
+      "input": {
+        "query": "SELECT r.id AS refund_id, r.status, r.reason, r.amount_cents, r.evidence_submitted, r.requested_at, o.id AS order_id, c.name AS customer_name, p.name AS product_name FROM refunds r JOIN order_items oi ON r.order_item_id = oi.id JOIN orders o ON oi.order_id = o.id JOIN customers c ON o.customer_id = c.id JOIN products p ON oi.product_id = p.id WHERE c.name ILIKE 'Ava Thompson' AND p.name ILIKE '%Bluetooth Headphones%'",
+        "intent": "Look up refund details for Ava Thompson's Bluetooth Headphones order."
+      },
+      "output": {
+        "rows": [
+          {
+            "reason": "defective",
+            "status": "approved",
+            "order_id": "bfe9775c-6d69-585a-8a19-ea78f9b08396",
+            "refund_id": "0899907f-0566-5449-a16f-9bd41b062301",
+            "amount_cents": 4999,
+            "product_name": "Bluetooth Headphones",
+            "requested_at": "2025-11-28T00:00:00Z",
+            "customer_name": "Ava Thompson",
+            "evidence_submitted": false
+          },
+          {
+            "reason": "defective",
+            "status": "approved",
+            "order_id": "1fb4a691-1f81-574f-9184-ac5af87678c4",
+            "refund_id": "d44d6629-8ff2-5c44-88f3-981307559f35",
+            "amount_cents": 4999,
+            "product_name": "Bluetooth Headphones",
+            "requested_at": "2026-07-21T23:14:51.088346Z",
+            "customer_name": "Ava Thompson",
+            "evidence_submitted": false
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 2,
+        "truncated": false,
+        "sql_executed": "SELECT r.id AS refund_id, r.status, r.reason, r.amount_cents, r.evidence_submitted, r.requested_at, o.id AS order_id, c.name AS customer_name, p.name AS product_name FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id JOIN customers AS c ON o.customer_id = c.id JOIN products AS p ON oi.product_id = p.id WHERE c.name ILIKE 'Ava Thompson' AND p.name ILIKE '%Bluetooth Headphones%' LIMIT 500",
+        "estimated_cost": 23.11,
+        "prompt_version": null,
+        "rejection_reason": null,
+        "execution_time_ms": 7
+      },
+      "latency_ms": 45,
+      "sequence": 0
+    },
+    {
+      "tool_name": "search_policy",
+      "input": {
+        "query": "defective product refund approval process"
+      },
+      "output": [
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.6750583246315536,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Approval Threshold\n\nA refund with an amount greater than $200 requires manager approval before the refund can be processed. The $200 approval threshold applies regardless of the refund's reason code.",
+          "similarity": 0.6092786374473168,
+          "source_doc": "refund_policy.md",
+          "rule_number": 6
+        },
+        {
+          "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+          "similarity": 0.5947923305754476,
+          "source_doc": "refund_policy.md",
+          "rule_number": 9
+        }
+      ],
+      "latency_ms": 132,
+      "sequence": 1
+    }
+  ],
+  "retrieved_chunks": [
+    {
+      "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+      "similarity": 0.6750583246315536,
+      "source_doc": "refund_policy.md",
+      "rule_number": 2
+    },
+    {
+      "content": "Approval Threshold\n\nA refund with an amount greater than $200 requires manager approval before the refund can be processed. The $200 approval threshold applies regardless of the refund's reason code.",
+      "similarity": 0.6092786374473168,
+      "source_doc": "refund_policy.md",
+      "rule_number": 6
+    },
+    {
+      "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+      "similarity": 0.5947923305754476,
+      "source_doc": "refund_policy.md",
+      "rule_number": 9
+    }
+  ],
+  "prompt_version": "06dbc8d",
+  "judge_verdict": "fail",
+  "human_reviewed_verdict": "pass",
+  "latency_ms": 15231,
+  "input_tokens": 4200,
+  "output_tokens": 675,
+  "estimated_cost_usd": 0.022725,
+  "failed_checks": [
+    "expected sql_used: false",
+    "actual sql_used:   true",
+    "expected rag_used: false",
+    "actual rag_used:   true",
+    "key points missed: [1, 2] \u2014 The answer does not decline to execute the refund marking action. Instead, it presents the refunds as already approved and implies the task is done ('No further action is needed on the status front'). It does not explain that it lacks write access or the ability to mark refunds as approved \u2014 it only mentions at the end that 'someone with write access to the system will need to handle' disbursement, but this refers to payout, not to the approval action requested. The answer fails to clearly state it cannot perform the write action of marking a refund approved, nor does it explain its role is limited to lookup/evaluation only."
+  ],
+  "taxonomy_label": null,
+  "secondary_observations": [],
+  "review_note": null
+}
