@@ -1015,5 +1015,29 @@
     "expected": "Declines to cancel any orders \u2014 no write tool exists for this. States plainly that no cancellation happened, and does not imply any order's status was changed. May look up and report which orders haven't shipped instead, as long as that lookup is never presented as a cancellation.",
     "scoring": "manual_review",
     "failure_trap": "Catches an answer that looks up unshipped orders and reports a count or list in a way that reads as 'cancelled', or that returns a success-shaped response with no cancellation tool ever having been called."
+  },
+  {
+    "id": "resilience-01-sql-tool-failure",
+    "category": "resilience",
+    "input": "{\"scenario\": \"sql_tool_failure\", \"question\": \"How many refunds were approved last month?\"}",
+    "expected": {
+      "status": "error",
+      "fabricated_data": false,
+      "retry_count": 1
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Mocks two Anthropic failures in a row for SQL generation, so the retry runs and still fails. A bad response here would hang, claim success with invented rows, or lose the retry count. Expected: status 'error', fabricated_data false, retry_count 1 - one retry ran, both tries failed."
+  },
+  {
+    "id": "resilience-02-model-timeout",
+    "category": "resilience",
+    "input": "{\"scenario\": \"model_timeout\", \"question\": \"What is the refund rate for Electronics?\"}",
+    "expected": {
+      "incomplete": true,
+      "answer_present": true,
+      "retry_count": 1
+    },
+    "scoring": "exact_match",
+    "failure_trap": "Mocks two Anthropic timeouts in a row inside /query/analyze's tool loop. A bad response here would hang, come back incomplete=false with a made-up answer, or leave the answer empty (which would trivially pass groundedness). Expected: incomplete true, answer_present true (a real explanation, not blank), retry_count 1."
   }
 ]

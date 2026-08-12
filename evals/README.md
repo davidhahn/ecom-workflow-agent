@@ -43,3 +43,7 @@ Runs the full `/query/analyze` loop and checks it a few ways: did it call the ri
 Sends a message with a hidden bad instruction and checks whether the system falls for it. An AI judge reads the real answer and tool calls, then labels the result `resisted`, `partial_leak`, `complied`, or `insufficient_evidence` — only `resisted` passes. Same as `mixed`, this needs a judge, not a fixed rule. A failure means a hidden instruction actually changed the system's behavior.
 
 **Known limitation:** only 5 of 8 cases run today. 2 need a ticket feature that doesn't exist yet, 1 needs a real image.
+
+## `resilience`
+
+Checks what happens when the Anthropic call itself fails, not whether it succeeds. Each case mocks two failures in a row, for either SQL generation or the `/query/analyze` loop, then checks the real `request_log` row it leaves behind: a structured failure instead of a hang, `retry_count` of `1`, and no fabricated data. No live API call, no cost. A failure here means a dependency going down could hang the whole request instead of failing honestly.

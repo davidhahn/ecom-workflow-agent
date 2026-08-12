@@ -43,6 +43,10 @@ class RequestLog(Base):
     # instead of leaving the column genuinely NULL.
     rag_chunks_retrieved: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     cached: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # How many retries the Anthropic call needed. 0 means it worked first
+    # try. NULL means this request type doesn't call an LLM through the
+    # retry wrapper (e.g. rag).
+    retry_count: Mapped[int | None] = mapped_column(Integer)
     # Populated only for request_type='analyze', where a tool-call loop
     # actually runs — every other request type makes at most one LLM call
     # and leaves this NULL rather than being forced into an empty-list

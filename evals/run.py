@@ -23,9 +23,14 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
+
+import anthropic
+import httpx
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 API_ROOT = REPO_ROOT / "apps" / "api"
@@ -40,7 +45,12 @@ os.environ["EVAL_RATE_LIMIT_BYPASS"] = "1"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from sqlalchemy import select  # noqa: E402
+
+from app.db.observability_models import RequestLog  # noqa: E402
+from app.db.session import SessionLocal  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
+from app.orchestrator.analyze_service import analyze  # noqa: E402
 from app.orchestrator.groundedness import check_groundedness  # noqa: E402
 from app.orchestrator.judge_client import (  # noqa: E402
     RESPONSE_RELATIONSHIP_OUTCOME,
@@ -51,6 +61,7 @@ from app.orchestrator.judge_client import (  # noqa: E402
 from app.orchestrator.refund_evaluator import evaluate_refund, resolve_order_item  # noqa: E402
 from app.orchestrator.topic_coverage import check_topic_coverage  # noqa: E402
 from app.proxy_secret import HEADER_NAME, INTERNAL_PROXY_SECRET  # noqa: E402
+from app.query.service import run_sql_query  # noqa: E402
 from app.rag.schemas import chunk_from_dict  # noqa: E402
 from app.tools.registry import TOOLS  # noqa: E402
 
@@ -98,6 +109,10 @@ CATEGORY_METADATA = {
     "request_faithfulness": {
         "what_it_tests": "honesty about writes/actions the system can't perform",
         "consequence": "a declined or substituted action gets reported as if it succeeded",
+    },
+    "resilience": {
+        "what_it_tests": "structured failure and retry behavior when a model call fails",
+        "consequence": "a hang, a blank success, or a made-up answer instead of an honest error",
     },
 }
 SUPPORTED_CATEGORIES = list(CATEGORY_METADATA.keys())
@@ -231,6 +246,58 @@ def run_topic_coverage_case(case: dict) -> dict:
     fixture = json.loads(case["input"])
     warning = check_topic_coverage(fixture["answer"], fixture["sql_used"], fixture["generated_sql"])
     return {"topic_coverage_warning": warning}
+
+
+def _fake_anthropic_request() -> httpx.Request:
+    return httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+
+
+def _latest_retry_count(request_type: str, question: str) -> int | None:
+    with SessionLocal() as session:
+        row = session.execute(
+            select(RequestLog)
+            .where(RequestLog.request_type == request_type)
+            .where(RequestLog.input == question)
+            .order_by(RequestLog.created_at.desc())
+        ).scalars().first()
+    return row.retry_count if row else None
+
+
+def run_resilience_case(case: dict) -> dict:
+    """Fails a mocked Anthropic call twice in a row, then checks how the SQL
+    and analyze paths handle it. Tests app/llm_retry.py's retry contract,
+    not the network, so no live API call is needed. A unique question per
+    run avoids colliding with an earlier run's cache entry or request_log
+    row.
+    """
+    fixture = json.loads(case["input"])
+    question = f"{fixture['question']} ({uuid.uuid4().hex[:8]})"
+    failures = [
+        anthropic.APITimeoutError(request=_fake_anthropic_request()),
+        anthropic.APIConnectionError(request=_fake_anthropic_request()),
+    ]
+
+    if fixture["scenario"] == "sql_tool_failure":
+        with patch("app.llm_retry.anthropic.Anthropic") as mock_cls, patch("app.llm_retry.time.sleep"):
+            mock_cls.return_value.messages.create.side_effect = failures
+            result = run_sql_query(question, bypass_cache=True)
+        return {
+            "status": result.status,
+            "fabricated_data": bool(result.rows) or result.sql_executed is not None,
+            "retry_count": _latest_retry_count("sql", question),
+        }
+
+    if fixture["scenario"] == "model_timeout":
+        with patch("app.llm_retry.anthropic.Anthropic") as mock_cls, patch("app.llm_retry.time.sleep"):
+            mock_cls.return_value.messages.create.side_effect = failures
+            result = analyze(question, bypass_cache=True)
+        return {
+            "incomplete": result.incomplete,
+            "answer_present": bool(result.answer),
+            "retry_count": _latest_retry_count("analyze", question),
+        }
+
+    raise ValueError(f"unknown resilience scenario: {fixture['scenario']!r}")
 
 
 def run_permission_case(case: dict, client: TestClient) -> dict:
@@ -813,6 +880,7 @@ DISPATCH = {
     "refund_evaluator": run_refund_evaluator_case,
     "groundedness": run_groundedness_case,
     "topic_coverage": run_topic_coverage_case,
+    "resilience": run_resilience_case,
 }
 
 
@@ -1254,6 +1322,10 @@ def _normalize_actual_fields(category: str, actual: dict) -> dict:
         fields["retrieved_chunks"] = actual.get("retrieved_rules")
     elif category == "refund_evaluator":
         fields["response_status"] = actual.get("status")
+    elif category == "resilience":
+        fields["response_status"] = actual.get("status") or (
+            "incomplete" if actual.get("incomplete") else "complete"
+        )
     elif category == "permission":
         fields["response_status"] = actual.get("status_code")
     elif category == "mixed":

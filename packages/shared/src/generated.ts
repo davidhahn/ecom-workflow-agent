@@ -394,6 +394,8 @@ export interface components {
             rag_chunks_retrieved: unknown | null;
             /** Cached */
             cached: boolean;
+            /** Retry Count */
+            retry_count: number | null;
             /**
              * Created At
              * Format: date-time
@@ -443,6 +445,8 @@ export interface components {
             rag_chunks_retrieved: unknown | null;
             /** Cached */
             cached: boolean;
+            /** Retry Count */
+            retry_count: number | null;
             /**
              * Created At
              * Format: date-time

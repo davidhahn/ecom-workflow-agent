@@ -123,7 +123,7 @@ The 0.46 cutoff now lives in `query_rag()`. I reran the same 18 questions agains
 | off-topic refusal rate (5 cases) | 0/5 | 4/5 |
 | on-topic expected-rule retrieval (12 cases) | 12/12 | 12/12 |
 
-Four off-topic cases come back empty now. rag-09, rag-10, rag-11, and rag-12 all return zero chunks and the explicit message. rag-13 does not. Its three chunks sit at 0.425 to 0.429, just under the cutoff, so the question still reads as answerable. This is the exact gap the calibration table already flagged.
+Four off-topic cases come back empty now. rag-09, rag-10, rag-11, and rag-12 all return zero chunks and the explicit message. rag-13 does not. Its three chunks sit at 0.425 to 0.429, just under the cutoff, so the question still reads as answerable. This is the gap the calibration table already flagged.
 
 Every on-topic case kept its correct rule. rag-03 came back with one chunk instead of three. The other two were noise anyway, so nothing useful got dropped.
 

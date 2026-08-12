@@ -39,6 +39,7 @@ class RequestLogRow(BaseModel):
     sql_query_audit_id: uuid.UUID | None
     rag_chunks_retrieved: Any | None
     cached: bool
+    retry_count: int | None
     created_at: datetime
 
 

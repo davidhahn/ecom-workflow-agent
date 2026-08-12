@@ -43,7 +43,7 @@ def _analyze_row_id(question: str) -> uuid.UUID:
 
 def test_get_request_endpoint_returns_tool_calls_for_analyze_row():
     question = f"observability detail endpoint test, answered directly ({_RUN_ID})"
-    with patch("app.orchestrator.analyze_service.anthropic.Anthropic") as mock_anthropic_cls:
+    with patch("app.llm_retry.anthropic.Anthropic") as mock_anthropic_cls:
         mock_anthropic_cls.return_value.messages.create.return_value = _fake_final_answer_response(
             "Direct answer, no tools needed for this one."
         )

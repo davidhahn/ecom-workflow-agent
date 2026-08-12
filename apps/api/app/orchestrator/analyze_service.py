@@ -2,10 +2,10 @@ import json
 import os
 import time
 
-import anthropic
 from dotenv import load_dotenv
 
 from app.caching.cache import cache_get, cache_set, normalize_key
+from app.llm_retry import AnthropicCallFailed, call_with_retry, new_client
 from app.observability.logger import request_log_span
 from app.observability.schemas import ToolCallEntry
 from app.query.claude_client import DEFAULT_MODEL, ProposedQuery
@@ -96,7 +96,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
             log.output = result.model_dump(mode="json")
             return result
 
-        client = anthropic.Anthropic()
+        client = new_client()
         model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
         system = SYSTEM_PROMPT.format(schema=build_schema_context())
 
@@ -109,16 +109,40 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
         # per iteration — sequence numbers must reflect the call's position
         # in the whole request, not just within one turn.
         tool_calls: list[dict] = []
+        # Summed across every Claude call this request makes. The loop can
+        # call messages.create more than once.
+        total_retry_count = 0
 
         response = None
         for _ in range(MAX_TOOL_ITERATIONS):
-            response = client.messages.create(
-                model=model,
-                max_tokens=2048,
-                system=system,
-                tools=anthropic_tool_defs(for_analyze=True),
-                messages=messages,
-            )
+            try:
+                response, call_retry_count = call_with_retry(
+                    client,
+                    model=model,
+                    max_tokens=2048,
+                    system=system,
+                    tools=anthropic_tool_defs(for_analyze=True),
+                    messages=messages,
+                )
+            except AnthropicCallFailed as e:
+                total_retry_count += e.retry_count
+                log.retry_count = total_retry_count
+                result = AnalyzeResponse(
+                    answer=(
+                        "This request could not be completed: the model call "
+                        f"failed after a retry. {e.cause}"
+                    ),
+                    sql_used=sql_used,
+                    rag_used=rag_used,
+                    grounded=False,
+                    ungrounded_claims=[],
+                    sources=_build_sources(retrieved_chunks),
+                    incomplete=True,
+                )
+                log.tool_calls = tool_calls
+                log.output = result.model_dump(mode="json")
+                return result
+            total_retry_count += call_retry_count
             log.add_usage(response.usage)
             messages.append({"role": "assistant", "content": response.content})
 
@@ -205,6 +229,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
             # entries are only ever appended fully-formed after each call
             # finishes.
             log.tool_calls = tool_calls
+            log.retry_count = total_retry_count
             log.output = result.model_dump(mode="json")
             return result
 
@@ -231,6 +256,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
             topic_coverage_warning=topic_coverage_warning,
         )
         log.tool_calls = tool_calls
+        log.retry_count = total_retry_count
         log.output = result.model_dump(mode="json")
         if not bypass_cache:
             cache_set("analyze", cache_key, result)

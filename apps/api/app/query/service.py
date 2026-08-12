@@ -62,6 +62,7 @@ def run_sql_query(question: str, *, bypass_cache: bool = False) -> SqlQueryRespo
         try:
             proposed = propose_sql(question)
         except ClaudeProposalError as e:
+            log.retry_count = e.retry_count
             audit_id = record_attempt(
                 question=question,
                 generated_sql=None,
@@ -76,6 +77,7 @@ def run_sql_query(question: str, *, bypass_cache: bool = False) -> SqlQueryRespo
             log.output = response.model_dump(mode="json")
             return response
 
+        log.retry_count = proposed.retry_count
         log.add_usage(proposed.usage)
         executed = execute_proposed_query(question, proposed)
         log.sql_query_audit_id = executed.audit_id

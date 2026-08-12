@@ -5,6 +5,7 @@ from typing import Any
 import anthropic
 from dotenv import load_dotenv
 
+from app.llm_retry import AnthropicCallFailed, call_with_retry, new_client
 from app.query.schema_context import build_schema_context
 from app.query.tool_spec import RUN_SQL_QUERY_TOOL
 
@@ -61,28 +62,39 @@ class ProposedQuery:
     usage: Any = None
     # Same rule as usage above - only propose_sql() sets this.
     prompt_version: str | None = None
+    # 0 if it worked first try. 1 if it needed a retry.
+    retry_count: int = 0
 
 
 class ClaudeProposalError(Exception):
-    pass
+    def __init__(self, message: str, *, retry_count: int = 0):
+        self.retry_count = retry_count
+        super().__init__(message)
 
 
 def _client() -> anthropic.Anthropic:
-    return anthropic.Anthropic()
+    return new_client()
 
 
 def propose_sql(question: str) -> ProposedQuery:
     client = _client()
     model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        system=SYSTEM_PROMPT.format(schema=build_schema_context()),
-        tools=[RUN_SQL_QUERY_TOOL],
-        tool_choice={"type": "tool", "name": "run_sql_query"},
-        messages=[{"role": "user", "content": question}],
-    )
+    try:
+        response, retry_count = call_with_retry(
+            client,
+            model=model,
+            max_tokens=1024,
+            system=SYSTEM_PROMPT.format(schema=build_schema_context()),
+            tools=[RUN_SQL_QUERY_TOOL],
+            tool_choice={"type": "tool", "name": "run_sql_query"},
+            messages=[{"role": "user", "content": question}],
+        )
+    except AnthropicCallFailed as e:
+        raise ClaudeProposalError(
+            f"the model call failed, retry_count={e.retry_count}: {e.cause}",
+            retry_count=e.retry_count,
+        ) from e
 
     tool_use = next(
         (block for block in response.content if block.type == "tool_use"), None
@@ -99,4 +111,10 @@ def propose_sql(question: str) -> ProposedQuery:
             f"run_sql_query tool call missing required fields: {tool_use.input}"
         )
 
-    return ProposedQuery(query=query, intent=intent, usage=response.usage, prompt_version=PROMPT_VERSION)
+    return ProposedQuery(
+        query=query,
+        intent=intent,
+        usage=response.usage,
+        prompt_version=PROMPT_VERSION,
+        retry_count=retry_count,
+    )

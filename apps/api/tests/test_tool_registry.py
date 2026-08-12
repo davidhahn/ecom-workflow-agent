@@ -143,7 +143,7 @@ def test_orchestrator_builds_tool_list_from_registry_not_inline():
     fake_text_block = MagicMock(type="text", text="fake answer, no rule citations here")
     fake_response = MagicMock(content=[fake_text_block], stop_reason="end_turn", usage=fake_usage)
 
-    with patch("app.orchestrator.analyze_service.anthropic.Anthropic") as mock_anthropic_cls:
+    with patch("app.llm_retry.anthropic.Anthropic") as mock_anthropic_cls:
         mock_anthropic_cls.return_value.messages.create.return_value = fake_response
         analyze("does this reach the registry, unique phrasing for cache-miss safety?")
 

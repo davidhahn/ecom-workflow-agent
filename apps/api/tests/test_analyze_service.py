@@ -15,6 +15,9 @@ hit that skips the tool loop entirely."""
 import uuid
 from unittest.mock import MagicMock, patch
 
+import anthropic
+import httpx
+
 from sqlalchemy import select
 
 from app.db.observability_models import RequestLog
@@ -23,6 +26,10 @@ from app.orchestrator.analyze_service import MAX_TOOL_ITERATIONS, analyze
 from app.rag.service import NO_RELEVANT_EVIDENCE_MESSAGE
 
 _RUN_ID = uuid.uuid4().hex[:8]
+
+
+def _fake_anthropic_request() -> httpx.Request:
+    return httpx.Request("POST", "https://api.anthropic.com/v1/messages")
 
 
 def _latest_request_log_row(question: str) -> RequestLog:
@@ -57,7 +64,7 @@ def _fake_tool_use_response():
 
 def test_tool_loop_exhaustion_returns_incomplete_not_empty_grounded_answer():
     question = f"a question the assistant never stops trying to tool-call for ({_RUN_ID})"
-    with patch("app.orchestrator.analyze_service.anthropic.Anthropic") as mock_anthropic_cls:
+    with patch("app.llm_retry.anthropic.Anthropic") as mock_anthropic_cls:
         mock_anthropic_cls.return_value.messages.create.return_value = _fake_tool_use_response()
         result = analyze(question)
 
@@ -115,7 +122,7 @@ def test_tool_calls_trace_captures_sql_and_rag_calls_in_order():
         _dual_tool_call_response(),
         _final_text_response("Per rule 4, defective items can be returned; see the data above."),
     ]
-    with patch("app.orchestrator.analyze_service.anthropic.Anthropic") as mock_anthropic_cls:
+    with patch("app.llm_retry.anthropic.Anthropic") as mock_anthropic_cls:
         mock_anthropic_cls.return_value.messages.create.side_effect = responses
         result = analyze(question)
 
@@ -136,3 +143,51 @@ def test_tool_calls_trace_captures_sql_and_rag_calls_in_order():
         assert call["latency_ms"] >= 0
         assert call["input"]
         assert call["output"] is not None
+
+
+def test_transient_failure_then_retry_succeeds_records_retry_count():
+    question = f"a question where the first model call times out ({_RUN_ID})"
+    with patch("app.llm_retry.anthropic.Anthropic") as mock_anthropic_cls:
+        mock_anthropic_cls.return_value.messages.create.side_effect = [
+            anthropic.APITimeoutError(request=_fake_anthropic_request()),
+            _final_text_response("Direct answer, no tools needed, after one retry."),
+        ]
+        with patch("app.llm_retry.time.sleep") as mock_sleep:
+            result = analyze(question)
+
+    assert result.incomplete is False
+    assert result.answer == "Direct answer, no tools needed, after one retry."
+    mock_sleep.assert_called_once()
+
+    row = _latest_request_log_row(question)
+    assert row is not None
+    assert row.retry_count == 1
+
+
+def test_call_fails_after_retry_returns_structured_failure_not_hang():
+    """Trigger a retry, then a second failure, on purpose, and check the
+    whole path. analyze() should return instead of hanging or raising. The
+    answer should explain what happened instead of coming back empty or
+    invented. The row it writes should show the retry and the failure."""
+    question = f"a question where the model call fails twice in a row ({_RUN_ID})"
+    with patch("app.llm_retry.anthropic.Anthropic") as mock_anthropic_cls:
+        mock_anthropic_cls.return_value.messages.create.side_effect = [
+            anthropic.APITimeoutError(request=_fake_anthropic_request()),
+            anthropic.APIConnectionError(request=_fake_anthropic_request()),
+        ]
+        with patch("app.llm_retry.time.sleep") as mock_sleep:
+            result = analyze(question)
+
+    assert result.incomplete is True
+    assert result.answer != ""
+    assert result.grounded is False
+    assert result.sql_used is False
+    assert result.rag_used is False
+    mock_sleep.assert_called_once()
+
+    row = _latest_request_log_row(question)
+    assert row is not None
+    assert row.retry_count == 1
+    assert row.tool_calls == []
+    assert row.output["incomplete"] is True
+    assert "model call" in row.output["answer"]
