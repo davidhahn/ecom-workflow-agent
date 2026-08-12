@@ -199,6 +199,11 @@ export interface components {
         AnalyzeRequest: {
             /** Question */
             question: string;
+            /**
+             * Bypass Cache
+             * @default false
+             */
+            bypass_cache: boolean;
         };
         /** AnalyzeResponse */
         AnalyzeResponse: {
@@ -334,6 +339,8 @@ export interface components {
              * @default false
              */
             cached: boolean;
+            /** Message */
+            message?: string | null;
         };
         /** RefundEvaluateRequest */
         RefundEvaluateRequest: {
@@ -453,6 +460,11 @@ export interface components {
         SqlQueryRequest: {
             /** Question */
             question: string;
+            /**
+             * Bypass Cache
+             * @default false
+             */
+            bypass_cache: boolean;
         };
         /** SqlQueryResponse */
         SqlQueryResponse: {
@@ -491,6 +503,8 @@ export interface components {
              * @default false
              */
             cached: boolean;
+            /** Prompt Version */
+            prompt_version?: string | null;
         };
         /** TicketConfirmRequest */
         TicketConfirmRequest: {

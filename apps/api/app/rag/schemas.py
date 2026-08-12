@@ -16,6 +16,10 @@ class RagChunkResult(BaseModel):
 class RagQueryResponse(BaseModel):
     chunks: list[RagChunkResult]
     cached: bool = False
+    # Set only when chunks is empty. No retrieved chunk cleared the
+    # relevance threshold. This lets a caller show the outcome directly,
+    # rather than guessing at what an empty list means.
+    message: str | None = None
 
 
 def chunk_from_dict(data: dict) -> RagChunkResult:

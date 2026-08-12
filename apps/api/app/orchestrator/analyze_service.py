@@ -11,7 +11,7 @@ from app.observability.schemas import ToolCallEntry
 from app.query.claude_client import DEFAULT_MODEL, ProposedQuery
 from app.query.schema_context import build_schema_context
 from app.query.service import ExecutedQuery, execute_proposed_query
-from app.rag.service import query_rag
+from app.rag.service import NO_RELEVANT_EVIDENCE_MESSAGE, query_rag
 from app.rag.schemas import RagChunkResult
 from app.orchestrator.groundedness import check_groundedness
 from app.orchestrator.schemas import AnalyzeResponse, SourceRef
@@ -45,7 +45,10 @@ order status or any other adjacent data.
 
 Only make claims backed by an actual tool result. If no tool result \
 directly addresses the question, state that clearly rather than \
-speculating from related information.
+speculating from related information. If search_policy reports no \
+sufficiently relevant policy information, repeat that finding to the \
+user. Do not pull an answer from unrelated retrieved content or general \
+knowledge.
 
 This is an enterprise ops tool. Write your final answer in plain \
 professional prose — no emoji.
@@ -150,19 +153,26 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
                     rag_used = True
                     chunks = _run_search_policy_tool(block.input)
                     retrieved_chunks.extend(chunks)
-                    chunk_dicts = [c.model_dump() for c in chunks]
+                    # Nothing cleared the relevance threshold. The model
+                    # gets a plain message here instead of an empty array
+                    # to interpret on its own.
+                    output = (
+                        [c.model_dump() for c in chunks]
+                        if chunks
+                        else {"message": NO_RELEVANT_EVIDENCE_MESSAGE}
+                    )
                     tool_results.append(
                         {
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": json.dumps(chunk_dicts),
+                            "content": json.dumps(output),
                         }
                     )
                     tool_calls.append(
                         ToolCallEntry(
                             tool_name=block.name,
                             input=block.input,
-                            output=chunk_dicts,
+                            output=output,
                             latency_ms=int((time.perf_counter() - call_start) * 1000),
                             sequence=len(tool_calls),
                         ).model_dump(mode="json")

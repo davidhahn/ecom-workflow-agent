@@ -20,6 +20,7 @@ from sqlalchemy import select
 from app.db.observability_models import RequestLog
 from app.db.session import SessionLocal
 from app.orchestrator.analyze_service import MAX_TOOL_ITERATIONS, analyze
+from app.rag.service import NO_RELEVANT_EVIDENCE_MESSAGE
 
 _RUN_ID = uuid.uuid4().hex[:8]
 
@@ -82,7 +83,9 @@ def test_tool_loop_exhaustion_returns_incomplete_not_empty_grounded_answer():
         assert isinstance(call["latency_ms"], int)
         assert call["latency_ms"] >= 0
         assert call["input"] == {"query": "loop should exhaust before this is ever cited"}
-        assert isinstance(call["output"], list)
+        # Nothing in the corpus matches this nonsense query. Every call
+        # gets the explicit no-evidence message instead.
+        assert call["output"] == {"message": NO_RELEVANT_EVIDENCE_MESSAGE}
 
 
 def _dual_tool_call_response():
