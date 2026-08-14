@@ -66,8 +66,15 @@ def _check_table_allowlist(statement: exp.Select) -> None:
 
 
 def _check_no_select_star(statement: exp.Select) -> None:
+    # Only a real SELECT * or SELECT t.* counts - a Star buried inside a
+    # function argument, like COUNT(*), is a row count, not a wildcard
+    # column list. find(exp.Star) used to match both, since it searches
+    # the whole subtree instead of just the top of each select expression.
     for select_expr in statement.expressions:
-        if select_expr.find(exp.Star) is not None:
+        core = select_expr.this if isinstance(select_expr, exp.Alias) else select_expr
+        is_bare_star = isinstance(core, exp.Star)
+        is_qualified_star = isinstance(core, exp.Column) and isinstance(core.this, exp.Star)
+        if is_bare_star or is_qualified_star:
             raise SqlRejected(
                 "layer1_ast",
                 "bare SELECT * is not allowed; list columns explicitly",
