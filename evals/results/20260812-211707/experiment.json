@@ -1,0 +1,11 @@
+{
+  "application_model": "claude-sonnet-4-6",
+  "judge_model": "claude-sonnet-4-6",
+  "prompt_version": {
+    "sql": "v2",
+    "analyze": "v1"
+  },
+  "eval_dataset_version": "78fcd15b208e",
+  "git_commit": "df37003",
+  "cache_bypassed": true
+}

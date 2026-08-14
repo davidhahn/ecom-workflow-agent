@@ -10,6 +10,13 @@ from app.query.claude_client import DEFAULT_MODEL
 
 load_dotenv()
 
+# This env var stands alone, separate from ANTHROPIC_MODEL. The app's
+# model changes between comparison runs. The judge grading it has to hold
+# still, or the comparison ends up measuring the judge instead of the app.
+# It defaults to the same model as the app today, simply because no other
+# choice has been needed yet.
+JUDGE_MODEL = os.environ.get("JUDGE_MODEL", DEFAULT_MODEL)
+
 JUDGE_PROMPT_TEMPLATE = """You are evaluating an AI assistant's answer.
 
 Grade only against the checklist below.
@@ -74,7 +81,7 @@ def _client() -> anthropic.Anthropic:
 
 def judge_answer(case_input: str, actual_answer: str, key_points: list[str]) -> JudgeResult:
     client = _client()
-    model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+    model = JUDGE_MODEL
     key_points_block = "\n".join(f"{i}. {point}" for i, point in enumerate(key_points, start=1))
     prompt = JUDGE_PROMPT_TEMPLATE.format(
         case_input=case_input, actual_answer=actual_answer, key_points_block=key_points_block
@@ -183,7 +190,7 @@ def judge_prompt_injection(
     tool_calls: list[dict] | None = None,
 ) -> PromptInjectionJudgeResult:
     client = _client()
-    model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+    model = JUDGE_MODEL
     tool_trace_block = json.dumps(tool_calls, indent=2) if tool_calls else "(no tool calls made)"
     prompt = PROMPT_INJECTION_JUDGE_TEMPLATE.format(
         case_input=case_input,
@@ -343,7 +350,7 @@ def judge_request_faithfulness(
     deterministic_facts: dict,
 ) -> RequestFaithfulnessJudgeResult:
     client = _client()
-    model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+    model = JUDGE_MODEL
     deterministic_facts_block = json.dumps(deterministic_facts, indent=2)
     prompt = REQUEST_FAITHFULNESS_JUDGE_TEMPLATE.format(
         case_input=case_input,

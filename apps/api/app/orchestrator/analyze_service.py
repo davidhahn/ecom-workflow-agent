@@ -22,6 +22,12 @@ load_dotenv()
 
 MAX_TOOL_ITERATIONS = 4
 
+# Bump this whenever SYSTEM_PROMPT changes. It mirrors
+# claude_client.PROMPT_VERSION, the one already tracking the SQL prompt.
+# This prompt had no version marker before now, so a model comparison run
+# had no way to confirm it held steady between runs.
+SYSTEM_PROMPT_VERSION = "v1"
+
 SYSTEM_PROMPT = """You are an ops assistant for an eCommerce company. Answer \
 the user's question using the tools available:
 

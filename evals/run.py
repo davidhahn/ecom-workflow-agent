@@ -18,6 +18,8 @@ deterministic like the rest. rag hits the real /query/rag endpoint too, but
 that's embedding + cosine search, no LLM call, so it stays deterministic.
 """
 
+import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -50,9 +52,11 @@ from sqlalchemy import select  # noqa: E402
 from app.db.observability_models import RequestLog  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
+from app.orchestrator.analyze_service import SYSTEM_PROMPT_VERSION as ANALYZE_PROMPT_VERSION  # noqa: E402
 from app.orchestrator.analyze_service import analyze  # noqa: E402
 from app.orchestrator.groundedness import check_groundedness  # noqa: E402
 from app.orchestrator.judge_client import (  # noqa: E402
+    JUDGE_MODEL,
     RESPONSE_RELATIONSHIP_OUTCOME,
     judge_answer,
     judge_prompt_injection,
@@ -61,6 +65,8 @@ from app.orchestrator.judge_client import (  # noqa: E402
 from app.orchestrator.refund_evaluator import evaluate_refund, resolve_order_item  # noqa: E402
 from app.orchestrator.topic_coverage import check_topic_coverage  # noqa: E402
 from app.proxy_secret import HEADER_NAME, INTERNAL_PROXY_SECRET  # noqa: E402
+from app.query.claude_client import DEFAULT_MODEL  # noqa: E402
+from app.query.claude_client import PROMPT_VERSION as SQL_PROMPT_VERSION  # noqa: E402
 from app.query.service import run_sql_query  # noqa: E402
 from app.rag.schemas import chunk_from_dict  # noqa: E402
 from app.tools.registry import TOOLS  # noqa: E402
@@ -576,9 +582,9 @@ def _trajectory_counts(tool_calls: list[dict]) -> dict:
     return {"sql_calls": sql_calls, "rag_calls": rag_calls, "total_tool_calls": len(tool_calls)}
 
 
-def run_mixed_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
+def run_mixed_case(case: dict, client: TestClient, *, bypass_cache: bool = False) -> tuple[dict, list[str]]:
     expected = case["expected"]
-    response = client.post("/query/analyze", json={"question": case["input"]})
+    response = client.post("/query/analyze", json={"question": case["input"], "bypass_cache": bypass_cache})
     body = response.json()
 
     failure_reasons: list[str] = []
@@ -666,9 +672,13 @@ CLASSIFICATION_OUTCOME = {
 }
 
 
-def run_prompt_injection_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
+def run_prompt_injection_case(
+    case: dict, client: TestClient, *, bypass_cache: bool = False
+) -> tuple[dict, list[str]]:
     endpoint = PROMPT_INJECTION_ENDPOINTS[case["id"]]
     if endpoint == "/refund/evaluate":
+        # RefundEvaluateRequest has no bypass_cache field. /refund/evaluate
+        # never caches, so there's nothing here to bypass.
         body = client.post(endpoint, json={"request_text": case["input"]}).json()
         actual_answer = json.dumps(
             {
@@ -681,7 +691,7 @@ def run_prompt_injection_case(case: dict, client: TestClient) -> tuple[dict, lis
         )
         tool_calls: list[dict] = []
     else:
-        body = client.post(endpoint, json={"question": case["input"]}).json()
+        body = client.post(endpoint, json={"question": case["input"], "bypass_cache": bypass_cache}).json()
         actual_answer = body["answer"]
         tool_calls = _latest_analyze_tool_calls(client)
 
@@ -912,7 +922,7 @@ class CaseResult:
     request_log_detail: dict | None = None
 
 
-def run_case(case: dict, client: TestClient) -> CaseResult:
+def run_case(case: dict, client: TestClient, *, bypass_cache: bool = False) -> CaseResult:
     category = case["category"]
     start = time.perf_counter()
     detail: dict | None = None
@@ -924,25 +934,30 @@ def run_case(case: dict, client: TestClient) -> CaseResult:
             detail = _latest_request_log_detail(client, request_type) if request_type else None
             cost_usd = detail["estimated_cost_usd"] if detail else 0.0
             failure_reasons = None
-        elif category in ("sql", "sql_semantic", "rag"):
+        elif category == "rag":
+            # rag has no cache and no LLM call. bypass_cache has nothing to do here.
+            actual, failure_reasons = run_rag_case(case, client)
+            detail = _latest_request_log_detail(client, "rag")
+            cost_usd = detail["estimated_cost_usd"] if detail else None
+        elif category in ("sql", "sql_semantic"):
             # sql_semantic uses the same /query/sql path as sql - not its own request_log type.
-            actual, failure_reasons = (run_rag_case if category == "rag" else run_sql_case)(case, client)
-            detail = _latest_request_log_detail(client, "rag" if category == "rag" else "sql")
+            actual, failure_reasons = run_sql_case(case, client, bypass_cache=bypass_cache)
+            detail = _latest_request_log_detail(client, "sql")
             cost_usd = detail["estimated_cost_usd"] if detail else None
         elif category == "mixed":
-            actual, failure_reasons = run_mixed_case(case, client)
+            actual, failure_reasons = run_mixed_case(case, client, bypass_cache=bypass_cache)
             # Only counts the /query/analyze call — the judge's own call
             # isn't logged, so it's not included here.
             detail = _latest_request_log_detail(client, "analyze")
             cost_usd = detail["estimated_cost_usd"] if detail else None
         elif category == "prompt_injection":
-            actual, failure_reasons = run_prompt_injection_case(case, client)
+            actual, failure_reasons = run_prompt_injection_case(case, client, bypass_cache=bypass_cache)
             # Same as mixed: the judge's own call isn't logged either.
             endpoint = PROMPT_INJECTION_ENDPOINTS[case["id"]]
             detail = _latest_request_log_detail(client, ENDPOINT_REQUEST_TYPE[endpoint])
             cost_usd = detail["estimated_cost_usd"] if detail else None
         elif category == "request_faithfulness":
-            actual, failure_reasons = run_request_faithfulness_case(case, client)
+            actual, failure_reasons = run_request_faithfulness_case(case, client, bypass_cache=bypass_cache)
             detail = _latest_request_log_detail(client, "analyze")
             cost_usd = detail["estimated_cost_usd"] if detail else None
         else:
@@ -1415,7 +1430,33 @@ def write_failure_records(
         (failures_dir / f"{result.id}.json").write_text(json.dumps(record, indent=2) + "\n")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run evals/cases.json against the app.")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Override ANTHROPIC_MODEL for the app under test. The judge stays fixed "
+        "(see JUDGE_MODEL in app/orchestrator/judge_client.py). This also turns on "
+        "--bypass-cache, since a stale cached answer from a different model would "
+        "quietly corrupt the comparison.",
+    )
+    parser.add_argument(
+        "--bypass-cache",
+        action="store_true",
+        help="Skip the app cache for every case that supports it. Works on its own too, "
+        "without --model.",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = parse_args()
+    if args.model:
+        os.environ["ANTHROPIC_MODEL"] = args.model
+    bypass_cache = args.bypass_cache or bool(args.model)
+    application_model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+    dataset_version = hashlib.sha256(CASES_PATH.read_bytes()).hexdigest()[:12]
+
     cases = load_cases()
     run_cases = [
         c for c in cases if c["category"] in SUPPORTED_CATEGORIES and c["id"] not in NOT_RUNNABLE_CASE_IDS
@@ -1425,7 +1466,7 @@ def main() -> int:
     skipped_case_ids = {c["id"]: NOT_RUNNABLE_CASE_IDS[c["id"]] for c in cases if c["id"] in NOT_RUNNABLE_CASE_IDS}
 
     client = TestClient(fastapi_app, headers={HEADER_NAME: INTERNAL_PROXY_SECRET})
-    results = [run_case(case, client) for case in run_cases]
+    results = [run_case(case, client, bypass_cache=bypass_cache) for case in run_cases]
     cache_result = run_cache_check(client)
     stats = compute_category_stats(results)
 
@@ -1446,6 +1487,22 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(report + "\n")
     (out_dir / "results.json").write_text(json.dumps(results_json, indent=2) + "\n")
+
+    # Lets two runs get compared honestly later. Anyone reading this file
+    # can check that the model was the only thing that changed, with the
+    # prompt, the dataset, the judge, and the cache all held constant. See
+    # DECISIONS.md for the story behind this.
+    experiment_metadata = {
+        "application_model": application_model,
+        "judge_model": JUDGE_MODEL,
+        "prompt_version": {"sql": SQL_PROMPT_VERSION, "analyze": ANALYZE_PROMPT_VERSION},
+        "eval_dataset_version": dataset_version,
+        "git_commit": commit,
+        "cache_bypassed": bypass_cache,
+    }
+    (out_dir / "experiment.json").write_text(json.dumps(experiment_metadata, indent=2) + "\n")
+    print("\nExperiment metadata:")
+    print(json.dumps(experiment_metadata, indent=2))
 
     cases_by_id = {c["id"]: c for c in run_cases}
     write_failure_records(results, cases_by_id, out_dir, commit)
