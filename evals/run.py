@@ -306,11 +306,14 @@ def run_resilience_case(case: dict) -> dict:
     raise ValueError(f"unknown resilience scenario: {fixture['scenario']!r}")
 
 
-def run_permission_case(case: dict, client: TestClient) -> dict:
+def run_permission_case(case: dict, client: TestClient, *, bypass_cache: bool = False) -> dict:
     fixture = json.loads(case["input"])
+    body = dict(fixture["body"])
+    if bypass_cache and fixture["endpoint"] in ("/query/sql", "/query/analyze", "/query/rag"):
+        body["bypass_cache"] = True
     response = client.post(
         fixture["endpoint"],
-        json=fixture["body"],
+        json=body,
         headers={"X-Demo-Role": fixture["role"]},
     )
     return {"status_code": response.status_code}
@@ -928,7 +931,7 @@ def run_case(case: dict, client: TestClient, *, bypass_cache: bool = False) -> C
     detail: dict | None = None
     try:
         if category == "permission":
-            actual = run_permission_case(case, client)
+            actual = run_permission_case(case, client, bypass_cache=bypass_cache)
             fixture = json.loads(case["input"])
             request_type = ENDPOINT_REQUEST_TYPE.get(fixture["endpoint"])
             detail = _latest_request_log_detail(client, request_type) if request_type else None
