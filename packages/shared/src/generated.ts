@@ -329,6 +329,11 @@ export interface components {
              * @default 3
              */
             k: number;
+            /**
+             * Bypass Cache
+             * @default false
+             */
+            bypass_cache: boolean;
         };
         /** RagQueryResponse */
         RagQueryResponse: {

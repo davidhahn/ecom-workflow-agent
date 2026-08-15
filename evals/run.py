@@ -545,9 +545,9 @@ def run_sql_case(case: dict, client: TestClient, *, bypass_cache: bool = False) 
 # ---------------------------------------------------------------------------
 
 
-def run_rag_case(case: dict, client: TestClient) -> tuple[dict, list[str]]:
+def run_rag_case(case: dict, client: TestClient, *, bypass_cache: bool = False) -> tuple[dict, list[str]]:
     expected_rules = case["expected"]["must_include_rule_numbers"]
-    response = client.post("/query/rag", json={"question": case["input"]})
+    response = client.post("/query/rag", json={"question": case["input"], "bypass_cache": bypass_cache})
     body = response.json()
     retrieved_rules = [chunk["rule_number"] for chunk in body.get("chunks", [])]
 
@@ -935,8 +935,10 @@ def run_case(case: dict, client: TestClient, *, bypass_cache: bool = False) -> C
             cost_usd = detail["estimated_cost_usd"] if detail else 0.0
             failure_reasons = None
         elif category == "rag":
-            # rag has no cache and no LLM call. bypass_cache has nothing to do here.
-            actual, failure_reasons = run_rag_case(case, client)
+            # query_rag() itself has no cache. The /query/rag router
+            # wrapping it does. Skip it here, or a stale answer from an
+            # earlier case with the same question text quietly stands in.
+            actual, failure_reasons = run_rag_case(case, client, bypass_cache=bypass_cache)
             detail = _latest_request_log_detail(client, "rag")
             cost_usd = detail["estimated_cost_usd"] if detail else None
         elif category in ("sql", "sql_semantic"):

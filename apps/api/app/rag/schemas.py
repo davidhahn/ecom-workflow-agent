@@ -4,6 +4,12 @@ from pydantic import BaseModel
 class RagQueryRequest(BaseModel):
     question: str
     k: int = 3
+    # Eval-only: skips the app cache for this call, same as AnalyzeRequest
+    # and SqlQueryRequest's own bypass_cache. /query/rag never had one
+    # before. query_rag() itself doesn't cache. The router wrapping it
+    # does, and a comparison run needs a fresh answer every time it asks
+    # the same question under a changed RELEVANCE_THRESHOLD.
+    bypass_cache: bool = False
 
 
 class RagChunkResult(BaseModel):

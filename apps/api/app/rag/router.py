@@ -28,7 +28,7 @@ def query_rag_endpoint(
     # not be affected by this endpoint's cache.
     with request_log_span("rag", body.question) as log:
         cache_key = normalize_key(body.question)
-        cached = cache_get(_CACHE_NAMESPACE, cache_key)
+        cached = None if body.bypass_cache else cache_get(_CACHE_NAMESPACE, cache_key)
         if cached is not None:
             log.cached = True
             log.input_tokens = 0
@@ -40,5 +40,6 @@ def query_rag_endpoint(
         response = query_rag(body.question, k=body.k)
         log.output = response.model_dump(mode="json")
         log.rag_chunks_retrieved = [c.model_dump(mode="json") for c in response.chunks]
-        cache_set(_CACHE_NAMESPACE, cache_key, response)
+        if not body.bypass_cache:
+            cache_set(_CACHE_NAMESPACE, cache_key, response)
         return response
