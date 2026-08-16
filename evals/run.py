@@ -123,6 +123,20 @@ CATEGORY_METADATA = {
 }
 SUPPORTED_CATEGORIES = list(CATEGORY_METADATA.keys())
 
+# What --subset deterministic runs. No case in these categories ever
+# makes a live network call.
+#
+# permission looks like it should qualify too. It doesn't: 5 of its 6
+# cases post to /query/sql or /tickets/draft to prove a role is allowed
+# through, and both endpoints call Claude for real when a role is
+# allowed. Only its 403 cases skip the model. Leaving permission out
+# entirely keeps this list honest.
+#
+# resilience does qualify, even though nothing about the name suggests
+# it. It already mocks app.llm_retry.anthropic.Anthropic and never makes
+# a live call.
+DETERMINISTIC_CATEGORIES = {"refund_evaluator", "groundedness", "topic_coverage", "resilience"}
+
 # Categories with no runner yet (see EVALS.md's "Out of scope"), and why.
 SKIP_REASONS = {
     "ticket_evaluator": "needs harness (draft/confirm flow)",
@@ -841,14 +855,21 @@ CACHE_CHECK_QUESTION = "How many products are in the Office category? (eval cach
 class CacheCheckResult:
     passed: bool
     failure_reasons: list[str]
-    first_cached: bool
-    second_cached: bool
-    first_latency_ms: int
-    second_latency_ms: int
-    first_tokens: tuple[int | None, int | None]
-    second_tokens: tuple[int | None, int | None]
-    first_cost_usd: float | None
-    second_cost_usd: float | None
+    first_cached: bool | None = None
+    second_cached: bool | None = None
+    first_latency_ms: int | None = None
+    second_latency_ms: int | None = None
+    first_tokens: tuple[int | None, int | None] | None = None
+    second_tokens: tuple[int | None, int | None] | None = None
+    first_cost_usd: float | None = None
+    second_cost_usd: float | None = None
+    # True only in deterministic mode, where this check never runs. `passed`
+    # is also True here, so the exit code isn't gated on a check that never
+    # ran. Every renderer checks `skipped` first. Every other field is None.
+    skipped: bool = False
+
+
+SKIPPED_CACHE_CHECK = CacheCheckResult(passed=True, failure_reasons=[], skipped=True)
 
 
 def run_cache_check(client: TestClient) -> CacheCheckResult:
@@ -1019,6 +1040,8 @@ def format_case_line(result: CaseResult, id_width: int) -> str:
 
 
 def render_cache_check(result: CacheCheckResult) -> str:
+    if result.skipped:
+        return "cache-01-repeated-sql-question ... SKIPPED (deterministic subset, no live SQL call)"
     status = "PASS" if result.passed else "FAIL"
     lines = [
         f"cache-01-repeated-sql-question ... {status}",
@@ -1136,7 +1159,7 @@ def render_overall_summary(
         [
             f"Total: {total} run, {passed} passed, {failed} failed ({pass_rate}% pass rate)",
             f"Mean latency: {_fmt_latency(mean_latency_ms)} | Mean cost: {_fmt_cost(mean_cost_usd)}",
-            f"Cache check: {'PASS' if cache_result.passed else 'FAIL'}",
+            f"Cache check: {'SKIPPED' if cache_result.skipped else ('PASS' if cache_result.passed else 'FAIL')}",
             f"Skipped categories: {', '.join(skipped_categories)}",
             f"{timestamp} | commit {commit}",
         ]
@@ -1277,6 +1300,7 @@ def build_results_json(
             "note": "Categories with n below this threshold are regression checks, not comparison evidence.",
         },
         "cache_check": {
+            "skipped": cache_result.skipped,
             "passed": cache_result.passed,
             "failure_reasons": cache_result.failure_reasons,
             "first_cached": cache_result.first_cached,
@@ -1451,6 +1475,14 @@ def parse_args() -> argparse.Namespace:
         help="Skip the app cache for every case that supports it. Works on its own too, "
         "without --model.",
     )
+    parser.add_argument(
+        "--subset",
+        choices=["all", "deterministic"],
+        default="all",
+        help="'deterministic' runs only DETERMINISTIC_CATEGORIES: no case makes a live "
+        "call to Claude, so no ANTHROPIC_API_KEY is needed. Meant for CI. Also skips "
+        "the cache check, which calls the live /query/sql endpoint twice on purpose.",
+    )
     return parser.parse_args()
 
 
@@ -1462,17 +1494,20 @@ def main() -> int:
     application_model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
     dataset_version = hashlib.sha256(CASES_PATH.read_bytes()).hexdigest()[:12]
 
+    active_categories = DETERMINISTIC_CATEGORIES if args.subset == "deterministic" else set(SUPPORTED_CATEGORIES)
     cases = load_cases()
     run_cases = [
-        c for c in cases if c["category"] in SUPPORTED_CATEGORIES and c["id"] not in NOT_RUNNABLE_CASE_IDS
+        c for c in cases if c["category"] in active_categories and c["id"] not in NOT_RUNNABLE_CASE_IDS
     ]
 
-    skipped_categories = sorted({c["category"] for c in cases} - set(SUPPORTED_CATEGORIES))
+    skipped_categories = sorted({c["category"] for c in cases} - active_categories)
     skipped_case_ids = {c["id"]: NOT_RUNNABLE_CASE_IDS[c["id"]] for c in cases if c["id"] in NOT_RUNNABLE_CASE_IDS}
 
     client = TestClient(fastapi_app, headers={HEADER_NAME: INTERNAL_PROXY_SECRET})
     results = [run_case(case, client, bypass_cache=bypass_cache) for case in run_cases]
-    cache_result = run_cache_check(client)
+    # The cache check calls the live /query/sql endpoint twice, by design.
+    # Deterministic mode has no ANTHROPIC_API_KEY available to make that call.
+    cache_result = run_cache_check(client) if args.subset != "deterministic" else SKIPPED_CACHE_CHECK
     stats = compute_category_stats(results)
 
     commit = subprocess.run(

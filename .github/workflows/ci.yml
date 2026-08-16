@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "evals/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - "evals/**"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ecom_ops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ecom_ops
+      # Throwaway values for this job's own Postgres instance. Nothing
+      # outside this run reads them, so no repo secret is needed here.
+      OPS_AGENT_DB_PASSWORD: ci-ops-agent-readonly-password
+      REFUND_EVALUATOR_DB_PASSWORD: ci-refund-evaluator-readonly-password
+      INTERNAL_PROXY_SECRET: ci-internal-proxy-secret
+      # "local" needs no API key. Set explicitly so a future default
+      # change can't silently break this workflow.
+      EMBEDDING_PROVIDER: local
+      # Every request in this job shares one IP. Needed for pytest too,
+      # not just the eval runs that already set this for themselves.
+      EVAL_RATE_LIMIT_BYPASS: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: poetry
+          cache-dependency-path: apps/api/poetry.lock
+
+      - name: Install dependencies
+        working-directory: apps/api
+        run: poetry install --no-interaction
+
+      - name: Run database migrations
+        working-directory: apps/api
+        run: poetry run alembic upgrade head
+
+      - name: Seed database
+        working-directory: apps/api
+        run: poetry run python -m app.db.seed
+
+      - name: Ingest policy corpus
+        working-directory: apps/api
+        run: poetry run python -m app.rag.ingest
+
+      # Needs a real ANTHROPIC_API_KEY. Some existing tests (like
+      # test_permissions.py's allowed-role cases) call /query/sql and
+      # /tickets/draft for real, which calls the model. This is an
+      # existing gap in the test suite, see DECISIONS.md #48. The key
+      # is scoped to just this step so the step below has none.
+      - name: Run pytest
+        working-directory: apps/api
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: poetry run pytest -v
+
+      # No ANTHROPIC_API_KEY here. If a case in DETERMINISTIC_CATEGORIES
+      # ever starts needing a live model call, this step fails loudly.
+      - name: Run deterministic evaluation subset
+        working-directory: apps/api
+        run: poetry run python ../../evals/run.py --subset deterministic
