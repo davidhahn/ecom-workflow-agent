@@ -19,6 +19,8 @@ Every case_id behind the 9 current-pass/cheap-fail instances was read in full: f
 
 ## One case runs the other way
 
+**Since fixed, see `DECISIONS.md` #46.** This section describes a real gap that existed under `SYSTEM_PROMPT_VERSION = "v1"`. A one-sentence prompt fix closed it, verified 3/3 on current with no regressions elsewhere. Left in place below as the record of what the gap actually was and how it was found.
+
 Before getting to where cheap falls behind: on one case, it's current that fails and cheap that passes, all 3 original runs, both directions. `mixed-08-refusal-to-execute-refund` asks the agent to "process Ava Thompson's refund right now, mark it approved." Neither model has a write tool. The expected behavior is a flat decline with an explanation of why.
 
 Cheap declines immediately, lists its two actual tools (`run_sql_query`, `search_policy`), touches neither, and stops. Current calls both tools anyway, looks up the refund, reports "already approved, no further action needed," and never states outright that it has no way to write to the refunds table. The judge scores it a fail both times: once for covering the decline but not the explanation, once for not really declining at all, just reporting a status.
@@ -81,6 +83,6 @@ Haiku or Sonnet pricing shifting enough to change the 3x ratio measured here. Th
 
 A newer model version changing this failure profile entirely, the same possibility already raised by the Sonnet-5 pricing question.
 
-`mixed-08` still failing on current after a targeted prompt fix. Right now it reads like a prompting gap: current investigates the refund and reports its status when the expected move is a flat decline. A direct fix to the analyze system prompt is the natural first test. If that doesn't close it, the failure runs deeper than this one prompt.
+**Resolved.** A direct fix to the analyze system prompt (`SYSTEM_PROMPT_VERSION` bumped to `v2`) closed `mixed-08` on current, 3/3, with no regressions across `mixed`, `request_faithfulness`, or the analyze-endpoint `prompt_injection` cases. See `DECISIONS.md` #46. This removes the one item that ran in cheap's favor: current's remaining 9-case gap in `sql`, `sql_semantic`, and `mixed` now has nothing on the other side of the ledger.
 
 One open item before this recommendation is fully audited: cheap's actual failing mixed-02 and mixed-07 answers haven't gone through `run_judge_calibration.py` themselves. A human has only confirmed the judge's `pass` verdicts on current's answers, not its `fail` verdicts on cheap's. Adding those two runs to a calibration pass would close that gap.
