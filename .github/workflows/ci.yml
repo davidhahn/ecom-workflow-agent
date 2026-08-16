@@ -88,6 +88,9 @@ jobs:
 
       # No ANTHROPIC_API_KEY here. If a case in DETERMINISTIC_CATEGORIES
       # ever starts needing a live model call, this step fails loudly.
+      # Runs even if pytest fails, so a pytest failure can't hide an eval
+      # failure. Skipped only if the job itself gets cancelled.
       - name: Run deterministic evaluation subset
+        if: ${{ !cancelled() }}
         working-directory: apps/api
         run: poetry run python ../../evals/run.py --subset deterministic
