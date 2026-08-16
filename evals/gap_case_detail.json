@@ -1,0 +1,2021 @@
+[
+  {
+    "model_label": "current",
+    "model_id": "claude-sonnet-4-6",
+    "run_index": 1,
+    "case_id": "sql-03-avg-days-to-refund-by-reason",
+    "category": "sql",
+    "passed": true,
+    "expected": {
+      "tables_joined": [
+        "orders",
+        "order_items",
+        "refunds"
+      ],
+      "columns_excluded": [
+        "customers.email"
+      ],
+      "read_only_violation_attempt": false,
+      "expected_status": "success",
+      "expected_result": {
+        "type": "rows",
+        "rows": [
+          {
+            "reason": "changed_mind",
+            "avg_days": 77.32
+          },
+          {
+            "reason": "damaged_shipping",
+            "avg_days": 8.71
+          },
+          {
+            "reason": "defective",
+            "avg_days": 35.33
+          },
+          {
+            "reason": "wrong_item",
+            "avg_days": 236.97
+          }
+        ],
+        "unordered": true,
+        "numeric_tolerance": 0.05,
+        "derivation": "psql, independent of the app: average elapsed time from order to refund request, by reason, across every refund regardless of status. First try used whole calendar days and got it wrong - some rows have a real time-of-day, so that silently dropped precision. Redone with the full timestamp difference. wrong_item (236.97 days) is Charlotte Dubois's Wireless Keyboard, the same row already checked in mixed-07-wrong-item-window-compliance."
+      }
+    },
+    "actual": {
+      "status": "success",
+      "sql_executed": "SELECT r.reason, ROUND(CAST(AVG(EXTRACT(EPOCH FROM (r.requested_at - o.order_date)) / 86400) AS DECIMAL), 2) AS avg_days_to_refund_request, COUNT(r.id) AS total_refund_requests FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id GROUP BY r.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+      "rows": [
+        {
+          "reason": "wrong_item",
+          "avg_days_to_refund_request": "236.97",
+          "total_refund_requests": 1
+        },
+        {
+          "reason": "changed_mind",
+          "avg_days_to_refund_request": "77.32",
+          "total_refund_requests": 3
+        },
+        {
+          "reason": "defective",
+          "avg_days_to_refund_request": "35.33",
+          "total_refund_requests": 9
+        },
+        {
+          "reason": "damaged_shipping",
+          "avg_days_to_refund_request": "8.71",
+          "total_refund_requests": 7
+        }
+      ],
+      "prompt_version": "v2"
+    },
+    "failure_reasons": [],
+    "request_log_detail": {
+      "id": "6ed66188-54ee-4d91-a71b-20896a8ae3df",
+      "request_type": "sql",
+      "input": "On average, how many days after the order date do customers request a refund, broken down by refund reason?",
+      "output": {
+        "rows": [
+          {
+            "reason": "wrong_item",
+            "total_refund_requests": 1,
+            "avg_days_to_refund_request": "236.97"
+          },
+          {
+            "reason": "changed_mind",
+            "total_refund_requests": 3,
+            "avg_days_to_refund_request": "77.32"
+          },
+          {
+            "reason": "defective",
+            "total_refund_requests": 9,
+            "avg_days_to_refund_request": "35.33"
+          },
+          {
+            "reason": "damaged_shipping",
+            "total_refund_requests": 7,
+            "avg_days_to_refund_request": "8.71"
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 4,
+        "truncated": false,
+        "sql_executed": "SELECT r.reason, ROUND(CAST(AVG(EXTRACT(EPOCH FROM (r.requested_at - o.order_date)) / 86400) AS DECIMAL), 2) AS avg_days_to_refund_request, COUNT(r.id) AS total_refund_requests FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id GROUP BY r.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+        "estimated_cost": 50.08,
+        "prompt_version": "v2",
+        "rejection_reason": null,
+        "execution_time_ms": 3
+      },
+      "latency_ms": 4765,
+      "input_tokens": 1450,
+      "output_tokens": 200,
+      "estimated_cost_usd": 0.00735,
+      "grounded": null,
+      "sql_query_audit_id": "28243157-3086-49a1-a168-2971cd5bee61",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:35:15.112057Z",
+      "tool_calls": null
+    }
+  },
+  {
+    "model_label": "current",
+    "model_id": "claude-sonnet-4-6",
+    "run_index": 1,
+    "case_id": "sql-semantic-03-approved-refund-total-status-filter",
+    "category": "sql_semantic",
+    "passed": true,
+    "expected": {
+      "tables_joined": [
+        "refunds"
+      ],
+      "expected_status": "success",
+      "expected_result": {
+        "type": "scalar",
+        "value": 1052.82,
+        "comparison": "absolute_tolerance",
+        "tolerance": 0.01,
+        "derivation": "Money actually paid out = sum of approved refunds only. A pending or denied refund hasn't been paid. psql: 18 approved refunds, $1052.82. Wrong reading: sum every refund regardless of status = $1172.80, counting $89.99 pending and $29.99 denied as if paid. Tolerance $0.01 for rounding, but the two answers are $119.98 apart."
+      }
+    },
+    "actual": {
+      "status": "success",
+      "sql_executed": "SELECT SUM(amount_cents) / 100.0 AS total_refunded_dollars FROM refunds WHERE status = 'approved' LIMIT 500",
+      "rows": [
+        {
+          "total_refunded_dollars": "1052.8200000000000000"
+        }
+      ],
+      "prompt_version": "v2"
+    },
+    "failure_reasons": [],
+    "request_log_detail": {
+      "id": "ad149bc3-5d0a-4669-861d-0777ad46b842",
+      "request_type": "sql",
+      "input": "How much money has actually been refunded to customers?",
+      "output": {
+        "rows": [
+          {
+            "total_refunded_dollars": "1052.8200000000000000"
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 1,
+        "truncated": false,
+        "sql_executed": "SELECT SUM(amount_cents) / 100.0 AS total_refunded_dollars FROM refunds WHERE status = 'approved' LIMIT 500",
+        "estimated_cost": 22.7,
+        "prompt_version": "v2",
+        "rejection_reason": null,
+        "execution_time_ms": 12
+      },
+      "latency_ms": 2194,
+      "input_tokens": 1437,
+      "output_tokens": 94,
+      "estimated_cost_usd": 0.005721,
+      "grounded": null,
+      "sql_query_audit_id": "1bdda6ea-c0a9-45cb-ba3c-f8e91bbd678b",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:35:17.331768Z",
+      "tool_calls": null
+    }
+  },
+  {
+    "model_label": "current",
+    "model_id": "claude-sonnet-4-6",
+    "run_index": 1,
+    "case_id": "mixed-02-defective-window-compliance-audit",
+    "category": "mixed",
+    "passed": true,
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "queries orders/order_items/refunds for approved, reason='defective' rows and computes requested_at - order_date",
+        "cites the 90-day defective window (rule 2) as the standard being checked against"
+      ]
+    },
+    "actual": {
+      "sql_used": true,
+      "rag_used": true,
+      "incomplete": false,
+      "answer": "There is one confirmed policy violation. Here are the details:\n\n**Policy Context**\n\nPer rule 2 of the refund policy, defective-item refunds are permitted up to 90 days from the purchase date. This window supersedes the standard 30-day return window but is still a hard cutoff \u2014 no defective refunds should be approved beyond day 90.\n\n**Violation Found**\n\n| Field | Value |\n|---|---|\n| Refund ID | 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d |\n| Order ID | 63378b67-bddb-56f9-b1da-515616c40097 |\n| Order Date | 2025-11-02 |\n| Refund Requested | 2026-07-21 |\n| Days Since Order | **261 days** |\n| Reason | Defective |\n| Status | Approved |\n| Amount | $39.99 |\n\n**Summary**\n\nThis refund was requested 261 days after the order date \u2014 nearly three times the allowable 90-day window \u2014 and was nonetheless approved. This is a clear enforcement failure against rule 2.\n\n**Recommended Actions**\n\n1. **Investigate the approval:** Determine whether this was a manual override, a process gap, or a system misconfiguration that allowed the approval to go through.\n2. **Review for recovery options:** Depending on your internal policy, assess whether the $39.99 refund can be reversed or flagged as an exception requiring escalation.\n3. **Audit approval workflows:** Check whether any system guardrails (automated age checks at approval time) are in place and functioning correctly for defective refunds, and strengthen them if not.",
+      "trajectory": {
+        "sql_calls": 1,
+        "rag_calls": 1,
+        "total_tool_calls": 2
+      },
+      "judge": {
+        "scored": true,
+        "verdict": "pass",
+        "points_covered": [
+          1,
+          2
+        ],
+        "points_missed": [],
+        "evidence_summary": "The answer clearly covers both required key points. For point 1, it identifies an approved defective refund (Refund ID 5af5fa84...) with computed days since order (261 days), implying a query across orders and refunds filtered for approved, defective-reason rows. For point 2, it explicitly cites the 90-day defective window as 'rule 2' of the refund policy and uses it as the enforcement standard being checked against.",
+        "judge_error": null
+      }
+    },
+    "failure_reasons": [],
+    "request_log_detail": {
+      "id": "02ad8e83-2029-4d63-977b-fab7404d5e97",
+      "request_type": "analyze",
+      "input": "Are we correctly enforcing the 90-day defective-item return window? Show me any approved defective refunds that were requested more than 90 days after the order date.",
+      "output": {
+        "answer": "There is one confirmed policy violation. Here are the details:\n\n**Policy Context**\n\nPer rule 2 of the refund policy, defective-item refunds are permitted up to 90 days from the purchase date. This window supersedes the standard 30-day return window but is still a hard cutoff \u2014 no defective refunds should be approved beyond day 90.\n\n**Violation Found**\n\n| Field | Value |\n|---|---|\n| Refund ID | 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d |\n| Order ID | 63378b67-bddb-56f9-b1da-515616c40097 |\n| Order Date | 2025-11-02 |\n| Refund Requested | 2026-07-21 |\n| Days Since Order | **261 days** |\n| Reason | Defective |\n| Status | Approved |\n| Amount | $39.99 |\n\n**Summary**\n\nThis refund was requested 261 days after the order date \u2014 nearly three times the allowable 90-day window \u2014 and was nonetheless approved. This is a clear enforcement failure against rule 2.\n\n**Recommended Actions**\n\n1. **Investigate the approval:** Determine whether this was a manual override, a process gap, or a system misconfiguration that allowed the approval to go through.\n2. **Review for recovery options:** Depending on your internal policy, assess whether the $39.99 refund can be reversed or flagged as an exception requiring escalation.\n3. **Audit approval workflows:** Check whether any system guardrails (automated age checks at approval time) are in place and functioning correctly for defective refunds, and strengthen them if not.",
+        "cached": false,
+        "sources": [
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 9
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          }
+        ],
+        "grounded": true,
+        "rag_used": true,
+        "sql_used": true,
+        "incomplete": false,
+        "ungrounded_claims": [],
+        "topic_coverage_warning": false
+      },
+      "latency_ms": 20880,
+      "input_tokens": 4130,
+      "output_tokens": 758,
+      "estimated_cost_usd": 0.02376,
+      "grounded": true,
+      "sql_query_audit_id": "76fc94d5-c5f3-47ca-ac18-fa79dc019e66",
+      "rag_chunks_retrieved": [
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.7601791620254571,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+          "similarity": 0.626661062240605,
+          "source_doc": "refund_policy.md",
+          "rule_number": 9
+        },
+        {
+          "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+          "similarity": 0.605494856834416,
+          "source_doc": "refund_policy.md",
+          "rule_number": 1
+        }
+      ],
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:35:38.270760Z",
+      "tool_calls": [
+        {
+          "tool_name": "search_policy",
+          "input": {
+            "query": "defective item return window 90 days refund policy"
+          },
+          "output": [
+            {
+              "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+              "similarity": 0.7601791620254571,
+              "source_doc": "refund_policy.md",
+              "rule_number": 2
+            },
+            {
+              "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+              "similarity": 0.626661062240605,
+              "source_doc": "refund_policy.md",
+              "rule_number": 9
+            },
+            {
+              "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+              "similarity": 0.605494856834416,
+              "source_doc": "refund_policy.md",
+              "rule_number": 1
+            }
+          ],
+          "latency_ms": 7355,
+          "sequence": 0
+        },
+        {
+          "tool_name": "run_sql_query",
+          "input": {
+            "query": "\nSELECT\n    r.id AS refund_id,\n    r.order_item_id,\n    o.id AS order_id,\n    o.order_date,\n    r.requested_at,\n    r.reason,\n    r.status,\n    r.amount_cents,\n    DATE_PART('day', r.requested_at - o.order_date) AS days_since_order\nFROM refunds r\nJOIN order_items oi ON r.order_item_id = oi.id\nJOIN orders o ON oi.order_id = o.id\nWHERE\n    r.status = 'approved'\n    AND LOWER(r.reason) LIKE '%defect%'\n    AND r.requested_at > o.order_date + INTERVAL '90 days'\nORDER BY days_since_order DESC\n",
+            "intent": "Find approved defective-item refunds that were requested more than 90 days after the original order date."
+          },
+          "output": {
+            "rows": [
+              {
+                "reason": "defective",
+                "status": "approved",
+                "order_id": "63378b67-bddb-56f9-b1da-515616c40097",
+                "refund_id": "5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d",
+                "order_date": "2025-11-02T00:00:00Z",
+                "amount_cents": 3999,
+                "requested_at": "2026-07-21T23:14:51.088346Z",
+                "order_item_id": "1c66fb16-d5a9-5cf9-8720-2500661d1e7b",
+                "days_since_order": "261"
+              }
+            ],
+            "cached": false,
+            "status": "success",
+            "row_count": 1,
+            "truncated": false,
+            "sql_executed": "SELECT r.id AS refund_id, r.order_item_id, o.id AS order_id, o.order_date, r.requested_at, r.reason, r.status, r.amount_cents, EXTRACT(day FROM r.requested_at - o.order_date) AS days_since_order FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id WHERE r.status = 'approved' AND LOWER(r.reason) LIKE '%defect%' AND r.requested_at > o.order_date + INTERVAL '90 DAYS' ORDER BY days_since_order DESC LIMIT 500",
+            "estimated_cost": 27.42,
+            "prompt_version": null,
+            "rejection_reason": null,
+            "execution_time_ms": 7
+          },
+          "latency_ms": 20,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "model_label": "current",
+    "model_id": "claude-sonnet-4-6",
+    "run_index": 1,
+    "case_id": "mixed-07-wrong-item-window-compliance",
+    "category": "mixed",
+    "passed": true,
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "confirms the 236-day gap and reason='wrong_item' from the real refunds/order_items/orders rows for this refund",
+        "correctly concludes the approval complies with policy because rule 5 (wrong_item) has no time limit, rather than flagging the 236-day gap as a violation of the 30-day standard window or the 90-day defective window"
+      ]
+    },
+    "actual": {
+      "sql_used": true,
+      "rag_used": true,
+      "incomplete": false,
+      "answer": "Yes, the refund is fully compliant with policy.\n\nThe database confirms Charlotte Dubois's refund for the Wireless Keyboard with the reason \"wrong_item\" was filed 236 days after her order date of November 7, 2025, and carries an \"approved\" status. Under **rule 5** of the refund policy, items returned under the `wrong_item` reason code have **no time limit** for return, because the shipping error is the company's responsibility rather than the customer's. The standard 30-day return window (rule 1) does not apply here.\n\nIn short, the 236-day gap is entirely permissible under the wrong-item exception, and approving the refund was the correct call.",
+      "trajectory": {
+        "sql_calls": 1,
+        "rag_calls": 1,
+        "total_tool_calls": 2
+      },
+      "judge": {
+        "scored": true,
+        "verdict": "pass",
+        "points_covered": [
+          1,
+          2
+        ],
+        "points_missed": [],
+        "evidence_summary": "The answer explicitly confirms the 236-day gap and 'wrong_item' reason code from the database records (point 1), and correctly concludes the approval complies with policy by citing rule 5's no-time-limit exception for wrong_item returns, while noting the standard 30-day window does not apply (point 2).",
+        "judge_error": null
+      }
+    },
+    "failure_reasons": [],
+    "request_log_detail": {
+      "id": "9183f17b-ac04-432e-8bfc-6fb03256ffd2",
+      "request_type": "analyze",
+      "input": "Charlotte Dubois filed a refund for her Wireless Keyboard 236 days after she placed the order, citing that she received the wrong item, and it was approved. Does that comply with our return-window policy?",
+      "output": {
+        "answer": "Yes, the refund is fully compliant with policy.\n\nThe database confirms Charlotte Dubois's refund for the Wireless Keyboard with the reason \"wrong_item\" was filed 236 days after her order date of November 7, 2025, and carries an \"approved\" status. Under **rule 5** of the refund policy, items returned under the `wrong_item` reason code have **no time limit** for return, because the shipping error is the company's responsibility rather than the customer's. The standard 30-day return window (rule 1) does not apply here.\n\nIn short, the 236-day gap is entirely permissible under the wrong-item exception, and approving the refund was the correct call.",
+        "cached": false,
+        "sources": [
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 5
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          }
+        ],
+        "grounded": true,
+        "rag_used": true,
+        "sql_used": true,
+        "incomplete": false,
+        "ungrounded_claims": [],
+        "topic_coverage_warning": false
+      },
+      "latency_ms": 9712,
+      "input_tokens": 4153,
+      "output_tokens": 485,
+      "estimated_cost_usd": 0.019734,
+      "grounded": true,
+      "sql_query_audit_id": "a79fb7af-1e56-4cbf-ab44-a9b74d36ff2d",
+      "rag_chunks_retrieved": [
+        {
+          "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+          "similarity": 0.7379115976147904,
+          "source_doc": "refund_policy.md",
+          "rule_number": 5
+        },
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.7242560715370093,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+          "similarity": 0.6898409497927487,
+          "source_doc": "refund_policy.md",
+          "rule_number": 1
+        }
+      ],
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:35:51.528570Z",
+      "tool_calls": [
+        {
+          "tool_name": "search_policy",
+          "input": {
+            "query": "return window refund time limit wrong item received"
+          },
+          "output": [
+            {
+              "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+              "similarity": 0.7379115976147904,
+              "source_doc": "refund_policy.md",
+              "rule_number": 5
+            },
+            {
+              "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+              "similarity": 0.7242560715370093,
+              "source_doc": "refund_policy.md",
+              "rule_number": 2
+            },
+            {
+              "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+              "similarity": 0.6898409497927487,
+              "source_doc": "refund_policy.md",
+              "rule_number": 1
+            }
+          ],
+          "latency_ms": 158,
+          "sequence": 0
+        },
+        {
+          "tool_name": "run_sql_query",
+          "input": {
+            "query": "SELECT c.name AS customer_name, p.name AS product_name, o.order_date, r.requested_at, r.reason, r.status, r.amount_cents, EXTRACT(DAY FROM r.requested_at - o.order_date) AS days_since_order FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id JOIN refunds r ON r.order_item_id = oi.id WHERE c.name = 'Charlotte Dubois' AND p.name = 'Wireless Keyboard'",
+            "intent": "Find the refund filed by Charlotte Dubois for a Wireless Keyboard, including order date, refund request date, reason, status, and days elapsed."
+          },
+          "output": {
+            "rows": [
+              {
+                "reason": "defective",
+                "status": "approved",
+                "order_date": "2025-11-02T00:00:00Z",
+                "amount_cents": 3999,
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-07-21T23:14:51.088346Z",
+                "customer_name": "Charlotte Dubois",
+                "days_since_order": "261"
+              },
+              {
+                "reason": "wrong_item",
+                "status": "approved",
+                "order_date": "2025-11-07T00:00:00Z",
+                "amount_cents": 3999,
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-07-01T23:14:51.088346Z",
+                "customer_name": "Charlotte Dubois",
+                "days_since_order": "236"
+              },
+              {
+                "reason": "changed_mind",
+                "status": "approved",
+                "order_date": "2025-11-12T00:00:00Z",
+                "amount_cents": 3999,
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-06-06T23:14:51.088346Z",
+                "customer_name": "Charlotte Dubois",
+                "days_since_order": "206"
+              }
+            ],
+            "cached": false,
+            "status": "success",
+            "row_count": 3,
+            "truncated": false,
+            "sql_executed": "SELECT c.name AS customer_name, p.name AS product_name, o.order_date, r.requested_at, r.reason, r.status, r.amount_cents, EXTRACT(DAY FROM r.requested_at - o.order_date) AS days_since_order FROM customers AS c JOIN orders AS o ON o.customer_id = c.id JOIN order_items AS oi ON oi.order_id = o.id JOIN products AS p ON p.id = oi.product_id JOIN refunds AS r ON r.order_item_id = oi.id WHERE c.name = 'Charlotte Dubois' AND p.name = 'Wireless Keyboard' LIMIT 500",
+            "estimated_cost": 23.8,
+            "prompt_version": null,
+            "rejection_reason": null,
+            "execution_time_ms": 2
+          },
+          "latency_ms": 15,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 1,
+    "case_id": "sql-03-avg-days-to-refund-by-reason",
+    "category": "sql",
+    "passed": false,
+    "expected": {
+      "tables_joined": [
+        "orders",
+        "order_items",
+        "refunds"
+      ],
+      "columns_excluded": [
+        "customers.email"
+      ],
+      "read_only_violation_attempt": false,
+      "expected_status": "success",
+      "expected_result": {
+        "type": "rows",
+        "rows": [
+          {
+            "reason": "changed_mind",
+            "avg_days": 77.32
+          },
+          {
+            "reason": "damaged_shipping",
+            "avg_days": 8.71
+          },
+          {
+            "reason": "defective",
+            "avg_days": 35.33
+          },
+          {
+            "reason": "wrong_item",
+            "avg_days": 236.97
+          }
+        ],
+        "unordered": true,
+        "numeric_tolerance": 0.05,
+        "derivation": "psql, independent of the app: average elapsed time from order to refund request, by reason, across every refund regardless of status. First try used whole calendar days and got it wrong - some rows have a real time-of-day, so that silently dropped precision. Redone with the full timestamp difference. wrong_item (236.97 days) is Charlotte Dubois's Wireless Keyboard, the same row already checked in mixed-07-wrong-item-window-compliance."
+      }
+    },
+    "actual": {
+      "status": "success",
+      "sql_executed": "SELECT r.reason, COUNT(r.id) AS refund_count, ROUND(CAST(AVG(EXTRACT(DAY FROM (r.requested_at - o.order_date))) AS DECIMAL), 2) AS avg_days_to_refund_request FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id GROUP BY r.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+      "rows": [
+        {
+          "reason": "wrong_item",
+          "refund_count": 1,
+          "avg_days_to_refund_request": "236.00"
+        },
+        {
+          "reason": "changed_mind",
+          "refund_count": 3,
+          "avg_days_to_refund_request": "77.00"
+        },
+        {
+          "reason": "defective",
+          "refund_count": 9,
+          "avg_days_to_refund_request": "35.22"
+        },
+        {
+          "reason": "damaged_shipping",
+          "refund_count": 7,
+          "avg_days_to_refund_request": "8.71"
+        }
+      ],
+      "prompt_version": "v2"
+    },
+    "failure_reasons": [
+      "expected row missing:\n      {\"reason\": \"changed_mind\", \"avg_days\": 77.32}",
+      "unexpected actual row:\n      {\"reason\": \"changed_mind\", \"refund_count\": 3, \"avg_days_to_refund_request\": \"77.00\"}",
+      "expected row missing:\n      {\"reason\": \"defective\", \"avg_days\": 35.33}",
+      "unexpected actual row:\n      {\"reason\": \"defective\", \"refund_count\": 9, \"avg_days_to_refund_request\": \"35.22\"}",
+      "expected row missing:\n      {\"reason\": \"wrong_item\", \"avg_days\": 236.97}",
+      "unexpected actual row:\n      {\"reason\": \"wrong_item\", \"refund_count\": 1, \"avg_days_to_refund_request\": \"236.00\"}"
+    ],
+    "request_log_detail": {
+      "id": "ef010c50-1fef-4b2c-ab91-6914ef2ddef7",
+      "request_type": "sql",
+      "input": "On average, how many days after the order date do customers request a refund, broken down by refund reason?",
+      "output": {
+        "rows": [
+          {
+            "reason": "wrong_item",
+            "refund_count": 1,
+            "avg_days_to_refund_request": "236.00"
+          },
+          {
+            "reason": "changed_mind",
+            "refund_count": 3,
+            "avg_days_to_refund_request": "77.00"
+          },
+          {
+            "reason": "defective",
+            "refund_count": 9,
+            "avg_days_to_refund_request": "35.22"
+          },
+          {
+            "reason": "damaged_shipping",
+            "refund_count": 7,
+            "avg_days_to_refund_request": "8.71"
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 4,
+        "truncated": false,
+        "sql_executed": "SELECT r.reason, COUNT(r.id) AS refund_count, ROUND(CAST(AVG(EXTRACT(DAY FROM (r.requested_at - o.order_date))) AS DECIMAL), 2) AS avg_days_to_refund_request FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id GROUP BY r.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+        "estimated_cost": 47.93,
+        "prompt_version": "v2",
+        "rejection_reason": null,
+        "execution_time_ms": 12
+      },
+      "latency_ms": 2311,
+      "input_tokens": 1449,
+      "output_tokens": 194,
+      "estimated_cost_usd": 0.007257,
+      "grounded": null,
+      "sql_query_audit_id": "c3eeb5c6-4b49-4c83-a807-b3009b21ff9e",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:35:56.867260Z",
+      "tool_calls": null
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 1,
+    "case_id": "sql-semantic-03-approved-refund-total-status-filter",
+    "category": "sql_semantic",
+    "passed": false,
+    "expected": {
+      "tables_joined": [
+        "refunds"
+      ],
+      "expected_status": "success",
+      "expected_result": {
+        "type": "scalar",
+        "value": 1052.82,
+        "comparison": "absolute_tolerance",
+        "tolerance": 0.01,
+        "derivation": "Money actually paid out = sum of approved refunds only. A pending or denied refund hasn't been paid. psql: 18 approved refunds, $1052.82. Wrong reading: sum every refund regardless of status = $1172.80, counting $89.99 pending and $29.99 denied as if paid. Tolerance $0.01 for rounding, but the two answers are $119.98 apart."
+      }
+    },
+    "actual": {
+      "status": "success",
+      "sql_executed": "SELECT SUM(amount_cents) AS total_refunded_cents FROM refunds WHERE status = 'approved' LIMIT 500",
+      "rows": [
+        {
+          "total_refunded_cents": 105282
+        }
+      ],
+      "prompt_version": "v2"
+    },
+    "failure_reasons": [
+      "expected result: 1052.82 \u00b1 0.01",
+      "actual result:   105282.0"
+    ],
+    "request_log_detail": {
+      "id": "aba92aac-9773-4289-abf8-42c823fa0972",
+      "request_type": "sql",
+      "input": "How much money has actually been refunded to customers?",
+      "output": {
+        "rows": [
+          {
+            "total_refunded_cents": 105282
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 1,
+        "truncated": false,
+        "sql_executed": "SELECT SUM(amount_cents) AS total_refunded_cents FROM refunds WHERE status = 'approved' LIMIT 500",
+        "estimated_cost": 22.7,
+        "prompt_version": "v2",
+        "rejection_reason": null,
+        "execution_time_ms": 28
+      },
+      "latency_ms": 1044,
+      "input_tokens": 1436,
+      "output_tokens": 91,
+      "estimated_cost_usd": 0.005673,
+      "grounded": null,
+      "sql_query_audit_id": "4c458542-c762-42f1-b818-a6aaeceb0ca7",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:35:57.960362Z",
+      "tool_calls": null
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 1,
+    "case_id": "mixed-02-defective-window-compliance-audit",
+    "category": "mixed",
+    "passed": false,
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "queries orders/order_items/refunds for approved, reason='defective' rows and computes requested_at - order_date",
+        "cites the 90-day defective window (rule 2) as the standard being checked against"
+      ]
+    },
+    "actual": {
+      "sql_used": true,
+      "rag_used": false,
+      "incomplete": false,
+      "answer": "Based on the query results, **we are not correctly enforcing the 90-day defective-item return window**. I found one approved defective refund that violates this policy:\n\n- **Refund ID:** 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d\n- **Order ID:** 63378b67-bddb-56f9-b1da-515616c40097\n- **Order Date:** November 2, 2025\n- **Refund Requested:** July 21, 2026\n- **Days After Order:** 261 days (significantly exceeding the 90-day window)\n- **Refund Amount:** $39.99\n- **Status:** Approved\n\nThis refund was approved 261 days after the order date, which is nearly three times the 90-day allowable window. This represents a policy enforcement failure that should be addressed through either:\n\n1. Tightening the refund request validation process to automatically reject defective claims outside the 90-day window\n2. Reviewing and potentially reversing this particular refund approval\n3. Investigating why the enforcement mechanism failed in this case\n\nI recommend reviewing your refund approval workflow to ensure the 90-day window is being enforced consistently going forward.",
+      "trajectory": {
+        "sql_calls": 1,
+        "rag_calls": 0,
+        "total_tool_calls": 1
+      },
+      "judge": {
+        "scored": true,
+        "verdict": "pass",
+        "points_covered": [
+          1,
+          2
+        ],
+        "points_missed": [],
+        "evidence_summary": "The answer clearly demonstrates querying for approved defective refunds and computing the days between order date and refund request date (261 days for the identified case). It also explicitly references the 90-day defective return window as the standard being checked against, identifying the violation where 261 days far exceeds the 90-day allowable window.",
+        "judge_error": null
+      }
+    },
+    "failure_reasons": [
+      "expected rag_used: true",
+      "actual rag_used:   false"
+    ],
+    "request_log_detail": {
+      "id": "90e329c7-97e4-47eb-9473-36cd3968814e",
+      "request_type": "analyze",
+      "input": "Are we correctly enforcing the 90-day defective-item return window? Show me any approved defective refunds that were requested more than 90 days after the order date.",
+      "output": {
+        "answer": "Based on the query results, **we are not correctly enforcing the 90-day defective-item return window**. I found one approved defective refund that violates this policy:\n\n- **Refund ID:** 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d\n- **Order ID:** 63378b67-bddb-56f9-b1da-515616c40097\n- **Order Date:** November 2, 2025\n- **Refund Requested:** July 21, 2026\n- **Days After Order:** 261 days (significantly exceeding the 90-day window)\n- **Refund Amount:** $39.99\n- **Status:** Approved\n\nThis refund was approved 261 days after the order date, which is nearly three times the 90-day allowable window. This represents a policy enforcement failure that should be addressed through either:\n\n1. Tightening the refund request validation process to automatically reject defective claims outside the 90-day window\n2. Reviewing and potentially reversing this particular refund approval\n3. Investigating why the enforcement mechanism failed in this case\n\nI recommend reviewing your refund approval workflow to ensure the 90-day window is being enforced consistently going forward.",
+        "cached": false,
+        "sources": [],
+        "grounded": true,
+        "rag_used": false,
+        "sql_used": true,
+        "incomplete": false,
+        "ungrounded_claims": [],
+        "topic_coverage_warning": false
+      },
+      "latency_ms": 6054,
+      "input_tokens": 3643,
+      "output_tokens": 630,
+      "estimated_cost_usd": 0.020379,
+      "grounded": true,
+      "sql_query_audit_id": "7b66e9c4-8551-4ff5-89f0-763eb5cd8a7c",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:04.056025Z",
+      "tool_calls": [
+        {
+          "tool_name": "run_sql_query",
+          "input": {
+            "query": "\nSELECT \n  r.id AS refund_id,\n  o.id AS order_id,\n  o.order_date,\n  r.requested_at,\n  EXTRACT(DAY FROM r.requested_at - o.order_date) AS days_after_order,\n  r.amount_cents,\n  r.reason,\n  r.status\nFROM refunds r\nJOIN order_items oi ON r.order_item_id = oi.id\nJOIN orders o ON oi.order_id = o.id\nWHERE r.status = 'approved'\n  AND r.reason = 'defective'\n  AND EXTRACT(DAY FROM r.requested_at - o.order_date) > 90\nORDER BY days_after_order DESC\n",
+            "intent": "Find approved defective item refunds that were requested more than 90 days after the order date to check if the 90-day return window is being enforced."
+          },
+          "output": {
+            "rows": [
+              {
+                "reason": "defective",
+                "status": "approved",
+                "order_id": "63378b67-bddb-56f9-b1da-515616c40097",
+                "refund_id": "5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d",
+                "order_date": "2025-11-02T00:00:00Z",
+                "amount_cents": 3999,
+                "requested_at": "2026-07-21T23:14:51.088346Z",
+                "days_after_order": "261"
+              }
+            ],
+            "cached": false,
+            "status": "success",
+            "row_count": 1,
+            "truncated": false,
+            "sql_executed": "SELECT r.id AS refund_id, o.id AS order_id, o.order_date, r.requested_at, EXTRACT(DAY FROM r.requested_at - o.order_date) AS days_after_order, r.amount_cents, r.reason, r.status FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id WHERE r.status = 'approved' AND r.reason = 'defective' AND EXTRACT(DAY FROM r.requested_at - o.order_date) > 90 ORDER BY days_after_order DESC LIMIT 500",
+            "estimated_cost": 33.82,
+            "prompt_version": null,
+            "rejection_reason": null,
+            "execution_time_ms": 11
+          },
+          "latency_ms": 52,
+          "sequence": 0
+        }
+      ]
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 1,
+    "case_id": "mixed-07-wrong-item-window-compliance",
+    "category": "mixed",
+    "passed": false,
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "confirms the 236-day gap and reason='wrong_item' from the real refunds/order_items/orders rows for this refund",
+        "correctly concludes the approval complies with policy because rule 5 (wrong_item) has no time limit, rather than flagging the 236-day gap as a violation of the 30-day standard window or the 90-day defective window"
+      ]
+    },
+    "actual": {
+      "sql_used": false,
+      "rag_used": true,
+      "incomplete": false,
+      "answer": "Based on the policy search results, Charlotte Dubois's refund **does comply** with our return-window policy.\n\nAccording to rule 5, items returned under the `wrong_item` reason code have **no time limit for return**. The policy explicitly states: \"There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.\"\n\nSince Charlotte cited that she received the wrong item\u2014which is a fulfillment error on the company's part\u2014the 236-day window from her order date does not violate the return policy. The refund approval is in compliance with our guidelines.",
+      "trajectory": {
+        "sql_calls": 0,
+        "rag_calls": 2,
+        "total_tool_calls": 2
+      },
+      "judge": {
+        "scored": true,
+        "verdict": "fail",
+        "points_covered": [
+          2
+        ],
+        "points_missed": [
+          1
+        ],
+        "evidence_summary": "The answer correctly identifies rule 5 (wrong_item has no time limit) and concludes the approval complies with policy, covering point 2. However, the answer does not confirm the 236-day gap and reason='wrong_item' from actual database rows (refunds/order_items/orders tables); it simply accepts the premise stated in the question without citing retrieved data evidence, so point 1 is not covered.",
+        "judge_error": null
+      }
+    },
+    "failure_reasons": [
+      "expected sql_used: true",
+      "actual sql_used:   false",
+      "key points missed: [1] \u2014 The answer correctly identifies rule 5 (wrong_item has no time limit) and concludes the approval complies with policy, covering point 2. However, the answer does not confirm the 236-day gap and reason='wrong_item' from actual database rows (refunds/order_items/orders tables); it simply accepts the premise stated in the question without citing retrieved data evidence, so point 1 is not covered."
+    ],
+    "request_log_detail": {
+      "id": "c4ecfb43-4c4f-4f3d-a250-18ca38346f2e",
+      "request_type": "analyze",
+      "input": "Charlotte Dubois filed a refund for her Wireless Keyboard 236 days after she placed the order, citing that she received the wrong item, and it was approved. Does that comply with our return-window policy?",
+      "output": {
+        "answer": "Based on the policy search results, Charlotte Dubois's refund **does comply** with our return-window policy.\n\nAccording to rule 5, items returned under the `wrong_item` reason code have **no time limit for return**. The policy explicitly states: \"There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.\"\n\nSince Charlotte cited that she received the wrong item\u2014which is a fulfillment error on the company's part\u2014the 236-day window from her order date does not violate the return policy. The refund approval is in compliance with our guidelines.",
+        "cached": false,
+        "sources": [
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 3
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 5
+          },
+          {
+            "source_doc": "support_playbook.md",
+            "rule_number": null
+          }
+        ],
+        "grounded": true,
+        "rag_used": true,
+        "sql_used": false,
+        "incomplete": false,
+        "ungrounded_claims": [],
+        "topic_coverage_warning": false
+      },
+      "latency_ms": 3928,
+      "input_tokens": 5590,
+      "output_tokens": 310,
+      "estimated_cost_usd": 0.02142,
+      "grounded": true,
+      "sql_query_audit_id": null,
+      "rag_chunks_retrieved": [
+        {
+          "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+          "similarity": 0.7420109289285294,
+          "source_doc": "refund_policy.md",
+          "rule_number": 1
+        },
+        {
+          "content": "Changed Mind\n\nItems returned under the `changed_mind` reason code must be returned within 14 days of the purchase date. The 14-day window for a `changed_mind` refund is shorter than the standard 30-day return window.",
+          "similarity": 0.71669052342716,
+          "source_doc": "refund_policy.md",
+          "rule_number": 3
+        },
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.7023762255198917,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+          "similarity": 0.6173835624823842,
+          "source_doc": "refund_policy.md",
+          "rule_number": 5
+        },
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.5515302358233648,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Product Defect\n\nA support ticket categorized as `product_defect` covers a product that is broken, malfunctioning, or otherwise not working as expected. A `product_defect` ticket is routed to .",
+          "similarity": 0.5489790054001212,
+          "source_doc": "support_playbook.md",
+          "rule_number": null
+        }
+      ],
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:10.938343Z",
+      "tool_calls": [
+        {
+          "tool_name": "search_policy",
+          "input": {
+            "query": "return window refund time limit days after purchase"
+          },
+          "output": [
+            {
+              "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+              "similarity": 0.7420109289285294,
+              "source_doc": "refund_policy.md",
+              "rule_number": 1
+            },
+            {
+              "content": "Changed Mind\n\nItems returned under the `changed_mind` reason code must be returned within 14 days of the purchase date. The 14-day window for a `changed_mind` refund is shorter than the standard 30-day return window.",
+              "similarity": 0.71669052342716,
+              "source_doc": "refund_policy.md",
+              "rule_number": 3
+            },
+            {
+              "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+              "similarity": 0.7023762255198917,
+              "source_doc": "refund_policy.md",
+              "rule_number": 2
+            }
+          ],
+          "latency_ms": 124,
+          "sequence": 0
+        },
+        {
+          "tool_name": "search_policy",
+          "input": {
+            "query": "wrong item received incorrect item fulfillment error"
+          },
+          "output": [
+            {
+              "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+              "similarity": 0.6173835624823842,
+              "source_doc": "refund_policy.md",
+              "rule_number": 5
+            },
+            {
+              "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+              "similarity": 0.5515302358233648,
+              "source_doc": "refund_policy.md",
+              "rule_number": 2
+            },
+            {
+              "content": "Product Defect\n\nA support ticket categorized as `product_defect` covers a product that is broken, malfunctioning, or otherwise not working as expected. A `product_defect` ticket is routed to .",
+              "similarity": 0.5489790054001212,
+              "source_doc": "support_playbook.md",
+              "rule_number": null
+            }
+          ],
+          "latency_ms": 76,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 2,
+    "case_id": "sql-03-avg-days-to-refund-by-reason",
+    "category": "sql",
+    "passed": false,
+    "expected": {
+      "tables_joined": [
+        "orders",
+        "order_items",
+        "refunds"
+      ],
+      "columns_excluded": [
+        "customers.email"
+      ],
+      "read_only_violation_attempt": false,
+      "expected_status": "success",
+      "expected_result": {
+        "type": "rows",
+        "rows": [
+          {
+            "reason": "changed_mind",
+            "avg_days": 77.32
+          },
+          {
+            "reason": "damaged_shipping",
+            "avg_days": 8.71
+          },
+          {
+            "reason": "defective",
+            "avg_days": 35.33
+          },
+          {
+            "reason": "wrong_item",
+            "avg_days": 236.97
+          }
+        ],
+        "unordered": true,
+        "numeric_tolerance": 0.05,
+        "derivation": "psql, independent of the app: average elapsed time from order to refund request, by reason, across every refund regardless of status. First try used whole calendar days and got it wrong - some rows have a real time-of-day, so that silently dropped precision. Redone with the full timestamp difference. wrong_item (236.97 days) is Charlotte Dubois's Wireless Keyboard, the same row already checked in mixed-07-wrong-item-window-compliance."
+      }
+    },
+    "actual": {
+      "status": "error",
+      "sql_executed": "SELECT refunds.reason, AVG(CAST((refunds.requested_at - orders.order_date) AS DECIMAL) / (24 * 60 * 60)) AS avg_days_to_refund_request FROM refunds JOIN order_items ON refunds.order_item_id = order_items.id JOIN orders ON order_items.order_id = orders.id GROUP BY refunds.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+      "rows": [],
+      "prompt_version": "v2"
+    },
+    "failure_reasons": [
+      "expected status: success",
+      "actual status:   error",
+      "query failed: failed to plan query: (psycopg.errors.CannotCoerce) cannot cast type interval to numeric\nLINE 1: EXPLAIN (FORMAT JSON) SELECT refunds.reason, AVG(CAST((refun...\n                                                         ^\n[SQL: EXPLAIN (FORMAT JSON) SELECT refunds.reason, AVG(CAST((refunds.requested_at - orders.order_date) AS DECIMAL) / (24 * 60 * 60)) AS avg_days_to_refund_request FROM refunds JOIN order_items ON refunds.order_item_id = order_items.id JOIN orders ON order_items.order_id = orders.id GROUP BY refunds.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+    ],
+    "request_log_detail": {
+      "id": "9274d3d6-9e7c-4da5-8240-8a71effb0ac3",
+      "request_type": "sql",
+      "input": "On average, how many days after the order date do customers request a refund, broken down by refund reason?",
+      "output": {
+        "rows": [],
+        "cached": false,
+        "status": "error",
+        "row_count": 0,
+        "truncated": false,
+        "sql_executed": "SELECT refunds.reason, AVG(CAST((refunds.requested_at - orders.order_date) AS DECIMAL) / (24 * 60 * 60)) AS avg_days_to_refund_request FROM refunds JOIN order_items ON refunds.order_item_id = order_items.id JOIN orders ON order_items.order_id = orders.id GROUP BY refunds.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+        "estimated_cost": null,
+        "prompt_version": "v2",
+        "rejection_reason": "failed to plan query: (psycopg.errors.CannotCoerce) cannot cast type interval to numeric\nLINE 1: EXPLAIN (FORMAT JSON) SELECT refunds.reason, AVG(CAST((refun...\n                                                         ^\n[SQL: EXPLAIN (FORMAT JSON) SELECT refunds.reason, AVG(CAST((refunds.requested_at - orders.order_date) AS DECIMAL) / (24 * 60 * 60)) AS avg_days_to_refund_request FROM refunds JOIN order_items ON refunds.order_item_id = order_items.id JOIN orders ON order_items.order_id = orders.id GROUP BY refunds.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500]\n(Background on this error at: https://sqlalche.me/e/20/f405)",
+        "execution_time_ms": null
+      },
+      "latency_ms": 2115,
+      "input_tokens": 1449,
+      "output_tokens": 186,
+      "estimated_cost_usd": 0.007137,
+      "grounded": null,
+      "sql_query_audit_id": "aa71530a-27bf-4269-b5e7-16de65415a99",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:16.512015Z",
+      "tool_calls": null
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 2,
+    "case_id": "sql-semantic-03-approved-refund-total-status-filter",
+    "category": "sql_semantic",
+    "passed": false,
+    "expected": {
+      "tables_joined": [
+        "refunds"
+      ],
+      "expected_status": "success",
+      "expected_result": {
+        "type": "scalar",
+        "value": 1052.82,
+        "comparison": "absolute_tolerance",
+        "tolerance": 0.01,
+        "derivation": "Money actually paid out = sum of approved refunds only. A pending or denied refund hasn't been paid. psql: 18 approved refunds, $1052.82. Wrong reading: sum every refund regardless of status = $1172.80, counting $89.99 pending and $29.99 denied as if paid. Tolerance $0.01 for rounding, but the two answers are $119.98 apart."
+      }
+    },
+    "actual": {
+      "status": "success",
+      "sql_executed": "SELECT SUM(refunds.amount_cents) AS total_refunded_cents FROM refunds WHERE refunds.status = 'approved' LIMIT 500",
+      "rows": [
+        {
+          "total_refunded_cents": 105282
+        }
+      ],
+      "prompt_version": "v2"
+    },
+    "failure_reasons": [
+      "expected result: 1052.82 \u00b1 0.01",
+      "actual result:   105282.0"
+    ],
+    "request_log_detail": {
+      "id": "8a2d0f3e-431e-416d-8994-07455c243b5e",
+      "request_type": "sql",
+      "input": "How much money has actually been refunded to customers?",
+      "output": {
+        "rows": [
+          {
+            "total_refunded_cents": 105282
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 1,
+        "truncated": false,
+        "sql_executed": "SELECT SUM(refunds.amount_cents) AS total_refunded_cents FROM refunds WHERE refunds.status = 'approved' LIMIT 500",
+        "estimated_cost": 22.7,
+        "prompt_version": "v2",
+        "rejection_reason": null,
+        "execution_time_ms": 9
+      },
+      "latency_ms": 1117,
+      "input_tokens": 1436,
+      "output_tokens": 97,
+      "estimated_cost_usd": 0.005763,
+      "grounded": null,
+      "sql_query_audit_id": "adabda09-57d1-48ef-89a7-f986afbb665a",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:17.667366Z",
+      "tool_calls": null
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 2,
+    "case_id": "mixed-02-defective-window-compliance-audit",
+    "category": "mixed",
+    "passed": true,
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "queries orders/order_items/refunds for approved, reason='defective' rows and computes requested_at - order_date",
+        "cites the 90-day defective window (rule 2) as the standard being checked against"
+      ]
+    },
+    "actual": {
+      "sql_used": true,
+      "rag_used": true,
+      "incomplete": false,
+      "answer": "We have a policy enforcement issue. According to rule 2 of the refund policy, defective items may be refunded up to 90 days from the purchase date. However, the query found one approved defective refund that violates this window:\n\n**Approved Defective Refund Outside 90-Day Window:**\n\n| Refund ID | Order ID | Requested Date | Order Date | Days After Order | Status |\n|---|---|---|---|---|---|\n| 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d | 63378b67-bddb-56f9-b1da-515616c40097 | 2026-07-21 | 2025-11-02 | 261 days | Approved |\n\nThis refund was approved 261 days after the original order date, which significantly exceeds the 90-day defective-item return window. This represents a clear policy violation. You should review how this approval was processed and consider whether corrective action is needed on this refund record.",
+      "trajectory": {
+        "sql_calls": 1,
+        "rag_calls": 1,
+        "total_tool_calls": 2
+      },
+      "judge": {
+        "scored": true,
+        "verdict": "pass",
+        "points_covered": [
+          1,
+          2
+        ],
+        "points_missed": [],
+        "evidence_summary": "The answer clearly covers both required key points. For point 1, it presents a result table showing an approved defective refund with the computed difference between requested date and order date (261 days), indicating it queried orders/refunds for approved, defective rows and computed the date difference. For point 2, it explicitly cites 'rule 2 of the refund policy' stating defective items may be refunded up to 90 days from the purchase date as the standard being checked against.",
+        "judge_error": null
+      }
+    },
+    "failure_reasons": [],
+    "request_log_detail": {
+      "id": "8927c66f-40b4-4307-9ed0-ddc2c4f1d8f3",
+      "request_type": "analyze",
+      "input": "Are we correctly enforcing the 90-day defective-item return window? Show me any approved defective refunds that were requested more than 90 days after the order date.",
+      "output": {
+        "answer": "We have a policy enforcement issue. According to rule 2 of the refund policy, defective items may be refunded up to 90 days from the purchase date. However, the query found one approved defective refund that violates this window:\n\n**Approved Defective Refund Outside 90-Day Window:**\n\n| Refund ID | Order ID | Requested Date | Order Date | Days After Order | Status |\n|---|---|---|---|---|---|\n| 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d | 63378b67-bddb-56f9-b1da-515616c40097 | 2026-07-21 | 2025-11-02 | 261 days | Approved |\n\nThis refund was approved 261 days after the original order date, which significantly exceeds the 90-day defective-item return window. This represents a clear policy violation. You should review how this approval was processed and consider whether corrective action is needed on this refund record.",
+        "cached": false,
+        "sources": [
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 9
+          }
+        ],
+        "grounded": true,
+        "rag_used": true,
+        "sql_used": true,
+        "incomplete": false,
+        "ungrounded_claims": [],
+        "topic_coverage_warning": false
+      },
+      "latency_ms": 6283,
+      "input_tokens": 4121,
+      "output_tokens": 623,
+      "estimated_cost_usd": 0.021708,
+      "grounded": true,
+      "sql_query_audit_id": "5acce8fd-80f9-4356-aede-0b13da00f936",
+      "rag_chunks_retrieved": [
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.7631269238515556,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+          "similarity": 0.6420645927152292,
+          "source_doc": "refund_policy.md",
+          "rule_number": 1
+        },
+        {
+          "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+          "similarity": 0.6343611100696867,
+          "source_doc": "refund_policy.md",
+          "rule_number": 9
+        }
+      ],
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:24.001218Z",
+      "tool_calls": [
+        {
+          "tool_name": "search_policy",
+          "input": {
+            "query": "90-day defective item return window refund"
+          },
+          "output": [
+            {
+              "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+              "similarity": 0.7631269238515556,
+              "source_doc": "refund_policy.md",
+              "rule_number": 2
+            },
+            {
+              "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+              "similarity": 0.6420645927152292,
+              "source_doc": "refund_policy.md",
+              "rule_number": 1
+            },
+            {
+              "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+              "similarity": 0.6343611100696867,
+              "source_doc": "refund_policy.md",
+              "rule_number": 9
+            }
+          ],
+          "latency_ms": 120,
+          "sequence": 0
+        },
+        {
+          "tool_name": "run_sql_query",
+          "input": {
+            "query": "\nSELECT \n  r.id AS refund_id,\n  r.reason,\n  r.status,\n  r.requested_at,\n  o.order_date,\n  (r.requested_at::date - o.order_date::date) AS days_after_order,\n  o.id AS order_id,\n  o.total_cents\nFROM refunds r\nJOIN order_items oi ON r.order_item_id = oi.id\nJOIN orders o ON oi.order_id = o.id\nWHERE r.status = 'approved' \n  AND r.reason ILIKE '%defective%'\n  AND (r.requested_at::date - o.order_date::date) > 90\nORDER BY days_after_order DESC\n",
+            "intent": "Find approved defective refunds requested more than 90 days after the order date to check if the 90-day policy is being enforced."
+          },
+          "output": {
+            "rows": [
+              {
+                "reason": "defective",
+                "status": "approved",
+                "order_id": "63378b67-bddb-56f9-b1da-515616c40097",
+                "refund_id": "5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d",
+                "order_date": "2025-11-02T00:00:00Z",
+                "total_cents": 3999,
+                "requested_at": "2026-07-21T23:14:51.088346Z",
+                "days_after_order": 261
+              }
+            ],
+            "cached": false,
+            "status": "success",
+            "row_count": 1,
+            "truncated": false,
+            "sql_executed": "SELECT r.id AS refund_id, r.reason, r.status, r.requested_at, o.order_date, (CAST(r.requested_at AS DATE) - CAST(o.order_date AS DATE)) AS days_after_order, o.id AS order_id, o.total_cents FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id WHERE r.status = 'approved' AND r.reason ILIKE '%defective%' AND (CAST(r.requested_at AS DATE) - CAST(o.order_date AS DATE)) > 90 ORDER BY days_after_order DESC LIMIT 500",
+            "estimated_cost": 34.08,
+            "prompt_version": null,
+            "rejection_reason": null,
+            "execution_time_ms": 6
+          },
+          "latency_ms": 24,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 2,
+    "case_id": "mixed-07-wrong-item-window-compliance",
+    "category": "mixed",
+    "passed": false,
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "confirms the 236-day gap and reason='wrong_item' from the real refunds/order_items/orders rows for this refund",
+        "correctly concludes the approval complies with policy because rule 5 (wrong_item) has no time limit, rather than flagging the 236-day gap as a violation of the 30-day standard window or the 90-day defective window"
+      ]
+    },
+    "actual": {
+      "sql_used": true,
+      "rag_used": true,
+      "incomplete": false,
+      "answer": "Based on the data retrieved, Charlotte Dubois filed a refund for the Wireless Keyboard 236 days after she placed the order on November 7, 2025, citing that she received the **wrong item**. The refund was approved.\n\nAccording to our refund policy, this refund **does not comply** with the return-window policy:\n\n- **Rule 1** (Standard Return Window): Items may be returned within 30 days of the purchase date for any reason. The \"wrong item\" reason does not fall under any of the exceptions with extended windows.\n\n- **Rule 2** (Defective Items): While defective items have a 90-day window, the refund reason is \"wrong_item,\" not \"defective.\"\n\n- **Rule 3** (Changed Mind): The 14-day window applies only to \"changed_mind\" refunds, not to \"wrong_item\" refunds.\n\nCharlotte's refund request at 236 days exceeds the standard 30-day return window and does not qualify for any of the extended windows in our policy. This approval appears to be outside policy guidelines and may warrant review.",
+      "trajectory": {
+        "sql_calls": 1,
+        "rag_calls": 1,
+        "total_tool_calls": 2
+      },
+      "judge": {
+        "scored": true,
+        "verdict": "fail",
+        "points_covered": [
+          1
+        ],
+        "points_missed": [
+          2
+        ],
+        "evidence_summary": "The answer correctly identifies the 236-day gap and the 'wrong_item' reason (point 1 covered). However, the answer incorrectly concludes that the approval does NOT comply with policy, citing the standard 30-day window as the applicable rule. It fails to recognize that Rule 5 (wrong_item) has no time limit, which would make the approval compliant with policy (point 2 missed).",
+        "judge_error": null
+      }
+    },
+    "failure_reasons": [
+      "key points missed: [2] \u2014 The answer correctly identifies the 236-day gap and the 'wrong_item' reason (point 1 covered). However, the answer incorrectly concludes that the approval does NOT comply with policy, citing the standard 30-day window as the applicable rule. It fails to recognize that Rule 5 (wrong_item) has no time limit, which would make the approval compliant with policy (point 2 missed)."
+    ],
+    "request_log_detail": {
+      "id": "561c1330-145a-466c-9ad8-24967acf9429",
+      "request_type": "analyze",
+      "input": "Charlotte Dubois filed a refund for her Wireless Keyboard 236 days after she placed the order, citing that she received the wrong item, and it was approved. Does that comply with our return-window policy?",
+      "output": {
+        "answer": "Based on the data retrieved, Charlotte Dubois filed a refund for the Wireless Keyboard 236 days after she placed the order on November 7, 2025, citing that she received the **wrong item**. The refund was approved.\n\nAccording to our refund policy, this refund **does not comply** with the return-window policy:\n\n- **Rule 1** (Standard Return Window): Items may be returned within 30 days of the purchase date for any reason. The \"wrong item\" reason does not fall under any of the exceptions with extended windows.\n\n- **Rule 2** (Defective Items): While defective items have a 90-day window, the refund reason is \"wrong_item,\" not \"defective.\"\n\n- **Rule 3** (Changed Mind): The 14-day window applies only to \"changed_mind\" refunds, not to \"wrong_item\" refunds.\n\nCharlotte's refund request at 236 days exceeds the standard 30-day return window and does not qualify for any of the extended windows in our policy. This approval appears to be outside policy guidelines and may warrant review.",
+        "cached": false,
+        "sources": [
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 3
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          }
+        ],
+        "grounded": true,
+        "rag_used": true,
+        "sql_used": true,
+        "incomplete": false,
+        "ungrounded_claims": [],
+        "topic_coverage_warning": false
+      },
+      "latency_ms": 5725,
+      "input_tokens": 4142,
+      "output_tokens": 603,
+      "estimated_cost_usd": 0.021471,
+      "grounded": true,
+      "sql_query_audit_id": "ed790b32-c2b3-4b70-9e88-b115d750a472",
+      "rag_chunks_retrieved": [
+        {
+          "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+          "similarity": 0.6785955024602722,
+          "source_doc": "refund_policy.md",
+          "rule_number": 1
+        },
+        {
+          "content": "Changed Mind\n\nItems returned under the `changed_mind` reason code must be returned within 14 days of the purchase date. The 14-day window for a `changed_mind` refund is shorter than the standard 30-day return window.",
+          "similarity": 0.6620216566926738,
+          "source_doc": "refund_policy.md",
+          "rule_number": 3
+        },
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.6438615534388105,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        }
+      ],
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:33.087392Z",
+      "tool_calls": [
+        {
+          "tool_name": "search_policy",
+          "input": {
+            "query": "return window policy refund deadline"
+          },
+          "output": [
+            {
+              "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+              "similarity": 0.6785955024602722,
+              "source_doc": "refund_policy.md",
+              "rule_number": 1
+            },
+            {
+              "content": "Changed Mind\n\nItems returned under the `changed_mind` reason code must be returned within 14 days of the purchase date. The 14-day window for a `changed_mind` refund is shorter than the standard 30-day return window.",
+              "similarity": 0.6620216566926738,
+              "source_doc": "refund_policy.md",
+              "rule_number": 3
+            },
+            {
+              "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+              "similarity": 0.6438615534388105,
+              "source_doc": "refund_policy.md",
+              "rule_number": 2
+            }
+          ],
+          "latency_ms": 166,
+          "sequence": 0
+        },
+        {
+          "tool_name": "run_sql_query",
+          "input": {
+            "query": "\nSELECT \n  c.name,\n  p.name as product_name,\n  o.order_date,\n  r.requested_at,\n  r.reason,\n  r.status,\n  EXTRACT(DAY FROM (r.requested_at - o.order_date)) as days_after_order\nFROM customers c\nJOIN orders o ON c.id = o.customer_id\nJOIN order_items oi ON o.id = oi.order_id\nJOIN products p ON oi.product_id = p.id\nJOIN refunds r ON oi.id = r.order_item_id\nWHERE c.name = 'Charlotte Dubois'\n  AND p.name LIKE '%Wireless Keyboard%'\n",
+            "intent": "Find Charlotte Dubois's refund request for the Wireless Keyboard, including the order date and days elapsed until refund request."
+          },
+          "output": {
+            "rows": [
+              {
+                "name": "Charlotte Dubois",
+                "reason": "defective",
+                "status": "approved",
+                "order_date": "2025-11-02T00:00:00Z",
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-07-21T23:14:51.088346Z",
+                "days_after_order": "261"
+              },
+              {
+                "name": "Charlotte Dubois",
+                "reason": "wrong_item",
+                "status": "approved",
+                "order_date": "2025-11-07T00:00:00Z",
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-07-01T23:14:51.088346Z",
+                "days_after_order": "236"
+              },
+              {
+                "name": "Charlotte Dubois",
+                "reason": "changed_mind",
+                "status": "approved",
+                "order_date": "2025-11-12T00:00:00Z",
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-06-06T23:14:51.088346Z",
+                "days_after_order": "206"
+              }
+            ],
+            "cached": false,
+            "status": "success",
+            "row_count": 3,
+            "truncated": false,
+            "sql_executed": "SELECT c.name, p.name AS product_name, o.order_date, r.requested_at, r.reason, r.status, EXTRACT(DAY FROM (r.requested_at - o.order_date)) AS days_after_order FROM customers AS c JOIN orders AS o ON c.id = o.customer_id JOIN order_items AS oi ON o.id = oi.order_id JOIN products AS p ON oi.product_id = p.id JOIN refunds AS r ON oi.id = r.order_item_id WHERE c.name = 'Charlotte Dubois' AND p.name LIKE '%Wireless Keyboard%' LIMIT 500",
+            "estimated_cost": 23.8,
+            "prompt_version": null,
+            "rejection_reason": null,
+            "execution_time_ms": 5
+          },
+          "latency_ms": 22,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 3,
+    "case_id": "sql-03-avg-days-to-refund-by-reason",
+    "category": "sql",
+    "passed": false,
+    "expected": {
+      "tables_joined": [
+        "orders",
+        "order_items",
+        "refunds"
+      ],
+      "columns_excluded": [
+        "customers.email"
+      ],
+      "read_only_violation_attempt": false,
+      "expected_status": "success",
+      "expected_result": {
+        "type": "rows",
+        "rows": [
+          {
+            "reason": "changed_mind",
+            "avg_days": 77.32
+          },
+          {
+            "reason": "damaged_shipping",
+            "avg_days": 8.71
+          },
+          {
+            "reason": "defective",
+            "avg_days": 35.33
+          },
+          {
+            "reason": "wrong_item",
+            "avg_days": 236.97
+          }
+        ],
+        "unordered": true,
+        "numeric_tolerance": 0.05,
+        "derivation": "psql, independent of the app: average elapsed time from order to refund request, by reason, across every refund regardless of status. First try used whole calendar days and got it wrong - some rows have a real time-of-day, so that silently dropped precision. Redone with the full timestamp difference. wrong_item (236.97 days) is Charlotte Dubois's Wireless Keyboard, the same row already checked in mixed-07-wrong-item-window-compliance."
+      }
+    },
+    "actual": {
+      "status": "success",
+      "sql_executed": "SELECT refunds.reason, ROUND(CAST(AVG(EXTRACT(DAY FROM (refunds.requested_at - orders.order_date))) AS DECIMAL), 2) AS avg_days_to_refund_request FROM refunds JOIN order_items ON refunds.order_item_id = order_items.id JOIN orders ON order_items.order_id = orders.id GROUP BY refunds.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+      "rows": [
+        {
+          "reason": "wrong_item",
+          "avg_days_to_refund_request": "236.00"
+        },
+        {
+          "reason": "changed_mind",
+          "avg_days_to_refund_request": "77.00"
+        },
+        {
+          "reason": "defective",
+          "avg_days_to_refund_request": "35.22"
+        },
+        {
+          "reason": "damaged_shipping",
+          "avg_days_to_refund_request": "8.71"
+        }
+      ],
+      "prompt_version": "v2"
+    },
+    "failure_reasons": [
+      "expected row missing:\n      {\"reason\": \"changed_mind\", \"avg_days\": 77.32}",
+      "unexpected actual row:\n      {\"reason\": \"changed_mind\", \"avg_days_to_refund_request\": \"77.00\"}",
+      "expected row missing:\n      {\"reason\": \"defective\", \"avg_days\": 35.33}",
+      "unexpected actual row:\n      {\"reason\": \"defective\", \"avg_days_to_refund_request\": \"35.22\"}",
+      "expected row missing:\n      {\"reason\": \"wrong_item\", \"avg_days\": 236.97}",
+      "unexpected actual row:\n      {\"reason\": \"wrong_item\", \"avg_days_to_refund_request\": \"236.00\"}"
+    ],
+    "request_log_detail": {
+      "id": "acc9e5dc-5746-47aa-901a-e8850a5e4736",
+      "request_type": "sql",
+      "input": "On average, how many days after the order date do customers request a refund, broken down by refund reason?",
+      "output": {
+        "rows": [
+          {
+            "reason": "wrong_item",
+            "avg_days_to_refund_request": "236.00"
+          },
+          {
+            "reason": "changed_mind",
+            "avg_days_to_refund_request": "77.00"
+          },
+          {
+            "reason": "defective",
+            "avg_days_to_refund_request": "35.22"
+          },
+          {
+            "reason": "damaged_shipping",
+            "avg_days_to_refund_request": "8.71"
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 4,
+        "truncated": false,
+        "sql_executed": "SELECT refunds.reason, ROUND(CAST(AVG(EXTRACT(DAY FROM (refunds.requested_at - orders.order_date))) AS DECIMAL), 2) AS avg_days_to_refund_request FROM refunds JOIN order_items ON refunds.order_item_id = order_items.id JOIN orders ON order_items.order_id = orders.id GROUP BY refunds.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+        "estimated_cost": 45.78,
+        "prompt_version": "v2",
+        "rejection_reason": null,
+        "execution_time_ms": 11
+      },
+      "latency_ms": 2203,
+      "input_tokens": 1449,
+      "output_tokens": 182,
+      "estimated_cost_usd": 0.007077,
+      "grounded": null,
+      "sql_query_audit_id": "4f17c27e-7000-4168-a6b4-b6dd3ff95f25",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:38.566939Z",
+      "tool_calls": null
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 3,
+    "case_id": "sql-semantic-03-approved-refund-total-status-filter",
+    "category": "sql_semantic",
+    "passed": false,
+    "expected": {
+      "tables_joined": [
+        "refunds"
+      ],
+      "expected_status": "success",
+      "expected_result": {
+        "type": "scalar",
+        "value": 1052.82,
+        "comparison": "absolute_tolerance",
+        "tolerance": 0.01,
+        "derivation": "Money actually paid out = sum of approved refunds only. A pending or denied refund hasn't been paid. psql: 18 approved refunds, $1052.82. Wrong reading: sum every refund regardless of status = $1172.80, counting $89.99 pending and $29.99 denied as if paid. Tolerance $0.01 for rounding, but the two answers are $119.98 apart."
+      }
+    },
+    "actual": {
+      "status": "success",
+      "sql_executed": "SELECT SUM(refunds.amount_cents) AS total_refunded_cents FROM refunds WHERE refunds.status = 'approved' LIMIT 500",
+      "rows": [
+        {
+          "total_refunded_cents": 105282
+        }
+      ],
+      "prompt_version": "v2"
+    },
+    "failure_reasons": [
+      "expected result: 1052.82 \u00b1 0.01",
+      "actual result:   105282.0"
+    ],
+    "request_log_detail": {
+      "id": "f358f475-7091-4919-bd67-b99764af9103",
+      "request_type": "sql",
+      "input": "How much money has actually been refunded to customers?",
+      "output": {
+        "rows": [
+          {
+            "total_refunded_cents": 105282
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 1,
+        "truncated": false,
+        "sql_executed": "SELECT SUM(refunds.amount_cents) AS total_refunded_cents FROM refunds WHERE refunds.status = 'approved' LIMIT 500",
+        "estimated_cost": 22.7,
+        "prompt_version": "v2",
+        "rejection_reason": null,
+        "execution_time_ms": 7
+      },
+      "latency_ms": 1142,
+      "input_tokens": 1436,
+      "output_tokens": 99,
+      "estimated_cost_usd": 0.005793,
+      "grounded": null,
+      "sql_query_audit_id": "cfc9b346-0aaa-4be1-8b60-fa5717bbf9cc",
+      "rag_chunks_retrieved": null,
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:39.764098Z",
+      "tool_calls": null
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 3,
+    "case_id": "mixed-02-defective-window-compliance-audit",
+    "category": "mixed",
+    "passed": true,
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "queries orders/order_items/refunds for approved, reason='defective' rows and computes requested_at - order_date",
+        "cites the 90-day defective window (rule 2) as the standard being checked against"
+      ]
+    },
+    "actual": {
+      "sql_used": true,
+      "rag_used": true,
+      "incomplete": false,
+      "answer": "We have a compliance issue. According to rule 2 of the refund policy, defective items may be refunded up to 90 days from the purchase date. However, I found one approved defective refund that violates this window:\n\n**Non-Compliant Refund:**\n- **Refund ID:** 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d\n- **Order Date:** November 2, 2025\n- **Refund Requested:** July 21, 2026\n- **Days After Order:** 261 days\n- **Status:** Approved\n\nThis refund was approved approximately 261 days after the order date, which exceeds the 90-day defective-item return window by more than 170 days. This appears to be an enforcement gap\u2014the refund should not have been approved based on the policy requirements.\n\n**Recommendation:** Review this refund for reversal or investigation into why it was approved outside the policy window. You may also want to audit your refund approval process to ensure the 90-day window is being enforced consistently for all defective-item claims.",
+      "trajectory": {
+        "sql_calls": 1,
+        "rag_calls": 1,
+        "total_tool_calls": 2
+      },
+      "judge": {
+        "scored": true,
+        "verdict": "pass",
+        "points_covered": [
+          1,
+          2
+        ],
+        "points_missed": [],
+        "evidence_summary": "The answer clearly covers both required points. For point 1, it identifies an approved defective refund (Refund ID: 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d) with computed days between order date (November 2, 2025) and refund request date (July 21, 2026) = 261 days, indicating it queried orders/refunds for approved defective rows and computed the date difference. For point 2, it explicitly cites 'rule 2 of the refund policy' stating defective items may be refunded up to 90 days from the purchase date as the standard being checked against.",
+        "judge_error": null
+      }
+    },
+    "failure_reasons": [],
+    "request_log_detail": {
+      "id": "fc11bc63-9601-4141-bf37-a1b450514a49",
+      "request_type": "analyze",
+      "input": "Are we correctly enforcing the 90-day defective-item return window? Show me any approved defective refunds that were requested more than 90 days after the order date.",
+      "output": {
+        "answer": "We have a compliance issue. According to rule 2 of the refund policy, defective items may be refunded up to 90 days from the purchase date. However, I found one approved defective refund that violates this window:\n\n**Non-Compliant Refund:**\n- **Refund ID:** 5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d\n- **Order Date:** November 2, 2025\n- **Refund Requested:** July 21, 2026\n- **Days After Order:** 261 days\n- **Status:** Approved\n\nThis refund was approved approximately 261 days after the order date, which exceeds the 90-day defective-item return window by more than 170 days. This appears to be an enforcement gap\u2014the refund should not have been approved based on the policy requirements.\n\n**Recommendation:** Review this refund for reversal or investigation into why it was approved outside the policy window. You may also want to audit your refund approval process to ensure the 90-day window is being enforced consistently for all defective-item claims.",
+        "cached": false,
+        "sources": [
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 9
+          }
+        ],
+        "grounded": true,
+        "rag_used": true,
+        "sql_used": true,
+        "incomplete": false,
+        "ungrounded_claims": [],
+        "topic_coverage_warning": false
+      },
+      "latency_ms": 6533,
+      "input_tokens": 4080,
+      "output_tokens": 620,
+      "estimated_cost_usd": 0.02154,
+      "grounded": true,
+      "sql_query_audit_id": "5722d452-b775-4cb3-9ea1-c7db5422e99e",
+      "rag_chunks_retrieved": [
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.7405585050582938,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+          "similarity": 0.6267326474189803,
+          "source_doc": "refund_policy.md",
+          "rule_number": 1
+        },
+        {
+          "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+          "similarity": 0.6118412017822309,
+          "source_doc": "refund_policy.md",
+          "rule_number": 9
+        }
+      ],
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:46.337933Z",
+      "tool_calls": [
+        {
+          "tool_name": "run_sql_query",
+          "input": {
+            "query": "\nSELECT \n  r.id,\n  r.requested_at,\n  o.order_date,\n  (r.requested_at - o.order_date) as days_after_order,\n  r.reason,\n  r.status,\n  o.id as order_id\nFROM refunds r\nJOIN order_items oi ON r.order_item_id = oi.id\nJOIN orders o ON oi.order_id = o.id\nWHERE r.reason ILIKE '%defective%'\n  AND r.status = 'approved'\n  AND (r.requested_at - o.order_date) > INTERVAL '90 days'\nORDER BY (r.requested_at - o.order_date) DESC\n",
+            "intent": "Find approved defective refunds requested more than 90 days after their order date to check enforcement of the return window policy."
+          },
+          "output": {
+            "rows": [
+              {
+                "id": "5af5fa84-cd6d-5e3b-a1d9-2b1e90e7214d",
+                "reason": "defective",
+                "status": "approved",
+                "order_id": "63378b67-bddb-56f9-b1da-515616c40097",
+                "order_date": "2025-11-02T00:00:00Z",
+                "requested_at": "2026-07-21T23:14:51.088346Z",
+                "days_after_order": "P261DT23H14M51.088346S"
+              }
+            ],
+            "cached": false,
+            "status": "success",
+            "row_count": 1,
+            "truncated": false,
+            "sql_executed": "SELECT r.id, r.requested_at, o.order_date, (r.requested_at - o.order_date) AS days_after_order, r.reason, r.status, o.id AS order_id FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id WHERE r.reason ILIKE '%defective%' AND r.status = 'approved' AND (r.requested_at - o.order_date) > INTERVAL '90 DAYS' ORDER BY (r.requested_at - o.order_date) DESC LIMIT 500",
+            "estimated_cost": 33.56,
+            "prompt_version": null,
+            "rejection_reason": null,
+            "execution_time_ms": 9
+          },
+          "latency_ms": 41,
+          "sequence": 0
+        },
+        {
+          "tool_name": "search_policy",
+          "input": {
+            "query": "90-day defective item return window policy"
+          },
+          "output": [
+            {
+              "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+              "similarity": 0.7405585050582938,
+              "source_doc": "refund_policy.md",
+              "rule_number": 2
+            },
+            {
+              "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+              "similarity": 0.6267326474189803,
+              "source_doc": "refund_policy.md",
+              "rule_number": 1
+            },
+            {
+              "content": "Final-Sale Exclusion\n\nItems in a `Clearance` or `Final Sale` product category are not eligible for a refund. An item in a `Clearance` or `Final Sale` product category may still be refunded under the `defective` reason code or the `wrong_item` reason code, per the 90-day defective-items window and the no-time-limit wrong-item-shipped rule.\n\n`Clearance` and `Final Sale` are enforced as governed values via a CHECK constraint on `products.category`, not free text.",
+              "similarity": 0.6118412017822309,
+              "source_doc": "refund_policy.md",
+              "rule_number": 9
+            }
+          ],
+          "latency_ms": 145,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "model_label": "cheap",
+    "model_id": "claude-haiku-4-5-20251001",
+    "run_index": 3,
+    "case_id": "mixed-07-wrong-item-window-compliance",
+    "category": "mixed",
+    "passed": false,
+    "expected": {
+      "expected_sql_used": true,
+      "expected_rag_used": true,
+      "key_points": [
+        "confirms the 236-day gap and reason='wrong_item' from the real refunds/order_items/orders rows for this refund",
+        "correctly concludes the approval complies with policy because rule 5 (wrong_item) has no time limit, rather than flagging the 236-day gap as a violation of the 30-day standard window or the 90-day defective window"
+      ]
+    },
+    "actual": {
+      "sql_used": true,
+      "rag_used": true,
+      "incomplete": false,
+      "answer": "Based on the database results, Charlotte Dubois filed the refund you're referring to on **2026-07-01** for an order placed on **2025-11-07**, citing a **\"wrong_item\"** reason. That is approximately 237 days after the order date.\n\n**This does NOT comply with our return-window policy.**\n\nAccording to rule 1, the standard return window allows items to be returned within **30 days** of the purchase date. For wrong-item claims, that 30-day window applies unless the reason qualifies for an extended window.\n\nThe policy specifies two exceptions to the standard 30-day window:\n- Rule 3: Changed Mind refunds must be requested within 14 days (shorter window)\n- Rule 2: Defective items may be refunded up to 90 days from purchase\n\nA \"wrong_item\" reason does not fall under either the \"changed_mind\" or \"defective\" exception categories, so it is governed by the standard 30-day return window. Charlotte's refund request at 237 days exceeds this by a significant margin.\n\nThe refund was approved despite being outside the policy-compliant timeframe. You may want to review whether an exception was warranted or if this approval should be reconsidered.",
+      "trajectory": {
+        "sql_calls": 1,
+        "rag_calls": 1,
+        "total_tool_calls": 2
+      },
+      "judge": {
+        "scored": true,
+        "verdict": "fail",
+        "points_covered": [
+          1
+        ],
+        "points_missed": [
+          2
+        ],
+        "evidence_summary": "The answer confirms the ~236-237 day gap and the 'wrong_item' reason, satisfying point 1. However, it incorrectly concludes that the approval does NOT comply with policy, stating that wrong_item claims are subject to the standard 30-day window. In reality, rule 5 grants wrong_item refunds an unlimited return window, meaning the approval fully complies with policy. The answer misses point 2 entirely by flagging this as a policy violation instead of recognizing it as compliant.",
+        "judge_error": null
+      }
+    },
+    "failure_reasons": [
+      "key points missed: [2] \u2014 The answer confirms the ~236-237 day gap and the 'wrong_item' reason, satisfying point 1. However, it incorrectly concludes that the approval does NOT comply with policy, stating that wrong_item claims are subject to the standard 30-day window. In reality, rule 5 grants wrong_item refunds an unlimited return window, meaning the approval fully complies with policy. The answer misses point 2 entirely by flagging this as a policy violation instead of recognizing it as compliant."
+    ],
+    "request_log_detail": {
+      "id": "56e4596e-f15e-485c-85c2-d5b224e2c57a",
+      "request_type": "analyze",
+      "input": "Charlotte Dubois filed a refund for her Wireless Keyboard 236 days after she placed the order, citing that she received the wrong item, and it was approved. Does that comply with our return-window policy?",
+      "output": {
+        "answer": "Based on the database results, Charlotte Dubois filed the refund you're referring to on **2026-07-01** for an order placed on **2025-11-07**, citing a **\"wrong_item\"** reason. That is approximately 237 days after the order date.\n\n**This does NOT comply with our return-window policy.**\n\nAccording to rule 1, the standard return window allows items to be returned within **30 days** of the purchase date. For wrong-item claims, that 30-day window applies unless the reason qualifies for an extended window.\n\nThe policy specifies two exceptions to the standard 30-day window:\n- Rule 3: Changed Mind refunds must be requested within 14 days (shorter window)\n- Rule 2: Defective items may be refunded up to 90 days from purchase\n\nA \"wrong_item\" reason does not fall under either the \"changed_mind\" or \"defective\" exception categories, so it is governed by the standard 30-day return window. Charlotte's refund request at 237 days exceeds this by a significant margin.\n\nThe refund was approved despite being outside the policy-compliant timeframe. You may want to review whether an exception was warranted or if this approval should be reconsidered.",
+        "cached": false,
+        "sources": [
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 1
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 3
+          },
+          {
+            "source_doc": "refund_policy.md",
+            "rule_number": 2
+          }
+        ],
+        "grounded": true,
+        "rag_used": true,
+        "sql_used": true,
+        "incomplete": false,
+        "ungrounded_claims": [],
+        "topic_coverage_warning": false
+      },
+      "latency_ms": 7944,
+      "input_tokens": 6030,
+      "output_tokens": 652,
+      "estimated_cost_usd": 0.02787,
+      "grounded": true,
+      "sql_query_audit_id": "fee4e390-4c88-462f-8cb7-9766a018de97",
+      "rag_chunks_retrieved": [
+        {
+          "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+          "similarity": 0.6811368871412915,
+          "source_doc": "refund_policy.md",
+          "rule_number": 1
+        },
+        {
+          "content": "Changed Mind\n\nItems returned under the `changed_mind` reason code must be returned within 14 days of the purchase date. The 14-day window for a `changed_mind` refund is shorter than the standard 30-day return window.",
+          "similarity": 0.6604357153826554,
+          "source_doc": "refund_policy.md",
+          "rule_number": 3
+        },
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.6483782916294614,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        }
+      ],
+      "cached": false,
+      "retry_count": 0,
+      "created_at": "2026-08-15T03:36:58.415851Z",
+      "tool_calls": [
+        {
+          "tool_name": "search_policy",
+          "input": {
+            "query": "return window policy refund eligibility timeframe"
+          },
+          "output": [
+            {
+              "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+              "similarity": 0.6811368871412915,
+              "source_doc": "refund_policy.md",
+              "rule_number": 1
+            },
+            {
+              "content": "Changed Mind\n\nItems returned under the `changed_mind` reason code must be returned within 14 days of the purchase date. The 14-day window for a `changed_mind` refund is shorter than the standard 30-day return window.",
+              "similarity": 0.6604357153826554,
+              "source_doc": "refund_policy.md",
+              "rule_number": 3
+            },
+            {
+              "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+              "similarity": 0.6483782916294614,
+              "source_doc": "refund_policy.md",
+              "rule_number": 2
+            }
+          ],
+          "latency_ms": 156,
+          "sequence": 0
+        },
+        {
+          "tool_name": "run_sql_query",
+          "input": {
+            "query": "\nSELECT \n  o.id as order_id,\n  o.order_date,\n  r.requested_at,\n  r.reason,\n  r.status,\n  p.name as product_name,\n  c.name as customer_name\nFROM customers c\nJOIN orders o ON c.id = o.customer_id\nJOIN order_items oi ON o.id = oi.order_id\nJOIN products p ON oi.product_id = p.id\nJOIN refunds r ON oi.id = r.order_item_id\nWHERE c.name = 'Charlotte Dubois'\n  AND p.name = 'Wireless Keyboard'\n",
+            "intent": "Find Charlotte Dubois's refund request for Wireless Keyboard, including the order date, refund request date, and refund reason."
+          },
+          "output": {
+            "rows": [
+              {
+                "reason": "defective",
+                "status": "approved",
+                "order_id": "63378b67-bddb-56f9-b1da-515616c40097",
+                "order_date": "2025-11-02T00:00:00Z",
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-07-21T23:14:51.088346Z",
+                "customer_name": "Charlotte Dubois"
+              },
+              {
+                "reason": "wrong_item",
+                "status": "approved",
+                "order_id": "f257f9a6-10bc-596f-8ce0-a2843206efd9",
+                "order_date": "2025-11-07T00:00:00Z",
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-07-01T23:14:51.088346Z",
+                "customer_name": "Charlotte Dubois"
+              },
+              {
+                "reason": "changed_mind",
+                "status": "approved",
+                "order_id": "17fafda7-6815-5c49-ae57-00d62f064735",
+                "order_date": "2025-11-12T00:00:00Z",
+                "product_name": "Wireless Keyboard",
+                "requested_at": "2026-06-06T23:14:51.088346Z",
+                "customer_name": "Charlotte Dubois"
+              }
+            ],
+            "cached": false,
+            "status": "success",
+            "row_count": 3,
+            "truncated": false,
+            "sql_executed": "SELECT o.id AS order_id, o.order_date, r.requested_at, r.reason, r.status, p.name AS product_name, c.name AS customer_name FROM customers AS c JOIN orders AS o ON c.id = o.customer_id JOIN order_items AS oi ON o.id = oi.order_id JOIN products AS p ON oi.product_id = p.id JOIN refunds AS r ON oi.id = r.order_item_id WHERE c.name = 'Charlotte Dubois' AND p.name = 'Wireless Keyboard' LIMIT 500",
+            "estimated_cost": 23.74,
+            "prompt_version": null,
+            "rejection_reason": null,
+            "execution_time_ms": 6
+          },
+          "latency_ms": 55,
+          "sequence": 1
+        }
+      ]
+    }
+  }
+]
