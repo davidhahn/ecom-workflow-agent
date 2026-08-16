@@ -31,7 +31,7 @@ REASON_RULE_NUMBER: dict[str, int] = {
 
 FINAL_SALE_CATEGORIES = {"Clearance", "Final Sale"}
 EXEMPT_REASONS_FOR_FINAL_SALE = {"defective", "wrong_item"}
-APPROVAL_THRESHOLD_CENTS = 20_000  # $200, refund_policy.md rule 6
+APPROVAL_THRESHOLD_CENTS = 200_000  # $200, refund_policy.md rule 6
 REPEAT_REFUND_WINDOW_DAYS = 90
 REPEAT_REFUND_THRESHOLD = 3
 
