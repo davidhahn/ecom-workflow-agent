@@ -12,7 +12,7 @@ Frozen 27-case set, same harness, one system variable changed per row. Every var
 | + prompt v2 | 21/21 | 0/15 | 36/36 | 3.040 (range 2.152-3.928) | 0.007 (range 0.006-0.008) | 0/6 (6 crashed) | keep |
 | + retrieval threshold | 21/21 | 12/15 | 36/36 | 2.937 (range 2.131-3.816) | 0.007 (range 0.006-0.008) | 0/6 (6 crashed) | keep |
 | + bounded failure handling | 21/21 | 12/15 | 36/36 | 3.122 (range 2.375-5.499) | 0.007 (range 0.006-0.008) | 6/6 | reliability invariant |
-| + cheap model swap (Haiku)* | 16/21 | n/a | n/a | 1.667 (range 1.074-2.542) | 0.0023 (range 0.0019-0.0026) | 6/6 | recommend current |
+| + Haiku model swap* | 16/21 | n/a | n/a | 1.667 (range 1.074-2.542) | 0.0023 (range 0.0019-0.0026) | 6/6 | recommend Sonnet |
 
 \* Measured by `evals/run_model_comparison.py`, a different script from `run_ablation.py`. It shares the same 7 semantic-SQL cases, the same 2 resilience cases, and the same `run_case()` scoring code from `run.py`, so the semantic SQL, SQL latency/cost, and resilience columns are directly comparable to the rows above. Off-topic refusal and on-topic RAG are marked n/a on purpose: `/query/rag` never calls a model at all, so a model swap has nothing to move there. That's a structural fact about the endpoint, not a gap in what got measured. Full category breakdown, cost methodology, and the gap-case-by-gap-case read of what's actually failing live in `evals/model_comparison.md` and `evals/model_recommendation.md`. The decision recorded here is a recommendation from the eval data. Production migration is a separate step, and hasn't happened: the deployed model is still `claude-sonnet-4-6` (see `DECISIONS.md` #44).
 

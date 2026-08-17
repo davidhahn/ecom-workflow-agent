@@ -186,9 +186,9 @@ def build_report(raw: list[dict], cases: list[dict]) -> str:
         return f"{value:.1f}s" if value is not None else "n/a"
 
     lines = [
-        "# Model Comparison: Current vs. Cheap",
+        "# Model Comparison: Sonnet vs. Haiku",
         "",
-        f"`{CURRENT_MODEL}` (current) against `{CHEAP_MODEL}` (cheap). "
+        f"`{CURRENT_MODEL}` (Sonnet) against `{CHEAP_MODEL}` (Haiku). "
         f"{RUNS_PER_MODEL} runs each, cache bypassed on every call, against the same cases.json, "
         "the same seeded database, the same prompts, the same RELEVANCE_THRESHOLD, the same retry "
         "settings, and the same scoring code in evals/run.py. The judge stayed on "
@@ -200,8 +200,8 @@ def build_report(raw: list[dict], cases: list[dict]) -> str:
         "",
         "## Per-Category Comparison",
         "",
-        "| category | n | current quality | cheap quality | current p50 | cheap p50 "
-        "| current cost | cheap cost |",
+        "| category | n | Sonnet quality | Haiku quality | Sonnet p50 | Haiku p50 "
+        "| Sonnet cost | Haiku cost |",
         "|---|---|---|---|---|---|---|---|",
     ]
 
@@ -246,7 +246,7 @@ def build_report(raw: list[dict], cases: list[dict]) -> str:
                 cheap_case_rows = [r for r in cheap_rows if r["case_id"] == case_id]
                 cur_outcomes = "/".join("P" if r["passed"] else "F" for r in sorted(cur_case_rows, key=lambda r: r["run_index"]))
                 cheap_outcomes = "/".join("P" if r["passed"] else "F" for r in sorted(cheap_case_rows, key=lambda r: r["run_index"]))
-                section.append(f"- `{case_id}`: current {cur_outcomes}, cheap {cheap_outcomes}")
+                section.append(f"- `{case_id}`: Sonnet {cur_outcomes}, Haiku {cheap_outcomes}")
             section.append("")
             detail_sections.append("\n".join(section))
 
@@ -259,8 +259,8 @@ def build_report(raw: list[dict], cases: list[dict]) -> str:
         cheap_mean_calls = _mean(cheap_tool_counts)
         detail_sections.append(
             "### mixed: mean tool-call count\n\n"
-            f"current: {cur_mean_calls:.2f} calls per case. "
-            f"cheap: {cheap_mean_calls:.2f} calls per case.\n"
+            f"Sonnet: {cur_mean_calls:.2f} calls per case. "
+            f"Haiku: {cheap_mean_calls:.2f} calls per case.\n"
             if cur_mean_calls is not None and cheap_mean_calls is not None
             else "### mixed: mean tool-call count\n\nNo tool-call data recorded for one or both arms.\n"
         )
