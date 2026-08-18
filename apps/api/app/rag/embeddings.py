@@ -33,7 +33,7 @@ VOYAGE_EMBEDDINGS_URL = "https://api.voyageai.com/v1/embeddings"
 _model: "SentenceTransformer | None" = None
 
 
-def _provider() -> str:
+def embedding_provider() -> str:
     return os.environ.get("EMBEDDING_PROVIDER", "local")
 
 
@@ -69,7 +69,7 @@ def _embed_voyage(texts: list[str]) -> list[list[float]]:
 
 
 def embed(texts: list[str]) -> list[list[float]]:
-    provider = _provider()
+    provider = embedding_provider()
     if provider == "local":
         return _embed_local(texts)
     elif provider == "voyage":

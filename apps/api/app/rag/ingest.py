@@ -1,5 +1,6 @@
-"""Re-runnable ingestion for the RAG corpus: chunk docs/**/*.md, embed
-locally with BAAI/bge-m3, and load into policy_chunks.
+"""Re-runnable ingestion for the RAG corpus: chunk docs/**/*.md, embed with
+whichever provider EMBEDDING_PROVIDER selects (see app/rag/embeddings.py),
+and load into policy_chunks.
 
 Usage:
     poetry run python -m app.rag.ingest

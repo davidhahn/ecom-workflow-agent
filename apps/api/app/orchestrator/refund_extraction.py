@@ -18,8 +18,10 @@ EXTRACT_REFUND_REQUEST_TOOL = {
             "product_identifier": {
                 "type": "string",
                 "description": (
-                    "The product name or description the customer refers to, as "
-                    "close to verbatim as possible."
+                    "The product name only, as close to verbatim as possible, "
+                    "excluding any quantity or count the customer mentioned. "
+                    "'2 Ergonomic Desk Chairs' becomes 'Ergonomic Desk Chair', "
+                    "not the full phrase with the number attached."
                 ),
             },
             "customer_identifier": {
