@@ -207,6 +207,11 @@ export interface components {
         };
         /** AnalyzeResponse */
         AnalyzeResponse: {
+            /**
+             * Request Log Id
+             * Format: uuid
+             */
+            request_log_id: string;
             /** Answer */
             answer: string;
             /** Sql Used */
@@ -354,6 +359,11 @@ export interface components {
         };
         /** RefundEvaluateResponse */
         RefundEvaluateResponse: {
+            /**
+             * Request Log Id
+             * Format: uuid
+             */
+            request_log_id: string;
             /** Status */
             status: string;
             /** Rule Applied */

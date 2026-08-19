@@ -103,7 +103,11 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
             # empty trace, not NULL, since this is still request_type
             # 'analyze' and every analyze row logs a (possibly empty) array.
             log.tool_calls = []
-            result = cached.model_copy(update={"cached": True})
+            # Overrides the cached copy's own (stale) request_log_id with
+            # this request's — the trace link must point at the row this
+            # request just wrote, not the original request that populated
+            # the cache.
+            result = cached.model_copy(update={"cached": True, "request_log_id": log.request_id})
             log.output = result.model_dump(mode="json")
             return result
 
@@ -139,6 +143,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
                 total_retry_count += e.retry_count
                 log.retry_count = total_retry_count
                 result = AnalyzeResponse(
+                    request_log_id=log.request_id,
                     answer=(
                         "This request could not be completed: the model call "
                         f"failed after a retry. {e.cause}"
@@ -223,6 +228,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
             # a visible failure. Skip the check entirely and return a
             # distinct, explicit incomplete state instead.
             result = AnalyzeResponse(
+                request_log_id=log.request_id,
                 answer=(
                     "This request could not be completed: the assistant was still "
                     "requesting tools after the maximum number of tool-call rounds "
@@ -258,6 +264,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
         topic_coverage_warning = check_topic_coverage(answer, sql_used, generated_sql)
 
         result = AnalyzeResponse(
+            request_log_id=log.request_id,
             answer=answer,
             sql_used=sql_used,
             rag_used=rag_used,

@@ -32,6 +32,7 @@ def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
             extraction = extract_refund_request(request_text)
         except ExtractionError as e:
             response = RefundEvaluateResponse(
+                request_log_id=log.request_id,
                 status=COULD_NOT_PROCESS,
                 rule_applied=None,
                 reasoning=f"Could not extract a refund request from the text: {e}",
@@ -44,6 +45,7 @@ def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
 
         if not extraction.reason_confident:
             response = RefundEvaluateResponse(
+                request_log_id=log.request_id,
                 status=COULD_NOT_PROCESS,
                 rule_applied=None,
                 reasoning=(
@@ -63,6 +65,7 @@ def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
 
         if not extraction.customer_identifier:
             response = RefundEvaluateResponse(
+                request_log_id=log.request_id,
                 status=COULD_NOT_PROCESS,
                 rule_applied=None,
                 reasoning=(
@@ -87,6 +90,7 @@ def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
                 f"'{extraction.customer_identifier}'"
             )
             response = RefundEvaluateResponse(
+                request_log_id=log.request_id,
                 status=COULD_NOT_PROCESS,
                 rule_applied=None,
                 reasoning=f"Could not resolve an order item matching {detail} against the database.",
@@ -116,6 +120,7 @@ def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
         fields["order_item_id"] = str(resolved.order_item_id)
 
         response = RefundEvaluateResponse(
+            request_log_id=log.request_id,
             status=evaluation.status,
             rule_applied=evaluation.rule_applied,
             reasoning=evaluation.reasoning,

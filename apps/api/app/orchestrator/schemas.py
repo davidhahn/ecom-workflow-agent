@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 from pydantic import BaseModel
@@ -17,6 +18,10 @@ class SourceRef(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
+    # The observability.request_log row this exact request wrote — lets the
+    # frontend link straight from an answer to its own execution trace at
+    # GET /observability/requests/{request_log_id}.
+    request_log_id: uuid.UUID
     answer: str
     sql_used: bool
     rag_used: bool
@@ -44,6 +49,8 @@ class RefundEvaluateRequest(BaseModel):
 
 
 class RefundEvaluateResponse(BaseModel):
+    # Same purpose as AnalyzeResponse.request_log_id above.
+    request_log_id: uuid.UUID
     status: str
     rule_applied: int | None
     reasoning: str

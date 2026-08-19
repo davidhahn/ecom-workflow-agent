@@ -1,7 +1,7 @@
 import time
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Iterator
 
 from app.db.observability_models import RequestLog
@@ -16,6 +16,11 @@ class LogFields:
     exactly one row from whatever's set when the `with` block exits, success
     or failure. Anything never set is logged as NULL rather than guessed."""
 
+    # Generated up front (not by log_request at write time) so callers can
+    # read it during the `with` block and attach it to the response they
+    # return — e.g. AnalyzeResponse.request_log_id, letting the frontend
+    # link straight to this exact row's trace.
+    request_id: uuid.UUID = field(default_factory=uuid.uuid4)
     output: dict[str, Any] | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
@@ -38,6 +43,7 @@ class LogFields:
 
 def log_request(
     *,
+    id: uuid.UUID | None = None,
     request_type: str,
     input_text: str,
     output: dict[str, Any],
@@ -51,7 +57,7 @@ def log_request(
     tool_calls: list[dict[str, Any]] | None = None,
     retry_count: int | None = None,
 ) -> uuid.UUID:
-    log_id = uuid.uuid4()
+    log_id = id if id is not None else uuid.uuid4()
     with SessionLocal() as session:
         session.add(
             RequestLog(
@@ -92,6 +98,7 @@ def request_log_span(request_type: str, input_text: str) -> Iterator[LogFields]:
     finally:
         latency_ms = int((time.perf_counter() - start) * 1000)
         log_request(
+            id=fields.request_id,
             request_type=request_type,
             input_text=input_text,
             output=fields.output if fields.output is not None else {},

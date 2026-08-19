@@ -2,13 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RoleProvider } from "@/lib/role-context";
 import { IntroBanner } from "@/components/IntroBanner";
-import AskPage from "@/app/page";
-import RefundsPage from "@/app/refunds/page";
+import AskPage from "@/app/ask/page";
+import ScenarioDemoPage from "@/app/page";
 
 // Both pages call app/lib/api at module scope; mocked here purely so
 // rendering them doesn't attempt a real network request, not because
-// these tests exercise submit behavior (see page.test.tsx/refunds/page.test.tsx
-// for that).
+// these tests exercise submit behavior (see ask/page.test.tsx for that).
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return { ...actual, analyzeQuestion: vi.fn(), evaluateRefund: vi.fn() };
@@ -38,11 +37,11 @@ describe("IntroBanner renders app-level, not page-local", () => {
     expect(screen.getByRole("heading", { name: "Ask" })).toBeInTheDocument();
   });
 
-  it("renders on the Refunds route, alongside Refunds-page-specific content", () => {
-    renderRoute(<RefundsPage />);
+  it("renders on the Scenario Demo route, alongside Scenario-Demo-specific content", () => {
+    renderRoute(<ScenarioDemoPage />);
 
     expect(screen.getByText(BANNER_TEXT)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Refund evaluator" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Scenario demo" })).toBeInTheDocument();
   });
 
   it("includes a GitHub link", () => {
