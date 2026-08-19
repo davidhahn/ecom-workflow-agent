@@ -46,7 +46,10 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-black/10 p-4 dark:border-white/10">
+    <div
+      id={scenario.id}
+      className="flex flex-col gap-4 rounded-md border border-black/10 p-4 scroll-mt-20 dark:border-white/10"
+    >
       <div>
         <h2 className="text-base font-semibold">{scenario.name}</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{scenario.businessContext}</p>
