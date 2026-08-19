@@ -21,7 +21,7 @@ type State =
 
 const EXAMPLE_QUESTIONS = [
   "Which products have the highest refund rate?",
-  "What's our policy on damaged shipments?",
+  "What does our policy require before a damaged-shipping refund can be processed?",
   "We've had a lot of refund requests for the Bluetooth Headphones Pro, what's driving that, and does it violate our policy?",
   "Are any shipments delayed right now?",
 ];
