@@ -166,7 +166,10 @@ export type RagChunkSummary = { ruleNumber: number | null; sourceDoc: string; si
 
 export function ragToolSummary(call: ToolCallEntry): RagChunkSummary[] | null {
   if (call.tool_name !== "search_policy") return null;
-  if (!Array.isArray(call.output)) return null; // {message: ...} shape when nothing retrieved
+  // {message: ...} shape when nothing cleared the relevance threshold — []
+  // (not null) so the caller's "no chunks retrieved" empty state still
+  // renders for this call, rather than silently rendering nothing at all.
+  if (!Array.isArray(call.output)) return [];
   return call.output.map((chunk) => {
     const c = asRecord(chunk) ?? {};
     return {
