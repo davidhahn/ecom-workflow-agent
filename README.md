@@ -20,23 +20,31 @@ I built this as a portfolio project, for roles that put LLMs in front of real op
 ## 2. How does it work?
 
 ```mermaid
-flowchart LR
-    U[User question] --> O["Orchestrator<br/>Claude picks tools"]
-    O --> SQL[SQL path]
-    O --> RAG[RAG path]
-    SQL --> G1["Structural gate<br/>(deterministic)"]
-    RAG --> G2["Groundedness check<br/>(probabilistic)"]
-    G1 --> ANS[Answer]
-    G2 --> ANS
-    ANS --> LOG[(Request log)]
+flowchart TD
+    Q[User question] --> LOOP["Agent loop<br/>Claude reads the request, picks tools,<br/>drafts SQL, writes the final explanation"]
+    R[Refund request] --> EXT["Extraction<br/>Claude pulls fields from free text"]
+    LOOP --> SQLT["SQL tool<br/>candidate query"]
+    LOOP --> RAGT["RAG tool<br/>policy retrieval"]
 
-    REQ[Refund request] --> EX["Extraction<br/>(Claude reads free text)"]
-    EX --> EVAL["Refund evaluator<br/>(rule waterfall, no LLM)"]
-    EVAL --> DEC[Decision + rule cited]
-    DEC --> LOG
+    subgraph SEAM["Deterministic enforcement seam · code decides, model judgment ends here"]
+        direction TB
+        AST[AST allowlist] --> COST[Cost gate] --> ROLE[Read-only DB role] --> AUDIT[Audit log]
+        GROUND["Groundedness + topic-coverage<br/>checks (heuristic match)"]
+        WATER[Refund rule waterfall] --> APPR["Approval boundaries<br/>draft / confirm + permissions"]
+    end
+
+    SQLT --> AST
+    RAGT --> GROUND
+    EXT --> WATER
+    AUDIT --> ANS[Final response]
+    GROUND --> ANS
+    APPR --> ANS
+    ANS --> LOG[("Request log<br/>tool calls · guardrail outcomes · latency ·<br/>tokens · cost · retries · final status")]
 ```
 
-There are two request shapes here, and both get logged the same way. A question goes through the orchestrator, which lets Claude decide whether it needs a database query, a policy search, both, or neither. A refund request takes a different route: Claude only pulls the relevant fields out of the free text, and a separate, fully deterministic rule engine makes the decision, with no model call in that step.
+The horizontal band is the load-bearing idea. Claude does all its work above it: reading the request, choosing tools, drafting candidate SQL, interpreting retrieved policy, writing the final explanation. Everything below it runs as plain code, on decisions where correctness shouldn't depend on how persuasive a model output sounds: which SQL executes, what a query may cost, what the database role permits, how a refund gets decided, who can confirm a write.
+
+Every execution also feeds the request log at the bottom. Each request records its tool calls, guardrail outcomes, latency, token usage, dollar cost, retry state, and final status, and the live Activity page renders all of it.
 
 Eight pieces make this work, each doing one job:
 
@@ -53,7 +61,7 @@ Eight pieces make this work, each doing one job:
 
 ### Claude proposes, Python decides
 
-Claude never executes anything directly. It only proposes a query or a tool call, and a Python layer decides whether that proposal gets to run. That layer is two independent checks: one deterministic (is this table allowed, does this role have write access), and one probabilistic (does this specific claim in the answer match what got retrieved).
+Claude never executes anything directly. It only proposes a query or a tool call, and a Python layer decides whether that proposal gets to run. That layer is two independent checks: one deterministic (is this table allowed, does this role have write access), and one heuristic (does this specific claim in the answer match what got retrieved).
 
 Folding groundedness into that same deterministic gate, as one more rule, would turn it into a simple pass or fail check. That's the blind spot the split is built to avoid. A refund can pass every structural check, the right amount, the right role, and still rest on a misread or invented policy clause. Catching that takes a check that looks at meaning, which the structural gate was never built to do.
 
@@ -141,7 +149,7 @@ Every path above gets checked against a fixed set of real questions with known-c
 
 Two other findings came only from testing the live, deployed app directly:
 
-- **The RAG relevance threshold didn't transfer between embedding models.** I calibrated it once, against the free local model used in dev, but production runs a different, hosted embedding model. A real question, "What's our policy on damaged shipments?", got a false "I don't know" live, something that never showed up locally, since local eval runs default to the local model. Recalibrating per provider closed most of the gap. One case is still open, and stays documented as a known limitation.
+- **The RAG relevance threshold didn't transfer between embedding models.** I calibrated it once, to 0.46, against the free local model used in dev, but production runs a hosted Voyage model instead. A real question, "What's our policy on damaged shipments?", got a false "I don't know" live, something that never showed up locally, since local eval runs default to the local model. Rerunning the same 18-question calibration under Voyage produced a per-provider threshold (0.46 local, 0.48 Voyage) and closed most of the gap. Widening the retrieval depth was also tested as a fix and rejected: it let off-topic content leak through without ever surfacing the missing passage. One case is still open, and stays documented as a known limitation.
 - **Free-text extraction was folding a stated quantity into the product name.** "2 Ergonomic Desk Chairs" came out as the product name verbatim, and that never matched the real product, "Ergonomic Desk Chair," in the database. The eval suite's refund cases feed pre-extracted fields straight into the rule engine, skipping the extraction step entirely, so this bug was invisible to the suite by construction. It only showed up by asking the real, deployed system a real question.
 
 A passing eval score proves the harness works. Whether the deployed system behaves the same way is a separate question. Two of the three fixes above came directly from testing the live app.
@@ -156,7 +164,7 @@ Ordered by where the evidence points.
 4. **Generalize PII column-scoping.** The code blocks only `customers.email` today, hardcoded as a single exclusion. Before any new table or column with sensitive data gets added, this needs a real, general policy.
 5. **Finish the investigation pipeline's synthesis stage.** Deliberately last. It's real, tested code, short one stage, and it's the feature I'd most want to build for its own sake, which is why it's ranked behind four things with real evidence behind them.
 
-One thing here is a deliberate scope boundary, not a gap: the Ask interface is single-turn by design. A follow-up question starts a new request rather than continuing a conversation.
+A few things stay unbuilt on purpose. A reranker heads the list: the policy corpus holds 21 chunks, so there is nothing to rerank. Real authentication would prove nothing the header-based demo role doesn't already exercise. The ticket and invoice flows work through the API today, and adding screens for them repeats that proof without strengthening it. The Ask interface stays single-turn by design, so a follow-up question starts a new request.
 
 ## Stack
 
