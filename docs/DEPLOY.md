@@ -1,6 +1,6 @@
-# ecom-workflow-agent
+# Setup & Deployment
 
-Enterprise Operations Intelligence Agent — an eCommerce ops assistant. See [ARCHITECTURE.md](./ARCHITECTURE.md) for design decisions.
+Local setup, running the apps, and deploying to production. For what this project is and how it works, see [the main README](../README.md).
 
 ## Structure
 
