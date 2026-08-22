@@ -3,6 +3,7 @@ import type { RequestLogDetailRow, ToolCallEntry } from "@/lib/api";
 import {
   deriveConcreteStatus,
   deriveGuardrails,
+  deriveLatencyBreakdown,
   deriveReliabilityOutcome,
   deriveWorkflowPhases,
   ragToolSummary,
@@ -26,6 +27,7 @@ function detail(overrides: Partial<RequestLogDetailRow>): RequestLogDetailRow {
     rag_chunks_retrieved: null,
     cached: false,
     retry_count: null,
+    llm_latency_ms: null,
     created_at: "2026-08-19T00:00:00Z",
     tool_calls: null,
     ...overrides,
@@ -84,11 +86,11 @@ describe("deriveWorkflowPhases", () => {
       })
     );
     expect(phases.map((p) => p.label)).toEqual([
-      "received",
-      "routed: SQL + policy",
-      "tools",
-      "checks",
-      "final: answered",
+      "Request received",
+      "Claude routed to SQL + policy lookup",
+      "Tool ran",
+      "Guardrail checks ran",
+      "Result: answered",
     ]);
     expect(phases.every((p) => p.state === "done")).toBe(true);
   });
@@ -97,28 +99,28 @@ describe("deriveWorkflowPhases", () => {
     const phases = deriveWorkflowPhases(
       detail({ request_type: "analyze", output: { sql_used: false, rag_used: false }, tool_calls: [] })
     );
-    expect(phases.find((p) => p.label === "tools")?.state).toBe("skipped");
-    expect(phases.find((p) => p.label === "routed: direct answer")).toBeTruthy();
+    expect(phases.find((p) => p.label === "No tool needed")?.state).toBe("skipped");
+    expect(phases.find((p) => p.label === "Claude answered directly")).toBeTruthy();
   });
 
   it("marks tools skipped when tool_calls is null, not just empty", () => {
     const phases = deriveWorkflowPhases(detail({ request_type: "analyze", output: {}, tool_calls: null }));
-    expect(phases.find((p) => p.label === "tools")?.state).toBe("skipped");
+    expect(phases.find((p) => p.label === "No tool needed")?.state).toBe("skipped");
   });
 
   it("marks checks skipped when the request never reached groundedness evaluation", () => {
     const phases = deriveWorkflowPhases(detail({ request_type: "analyze", output: { incomplete: true } }));
-    expect(phases.find((p) => p.label === "checks")?.state).toBe("skipped");
+    expect(phases.find((p) => p.label === "Guardrail checks skipped")?.state).toBe("skipped");
   });
 
   it("collapses to received -> final for non-analyze request types", () => {
     const phases = deriveWorkflowPhases(detail({ request_type: "refund_evaluate", output: { status: "denied" } }));
-    expect(phases.map((p) => p.label)).toEqual(["received", "final: denied"]);
+    expect(phases.map((p) => p.label)).toEqual(["Request received", "Result: denied"]);
   });
 
   it("collapses to received -> final when analyze output is missing entirely", () => {
     const phases = deriveWorkflowPhases(detail({ request_type: "analyze", output: null }));
-    expect(phases.map((p) => p.label)).toEqual(["received", "final: analyze"]);
+    expect(phases.map((p) => p.label)).toEqual(["Request received", "Result: analyze"]);
   });
 });
 
@@ -185,7 +187,12 @@ describe("deriveGuardrails", () => {
       })
     );
     expect(fields).toEqual([
-      { label: "Permission", value: "Denied — role lacks 'write' permission", tone: "danger" },
+      {
+        label: "Permission",
+        caption: "Code checks the requesting role against the tool's required permission before the model ever runs.",
+        value: "Denied — role lacks 'write' permission",
+        tone: "danger",
+      },
     ]);
   });
 
@@ -197,8 +204,18 @@ describe("deriveGuardrails", () => {
       })
     );
     expect(fields).toEqual([
-      { label: "Groundedness", value: "Ungrounded claim detected", tone: "danger" },
-      { label: "Topic coverage", value: "May reference unavailable data", tone: "warning" },
+      {
+        label: "Groundedness",
+        caption: "Checks that every policy rule the answer cites was retrieved for this request.",
+        value: "Ungrounded claim detected",
+        tone: "danger",
+      },
+      {
+        label: "Topic coverage",
+        caption: "Checks whether the answer states something about data this request never looked up.",
+        value: "May reference unavailable data",
+        tone: "warning",
+      },
     ]);
   });
 
@@ -213,14 +230,28 @@ describe("deriveGuardrails", () => {
         output: { status: "could_not_process", reasoning: "no customer identified" },
       })
     );
-    expect(fields).toEqual([{ label: "Refusal reason", value: "no customer identified", tone: "neutral" }]);
+    expect(fields).toEqual([
+      {
+        label: "Refusal reason",
+        caption: "The deterministic refund rule engine refuses to guess when it can't confidently resolve who's asking.",
+        value: "no customer identified",
+        tone: "neutral",
+      },
+    ]);
   });
 
   it("surfaces the approval requirement for requires_manager_approval", () => {
     const fields = deriveGuardrails(
       detail({ request_type: "refund_evaluate", output: { status: "requires_manager_approval", rule_applied: 6 } })
     );
-    expect(fields).toEqual([{ label: "Approval required", value: "Manager approval — rule 6", tone: "warning" }]);
+    expect(fields).toEqual([
+      {
+        label: "Approval required",
+        caption: "The refund rule engine routes anything above its dollar threshold to a manager, no exceptions.",
+        value: "Manager approval — rule 6",
+        tone: "warning",
+      },
+    ]);
   });
 
   it("reports nothing extra for a clean refund approval", () => {
@@ -232,8 +263,51 @@ describe("deriveGuardrails", () => {
   it("surfaces the SQL validation outcome on rejection only", () => {
     expect(
       deriveGuardrails(detail({ request_type: "sql", output: { status: "rejected", rejection_reason: "blocked table" } }))
-    ).toEqual([{ label: "SQL validation", value: "blocked table", tone: "danger" }]);
+    ).toEqual([
+      {
+        label: "SQL validation",
+        caption: "The deterministic SQL safety layer rejected this query before it ever reached the database.",
+        value: "blocked table",
+        tone: "danger",
+      },
+    ]);
     expect(deriveGuardrails(detail({ request_type: "sql", output: { status: "success" } }))).toEqual([]);
+  });
+});
+
+describe("deriveLatencyBreakdown", () => {
+  it("splits total latency into LLM, tool, and other time when llm_latency_ms is captured", () => {
+    const breakdown = deriveLatencyBreakdown(
+      detail({
+        latency_ms: 1000,
+        llm_latency_ms: 800,
+        tool_calls: [{ tool_name: "run_sql_query", input: {}, output: {}, latency_ms: 150, sequence: 0 }],
+      })
+    );
+    expect(breakdown).toEqual({ totalMs: 1000, llmMs: 800, toolMs: 150, otherMs: 50 });
+  });
+
+  it("treats llm_latency_ms of 0 as a real measurement, not a missing one", () => {
+    const breakdown = deriveLatencyBreakdown(detail({ latency_ms: 5, llm_latency_ms: 0, tool_calls: [] }));
+    expect(breakdown).toEqual({ totalMs: 5, llmMs: 0, toolMs: 0, otherMs: 5 });
+  });
+
+  it("returns null llmMs/otherMs for a row logged before this column existed", () => {
+    const breakdown = deriveLatencyBreakdown(
+      detail({
+        latency_ms: 1000,
+        llm_latency_ms: null,
+        tool_calls: [{ tool_name: "run_sql_query", input: {}, output: {}, latency_ms: 150, sequence: 0 }],
+      })
+    );
+    expect(breakdown).toEqual({ totalMs: 1000, llmMs: null, toolMs: 150, otherMs: null });
+  });
+
+  it("never returns a negative otherMs from rounding overlap", () => {
+    const breakdown = deriveLatencyBreakdown(detail({ latency_ms: 100, llm_latency_ms: 90, tool_calls: [
+      { tool_name: "run_sql_query", input: {}, output: {}, latency_ms: 40, sequence: 0 },
+    ] }));
+    expect(breakdown.otherMs).toBe(0);
   });
 });
 

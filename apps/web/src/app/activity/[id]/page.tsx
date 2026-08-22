@@ -12,6 +12,7 @@ import { SCENARIOS } from "@/lib/scenarios";
 import {
   deriveConcreteStatus,
   deriveGuardrails,
+  deriveLatencyBreakdown,
   deriveReliabilityOutcome,
   deriveWorkflowPhases,
   ragToolSummary,
@@ -50,21 +51,27 @@ export default function ExecutionTracePage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <Link
-          href="/activity"
-          className="text-xs text-gray-500 hover:text-foreground dark:text-gray-400"
-        >
-          ← Back to Activity
-        </Link>
-        {sourceScenario && (
+        {sourceScenario ? (
           <Link
             href={`/#${sourceScenario.id}`}
             className="text-xs text-gray-500 hover:text-foreground dark:text-gray-400"
           >
             ← Back to &quot;{sourceScenario.name}&quot; on the Scenario Demo
           </Link>
+        ) : (
+          <Link
+            href="/activity"
+            className="text-xs text-gray-500 hover:text-foreground dark:text-gray-400"
+          >
+            ← Back to the full request log
+          </Link>
         )}
         <h1 className="mt-1 text-xl font-semibold">Execution trace</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          What happened when this request ran, step by step. Steps labeled{" "}
+          <span className="font-medium text-foreground">Model</span> were decided by Claude. Steps
+          labeled <span className="font-medium text-foreground">Code</span> ran as fixed logic.
+        </p>
       </div>
 
       {state.status === "loading" && (
@@ -77,9 +84,7 @@ export default function ExecutionTracePage() {
         </div>
       )}
 
-      {state.status === "success" && (
-        <TraceDetail detail={state.detail} />
-      )}
+      {state.status === "success" && <TraceDetail detail={state.detail} />}
     </div>
   );
 }
@@ -89,12 +94,12 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
   const guardrails = deriveGuardrails(detail);
   const reliability = deriveReliabilityOutcome(detail);
   const concreteStatus = deriveConcreteStatus(detail);
+  const latency = deriveLatencyBreakdown(detail);
   const toolCalls = detail.tool_calls ?? [];
-  const toolLatencyMs = toolCalls.reduce((sum, call) => sum + call.latency_ms, 0);
-  // The headline status badge should reflect the worst thing that actually
-  // happened, not just the reliability axis — a request can retry-free
-  // "succeed" while a guardrail below still flags a real problem (e.g. an
-  // ungrounded claim), and that shouldn't render as a clean green badge.
+  // The headline badge should reflect the worst thing that happened, not
+  // just the reliability axis. A request can succeed with no retries while
+  // a guardrail below flags a real problem, like an ungrounded claim, and
+  // that shouldn't render as a clean green badge.
   const statusTone = guardrails.some((g) => g.tone === "danger")
     ? "danger"
     : guardrails.some((g) => g.tone === "warning")
@@ -103,6 +108,13 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {detail.cached && (
+        <div className="rounded-md border-2 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          Served from cache. This trace is the original request that produced this answer. Claude and
+          the tools below ran once, the first time this question was asked.
+        </div>
+      )}
+
       {/* Request summary */}
       <div className="rounded-md border border-black/10 p-4 dark:border-white/10">
         <p className="text-sm font-medium">{detail.input}</p>
@@ -130,7 +142,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
       {/* Tool calls */}
       <div>
         <p className="mb-2 text-sm font-medium">Tool calls</p>
-        <ToolCallTrace toolCalls={toolCalls} totalLatencyMs={detail.latency_ms} />
+        <ToolCallTrace toolCalls={toolCalls} totalLatencyMs={detail.latency_ms} llmLatencyMs={detail.llm_latency_ms} />
 
         {toolCalls.length > 0 && (
           <div className="mt-3 flex flex-col gap-2">
@@ -143,9 +155,13 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                     key={call.sequence}
                     className="rounded-md border border-black/10 p-3 text-xs dark:border-white/10"
                   >
-                    <p className="font-medium text-gray-700 dark:text-gray-300">
-                      #{call.sequence} run_sql_query
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-gray-700 dark:text-gray-300">
+                        #{call.sequence} run_sql_query
+                      </p>
+                      <Badge tone="neutral">Model proposed</Badge>
+                      <Badge tone="neutral">Code enforced</Badge>
+                    </div>
                     {sql.sql && (
                       <pre className="mt-1 overflow-x-auto rounded bg-black/5 p-2 font-mono dark:bg-white/5">
                         {sql.sql}
@@ -164,6 +180,10 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                     {sql.rejectionReason && (
                       <p className="mt-1 text-red-700 dark:text-red-400">{sql.rejectionReason}</p>
                     )}
+                    <p className="mt-1 text-gray-500 dark:text-gray-400">
+                      Claude wrote this query. The AST allowlist, cost gate, and read-only database
+                      role decided whether it could run.
+                    </p>
                   </div>
                 );
               }
@@ -173,9 +193,13 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                     key={call.sequence}
                     className="rounded-md border border-black/10 p-3 text-xs dark:border-white/10"
                   >
-                    <p className="font-medium text-gray-700 dark:text-gray-300">
-                      #{call.sequence} search_policy
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-gray-700 dark:text-gray-300">
+                        #{call.sequence} search_policy
+                      </p>
+                      <Badge tone="neutral">Model proposed</Badge>
+                      <Badge tone="neutral">Code enforced</Badge>
+                    </div>
                     {rag.length === 0 ? (
                       <p className="mt-1 text-gray-500 dark:text-gray-400">No chunks cleared the relevance threshold.</p>
                     ) : (
@@ -189,6 +213,10 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                         ))}
                       </ul>
                     )}
+                    <p className="mt-1 text-gray-500 dark:text-gray-400">
+                      Claude wrote the search query. A fixed similarity threshold decided which
+                      chunks counted as relevant.
+                    </p>
                   </div>
                 );
               }
@@ -208,9 +236,12 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
         ) : (
           <div className="flex flex-col gap-2">
             {guardrails.map((field) => (
-              <div key={field.label} className="flex flex-wrap items-baseline gap-2 text-xs">
-                <Badge tone={field.tone}>{field.label}</Badge>
-                <span className="text-gray-600 dark:text-gray-400">{field.value}</span>
+              <div key={field.label} className="flex flex-col gap-0.5 text-xs">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <Badge tone={field.tone}>{field.label}</Badge>
+                  <span className="text-gray-600 dark:text-gray-400">{field.value}</span>
+                </div>
+                <p className="text-gray-500 dark:text-gray-500">{field.caption}</p>
               </div>
             ))}
           </div>
@@ -224,11 +255,19 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
           <Badge tone={reliability.tone}>{reliability.label}</Badge>
         </div>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-          <span>{detail.latency_ms} ms total</span>
-          {toolCalls.length > 0 && <span>{toolLatencyMs} ms in tools</span>}
+          <span>{latency.totalMs} ms total</span>
+          {latency.llmMs !== null ? (
+            <>
+              <span>{latency.llmMs} ms in Claude API calls</span>
+              <span>{latency.toolMs} ms in tools</span>
+              <span>{latency.otherMs} ms other (network, logging)</span>
+            </>
+          ) : (
+            toolCalls.length > 0 && <span>{latency.toolMs} ms in tools</span>
+          )}
           <span>
             {detail.input_tokens !== null && detail.output_tokens !== null
-              ? `${detail.input_tokens} in / ${detail.output_tokens} out`
+              ? `${detail.input_tokens} input tokens / ${detail.output_tokens} output tokens`
               : "no token usage"}
           </span>
           <span>
@@ -245,13 +284,13 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {detail.rag_chunks_retrieved !== null && (
         <div>
-          <p className="mb-2 text-sm font-medium">Retrieved policy chunks (raw)</p>
+          <p className="mb-2 text-sm font-medium">Raw request log data: retrieved policy chunks</p>
           <JsonPreview value={detail.rag_chunks_retrieved} />
         </div>
       )}
 
       <div>
-        <p className="mb-2 text-sm font-medium">Final output</p>
+        <p className="mb-2 text-sm font-medium">Raw request log data: final output</p>
         <JsonPreview value={detail.output} />
       </div>
     </div>

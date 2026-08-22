@@ -99,15 +99,15 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
             log.cached = True
             log.input_tokens = 0
             log.output_tokens = 0
-            # No tool loop ran for this request (served from cache) — an
-            # empty trace, not NULL, since this is still request_type
-            # 'analyze' and every analyze row logs a (possibly empty) array.
+            # No tool loop ran here, served from cache. Every analyze row
+            # logs an array, so this is an empty one, never NULL.
             log.tool_calls = []
-            # Overrides the cached copy's own (stale) request_log_id with
-            # this request's — the trace link must point at the row this
-            # request just wrote, not the original request that populated
-            # the cache.
-            result = cached.model_copy(update={"cached": True, "request_log_id": log.request_id})
+            log.llm_latency_ms = 0
+            # Keeps the cached copy's own request_log_id. The trace link
+            # should point at the original run with full tool calls, tokens,
+            # and latency, not this cache hit's empty row. Reverses an
+            # earlier decision here. See DECISIONS.md #55.
+            result = cached.model_copy(update={"cached": True})
             log.output = result.model_dump(mode="json")
             return result
 
@@ -127,9 +127,13 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
         # Summed across every Claude call this request makes. The loop can
         # call messages.create more than once.
         total_retry_count = 0
+        # Summed across every iteration's call_with_retry, retry sleep
+        # included. See RequestLog.llm_latency_ms's column comment.
+        total_llm_latency_ms = 0
 
         response = None
         for _ in range(MAX_TOOL_ITERATIONS):
+            llm_call_start = time.perf_counter()
             try:
                 response, call_retry_count = call_with_retry(
                     client,
@@ -140,8 +144,10 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
                     messages=messages,
                 )
             except AnthropicCallFailed as e:
+                total_llm_latency_ms += int((time.perf_counter() - llm_call_start) * 1000)
                 total_retry_count += e.retry_count
                 log.retry_count = total_retry_count
+                log.llm_latency_ms = total_llm_latency_ms
                 result = AnalyzeResponse(
                     request_log_id=log.request_id,
                     answer=(
@@ -158,6 +164,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
                 log.tool_calls = tool_calls
                 log.output = result.model_dump(mode="json")
                 return result
+            total_llm_latency_ms += int((time.perf_counter() - llm_call_start) * 1000)
             total_retry_count += call_retry_count
             log.add_usage(response.usage)
             messages.append({"role": "assistant", "content": response.content})
@@ -247,6 +254,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
             # finishes.
             log.tool_calls = tool_calls
             log.retry_count = total_retry_count
+            log.llm_latency_ms = total_llm_latency_ms
             log.output = result.model_dump(mode="json")
             return result
 
@@ -275,6 +283,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
         )
         log.tool_calls = tool_calls
         log.retry_count = total_retry_count
+        log.llm_latency_ms = total_llm_latency_ms
         log.output = result.model_dump(mode="json")
         if not bypass_cache:
             cache_set("analyze", cache_key, result)

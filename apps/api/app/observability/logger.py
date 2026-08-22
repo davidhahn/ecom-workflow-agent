@@ -30,6 +30,8 @@ class LogFields:
     cached: bool = False
     tool_calls: list[dict[str, Any]] | None = None
     retry_count: int | None = None
+    # See RequestLog.llm_latency_ms's column comment for what this covers.
+    llm_latency_ms: int | None = None
 
     def add_usage(self, usage: Any) -> None:
         """Accumulates an Anthropic response.usage. Safe to call multiple
@@ -56,6 +58,7 @@ def log_request(
     cached: bool = False,
     tool_calls: list[dict[str, Any]] | None = None,
     retry_count: int | None = None,
+    llm_latency_ms: int | None = None,
 ) -> uuid.UUID:
     log_id = id if id is not None else uuid.uuid4()
     with SessionLocal() as session:
@@ -75,6 +78,7 @@ def log_request(
                 cached=cached,
                 tool_calls=tool_calls,
                 retry_count=retry_count,
+                llm_latency_ms=llm_latency_ms,
             )
         )
         session.commit()
@@ -111,4 +115,5 @@ def request_log_span(request_type: str, input_text: str) -> Iterator[LogFields]:
             cached=fields.cached,
             tool_calls=fields.tool_calls,
             retry_count=fields.retry_count,
+            llm_latency_ms=fields.llm_latency_ms,
         )

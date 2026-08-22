@@ -40,6 +40,7 @@ class RequestLogRow(BaseModel):
     rag_chunks_retrieved: Any | None
     cached: bool
     retry_count: int | None
+    llm_latency_ms: int | None
     created_at: datetime
 
 

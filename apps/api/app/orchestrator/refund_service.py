@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 
 from app.observability.logger import request_log_span
@@ -28,9 +29,11 @@ def _partial_fields(
 
 def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
     with request_log_span("refund_evaluate", request_text) as log:
+        extraction_start = time.perf_counter()
         try:
             extraction = extract_refund_request(request_text)
         except ExtractionError as e:
+            log.llm_latency_ms = int((time.perf_counter() - extraction_start) * 1000)
             response = RefundEvaluateResponse(
                 request_log_id=log.request_id,
                 status=COULD_NOT_PROCESS,
@@ -41,6 +44,7 @@ def evaluate_refund_request(request_text: str) -> RefundEvaluateResponse:
             log.output = response.model_dump(mode="json")
             return response
 
+        log.llm_latency_ms = int((time.perf_counter() - extraction_start) * 1000)
         log.add_usage(extraction.usage)
 
         if not extraction.reason_confident:

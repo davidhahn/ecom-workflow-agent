@@ -154,6 +154,7 @@ export default function ActivityPage() {
                             <ToolCallTrace
                               toolCalls={detail.tool_calls ?? []}
                               totalLatencyMs={row.latency_ms}
+                              llmLatencyMs={row.llm_latency_ms}
                             />
                           )}
                         </td>

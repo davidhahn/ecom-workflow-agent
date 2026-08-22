@@ -411,6 +411,8 @@ export interface components {
             cached: boolean;
             /** Retry Count */
             retry_count: number | null;
+            /** Llm Latency Ms */
+            llm_latency_ms: number | null;
             /**
              * Created At
              * Format: date-time
@@ -462,6 +464,8 @@ export interface components {
             cached: boolean;
             /** Retry Count */
             retry_count: number | null;
+            /** Llm Latency Ms */
+            llm_latency_ms: number | null;
             /**
              * Created At
              * Format: date-time

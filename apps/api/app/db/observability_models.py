@@ -47,6 +47,11 @@ class RequestLog(Base):
     # try. NULL means this request type doesn't call an LLM through the
     # retry wrapper (e.g. rag).
     retry_count: Mapped[int | None] = mapped_column(Integer)
+    # Summed time across every Anthropic call this request made, retries
+    # included. NULL means this request type never calls an LLM. 0 means a
+    # cache hit made no calls this time. Separate from tool_calls[].latency_ms,
+    # which only covers tool execution.
+    llm_latency_ms: Mapped[int | None] = mapped_column(Integer)
     # Populated only for request_type='analyze', where a tool-call loop
     # actually runs — every other request type makes at most one LLM call
     # and leaves this NULL rather than being forced into an empty-list
