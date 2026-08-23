@@ -51,6 +51,35 @@ The UI is a portfolio surface for the Ops Intelligence Agent. Its job is to make
 - **States:** Loading: none (static). Error: none at runtime; a missing artifact fails the build, which is the fail-loudly behavior we want. Empty: not applicable while artifacts are committed.
 - **Navigation:** New "Evidence" tab in `NavHeader`. Deep links from the intro to the trace of a real logged request where one exists.
 
+### 6. Architecture (`/architecture`, proposed, not yet built)
+- **Job:** Show what the model decides and what the code decides, and say why, without a tour of the repo.
+- **Story:** As a hiring manager, I want to understand which responsibilities belong to the model, which are enforced deterministically, and why the system was designed this way, without reading the entire repository.
+- **Components:**
+
+  **Part 1 — Architecture diagram.** `docs/img/architecture.svg`. The README reuses the same file.
+
+  Flow, top to bottom: user request, agent/orchestrator loop, SQL tool or Policy/RAG tool, one deterministic enforcement seam, final response. The seam holds two chains side by side: the SQL chain (generated SQL, AST allowlist, cost gate, readonly DB role, audit) and the refund/actions chain (request, deterministic waterfall, draft, confirm, permission). A trace log branches off the orchestrator, the seam, and the final response.
+
+  **Part 2 — Responsibility split.** The table answers one question: what decisions does this system delegate to probabilistic behavior? The model handles the parts that need flexibility, like reading free text, writing SQL, and interpreting policy language. Every row on the right is a real constraint. It runs independently of the model, and it guards one consequential action.
+
+    | LLM proposes / interprets | deterministic systems enforce |
+    |---|---|
+    | tool selection | tool permissions (`require_permission` checks the calling role before any tool runs) |
+    | candidate SQL | SQL AST allowlist (`validate_ast` checks tables, columns, and functions against an allowlist, and blocks bare `SELECT *`) |
+    | request field extraction (refund reason, ticket category, pulled from free text) | query-cost limit (`check_cost` rejects a query whose `EXPLAIN` cost crosses a threshold, before it runs) |
+    | policy interpretation (reading retrieved RAG chunks) | DB privilege boundary (the `ops_agent_readonly` role restricts columns and caps every query at a 5-second timeout, even if the checks above it fail) |
+    | synthesis (turning SQL rows or RAG chunks into an answer) | refund waterfall (`evaluate_refund` runs a fixed rule sequence: return window, final-sale exemption, repeat-refund flag, $200 approval threshold) |
+    | explanation (why the answer says what it says) | draft/confirm ticket lifecycle (`draft_support_ticket` creates a draft in memory, and a second call, `confirm_support_ticket`, under its own permission, writes it to the database) |
+    | | groundedness check (`check_groundedness` matches cited rule numbers and titles against the chunks retrieved for that answer) |
+
+  **Part 3 — Deliberately not built.** *(next)*
+
+  **Part 4 — Decision links.** *(next)*
+
+- **Data:** Static content: a committed SVG, and prose written from `ARCHITECTURE.md` and the enforcement code (`app/query/validation.py`, `app/query/service.py`, `app/permissions.py`, `app/orchestrator/refund_evaluator.py`, `app/tickets/service.py`, `app/orchestrator/groundedness.py`). Nothing is fetched at runtime.
+- **States:** None. The page is static, and it follows the same fail-loudly rule as Evidence: a missing asset breaks the build.
+- **Navigation:** A new "Architecture" tab in `NavHeader`, linking to the relevant `DECISIONS.md` entries for Part 4.
+
 ## Design constraints
 
 Existing Tailwind setup and visual language only (current border/gray palette, `Badge` tones, table styles). Reuse `Badge`, `ToolCallTrace`, `Markdown`, `ExampleChip`, `JsonPreview`, and the new `AnalyzeResult`/`RefundResult`/`ScenarioCard`. The role selector moved out of `NavHeader` into a page-level `RoleFooter` (present on every page, below `<main>`) — it's supporting technical context, not the first thing a cold viewer sees. All views keep the strict loading / error / empty handling above; no silent fallbacks.
