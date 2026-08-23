@@ -1,0 +1,86 @@
+{
+  "case_id": "sql-03-avg-days-to-refund-by-reason",
+  "category": "sql",
+  "input": "On average, how many days after the order date do customers request a refund, broken down by refund reason?",
+  "expected": {
+    "tables_joined": [
+      "orders",
+      "order_items",
+      "refunds"
+    ],
+    "columns_excluded": [
+      "customers.email"
+    ],
+    "read_only_violation_attempt": false,
+    "expected_status": "success",
+    "expected_result": {
+      "type": "rows",
+      "rows": [
+        {
+          "reason": "changed_mind",
+          "avg_days": 77.32
+        },
+        {
+          "reason": "damaged_shipping",
+          "avg_days": 8.71
+        },
+        {
+          "reason": "defective",
+          "avg_days": 35.33
+        },
+        {
+          "reason": "wrong_item",
+          "avg_days": 236.97
+        }
+      ],
+      "unordered": true,
+      "numeric_tolerance": 0.05,
+      "derivation": "psql, independent of the app: average elapsed time from order to refund request, by reason, across every refund regardless of status. First try used whole calendar days and got it wrong - some rows have a real time-of-day, so that silently dropped precision. Redone with the full timestamp difference. wrong_item (236.97 days) is Charlotte Dubois's Wireless Keyboard, the same row already checked in mixed-07-wrong-item-window-compliance."
+    }
+  },
+  "actual_answer": null,
+  "response_status": "success",
+  "generated_sql": "SELECT r.reason, ROUND(CAST(AVG(EXTRACT(EPOCH FROM (r.requested_at - o.order_date)) / 86400) AS DECIMAL), 2) AS avg_days_to_refund_request, COUNT(r.id) AS total_refund_requests FROM refunds AS r JOIN order_items AS oi ON r.order_item_id = oi.id JOIN orders AS o ON oi.order_id = o.id GROUP BY r.reason ORDER BY avg_days_to_refund_request DESC LIMIT 500",
+  "returned_rows": [
+    {
+      "reason": "wrong_item",
+      "avg_days_to_refund_request": "252.82",
+      "total_refund_requests": 1
+    },
+    {
+      "reason": "changed_mind",
+      "avg_days_to_refund_request": "82.61",
+      "total_refund_requests": 3
+    },
+    {
+      "reason": "defective",
+      "avg_days_to_refund_request": "37.09",
+      "total_refund_requests": 9
+    },
+    {
+      "reason": "damaged_shipping",
+      "avg_days_to_refund_request": "8.71",
+      "total_refund_requests": 7
+    }
+  ],
+  "tool_calls": null,
+  "retrieved_chunks": null,
+  "prompt_version": "67509ca",
+  "judge_verdict": null,
+  "human_reviewed_verdict": null,
+  "latency_ms": 3399,
+  "input_tokens": 1450,
+  "output_tokens": 200,
+  "estimated_cost_usd": 0.00735,
+  "failed_checks": [
+    "expected row missing:\n      {\"reason\": \"changed_mind\", \"avg_days\": 77.32}",
+    "unexpected actual row:\n      {\"reason\": \"changed_mind\", \"avg_days_to_refund_request\": \"82.61\", \"total_refund_requests\": 3}",
+    "expected row missing:\n      {\"reason\": \"defective\", \"avg_days\": 35.33}",
+    "unexpected actual row:\n      {\"reason\": \"defective\", \"avg_days_to_refund_request\": \"37.09\", \"total_refund_requests\": 9}",
+    "expected row missing:\n      {\"reason\": \"wrong_item\", \"avg_days\": 236.97}",
+    "unexpected actual row:\n      {\"reason\": \"wrong_item\", \"avg_days_to_refund_request\": \"252.82\", \"total_refund_requests\": 1}"
+  ],
+  "taxonomy_label": null,
+  "secondary_observations": [],
+  "review_note": null
+}

@@ -1,0 +1,135 @@
+{
+  "case_id": "mixed-07-wrong-item-window-compliance",
+  "category": "mixed",
+  "input": "Charlotte Dubois filed a refund for her Wireless Keyboard 236 days after she placed the order, citing that she received the wrong item, and it was approved. Does that comply with our return-window policy?",
+  "expected": {
+    "expected_sql_used": true,
+    "expected_rag_used": true,
+    "key_points": [
+      "confirms the 236-day gap and reason='wrong_item' from the real refunds/order_items/orders rows for this refund",
+      "correctly concludes the approval complies with policy because rule 5 (wrong_item) has no time limit, rather than flagging the 236-day gap as a violation of the 30-day standard window or the 90-day defective window"
+    ]
+  },
+  "actual_answer": "The database returned three refund records for Charlotte Dubois involving a Wireless Keyboard. The one matching your description \u2014 a \"wrong item\" reason, approved, filed approximately 236 days after the order \u2014 corresponds most closely to the record with **252 days** elapsed (order date 2025-11-07, refund requested 2026-07-17). The 236-day figure you cited falls between two records, but the wrong-item refund at 252 days is the clear match on reason code and general timeframe.\n\n**Policy compliance: Yes, this refund is compliant.**\n\nUnder **rule 5** of the refund policy, refunds filed under the `wrong_item` reason code carry **no time limit**, because the shipping error is the company's responsibility rather than the customer's. At 252 days (or 236 as cited), the timing is irrelevant \u2014 the refund is permissible regardless of how long after the order it was filed.\n\n---\n\n**One flag worth noting, however:** The policy database shows `evidence_submitted = false` on this refund. Depending on whether your policy requires customers to submit evidence (e.g., a photo of the wrong item received) for `wrong_item` claims, that may warrant a follow-up review. I'd recommend searching the policy or checking with your team on whether evidence is mandatory for this reason code before fully closing the case.",
+  "response_status": "complete",
+  "generated_sql": null,
+  "returned_rows": null,
+  "tool_calls": [
+    {
+      "tool_name": "search_policy",
+      "input": {
+        "query": "return window refund eligibility deadline wrong item received"
+      },
+      "output": [
+        {
+          "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+          "similarity": 0.7350994664312045,
+          "source_doc": "refund_policy.md",
+          "rule_number": 2
+        },
+        {
+          "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+          "similarity": 0.7063910540109257,
+          "source_doc": "refund_policy.md",
+          "rule_number": 5
+        },
+        {
+          "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+          "similarity": 0.6907312046609873,
+          "source_doc": "refund_policy.md",
+          "rule_number": 1
+        }
+      ],
+      "latency_ms": 125,
+      "sequence": 0
+    },
+    {
+      "tool_name": "run_sql_query",
+      "input": {
+        "query": "SELECT c.name AS customer_name, p.name AS product_name, o.order_date, r.requested_at, r.reason, r.status, r.amount_cents, r.evidence_submitted, EXTRACT(DAY FROM r.requested_at - o.order_date) AS days_since_order FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id JOIN refunds r ON r.order_item_id = oi.id WHERE c.name = 'Charlotte Dubois' AND p.name = 'Wireless Keyboard'",
+        "intent": "Find the refund record for Charlotte Dubois's Wireless Keyboard order, including days between order and refund request."
+      },
+      "output": {
+        "rows": [
+          {
+            "reason": "defective",
+            "status": "approved",
+            "order_date": "2025-11-02T00:00:00Z",
+            "amount_cents": 3999,
+            "product_name": "Wireless Keyboard",
+            "requested_at": "2026-08-06T19:37:58.727648Z",
+            "customer_name": "Charlotte Dubois",
+            "days_since_order": "277",
+            "evidence_submitted": false
+          },
+          {
+            "reason": "wrong_item",
+            "status": "approved",
+            "order_date": "2025-11-07T00:00:00Z",
+            "amount_cents": 3999,
+            "product_name": "Wireless Keyboard",
+            "requested_at": "2026-07-17T19:37:58.727648Z",
+            "customer_name": "Charlotte Dubois",
+            "days_since_order": "252",
+            "evidence_submitted": false
+          },
+          {
+            "reason": "changed_mind",
+            "status": "approved",
+            "order_date": "2025-11-12T00:00:00Z",
+            "amount_cents": 3999,
+            "product_name": "Wireless Keyboard",
+            "requested_at": "2026-06-22T19:37:58.727648Z",
+            "customer_name": "Charlotte Dubois",
+            "days_since_order": "222",
+            "evidence_submitted": false
+          }
+        ],
+        "cached": false,
+        "status": "success",
+        "row_count": 3,
+        "truncated": false,
+        "sql_executed": "SELECT c.name AS customer_name, p.name AS product_name, o.order_date, r.requested_at, r.reason, r.status, r.amount_cents, r.evidence_submitted, EXTRACT(DAY FROM r.requested_at - o.order_date) AS days_since_order FROM customers AS c JOIN orders AS o ON o.customer_id = c.id JOIN order_items AS oi ON oi.order_id = o.id JOIN products AS p ON p.id = oi.product_id JOIN refunds AS r ON r.order_item_id = oi.id WHERE c.name = 'Charlotte Dubois' AND p.name = 'Wireless Keyboard' LIMIT 500",
+        "estimated_cost": 23.8,
+        "prompt_version": null,
+        "rejection_reason": null,
+        "execution_time_ms": 3
+      },
+      "latency_ms": 15,
+      "sequence": 1
+    }
+  ],
+  "retrieved_chunks": [
+    {
+      "content": "Defective Items\n\nItems returned under the `defective` reason code may be refunded up to 90 days from the purchase date. The 90-day window for a `defective` refund applies regardless of the standard 30-day return window, and takes precedence over the standard 30-day return window when the two conflict.",
+      "similarity": 0.7350994664312045,
+      "source_doc": "refund_policy.md",
+      "rule_number": 2
+    },
+    {
+      "content": "Wrong Item Shipped\n\nItems returned under the `wrong_item` reason code have no time limit for return. There is no time limit for a `wrong_item` refund because the shipping error is the company's responsibility, not the customer's.",
+      "similarity": 0.7063910540109257,
+      "source_doc": "refund_policy.md",
+      "rule_number": 5
+    },
+    {
+      "content": "Standard Return Window\n\nItems may be returned within 30 days of the purchase date for any reason. Refunds issued under the standard return window are refunded to the original payment method used for the purchase.",
+      "similarity": 0.6907312046609873,
+      "source_doc": "refund_policy.md",
+      "rule_number": 1
+    }
+  ],
+  "prompt_version": "67509ca",
+  "judge_verdict": "fail",
+  "human_reviewed_verdict": "pass",
+  "latency_ms": 13823,
+  "input_tokens": 4295,
+  "output_tokens": 634,
+  "estimated_cost_usd": 0.022395,
+  "failed_checks": [
+    "key points missed: [1] \u2014 The answer correctly identifies rule 5 (wrong_item has no time limit) and concludes the refund complies with policy, covering point 2. However, for point 1, the answer does not confirm the 236-day gap from the actual database rows; instead it disputes the 236-day figure, claiming the actual elapsed time is 252 days and suggesting the 236-day figure cited in the question may be inaccurate. This means the answer fails to confirm the 236-day gap and reason='wrong_item' as stated in the actual refund record."
+  ],
+  "taxonomy_label": null,
+  "secondary_observations": [],
+  "review_note": null
+}
