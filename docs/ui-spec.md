@@ -72,7 +72,14 @@ The UI is a portfolio surface for the Ops Intelligence Agent. Its job is to make
     | explanation (why the answer says what it says) | draft/confirm ticket lifecycle (`draft_support_ticket` creates a draft in memory, and a second call, `confirm_support_ticket`, under its own permission, writes it to the database) |
     | | groundedness check (`check_groundedness` matches cited rule numbers and titles against the chunks retrieved for that answer) |
 
-  **Part 3 — Deliberately not built.** *(next)*
+  **Part 3 — Deliberately not built.** Every one of these is a tool I know how to use. Each one stayed out for a specific reason.
+
+  - **Multi-agent decomposition.** A Planner and a Data Analyst module already exist, tested and working. No endpoint routes a live request through them, because the measured workflow never turned up a problem only a third agent could fix. Every additional agent is more latency, and one more thing that can break.
+  - **A workflow framework (LangGraph or similar).** The orchestration today is one direct call to the Anthropic SDK, with a single bounded retry. It's small enough to read start to finish in one sitting. A framework migration would change the plumbing, and leave every failure the evals have found exactly where it is.
+  - **A vector database migration, or a reranker.** The policy corpus holds 21 chunks in Postgres, through pgvector. That's the whole search space. One real retrieval problem turned up during evals, and calibrating the relevance threshold per embedding provider traced it and mostly fixed it.
+  - **Production OAuth or a full identity system.** Every request carries a demo role through a header. The docs call it that, plainly, right on the page. Real authentication would prove a skill this project already shows somewhere else.
+  - **A second agentic investigation workflow.** The error analysis after the first eval run pointed somewhere else: a write-refusal bug, and eval categories too small to trust yet. Those won, so the Report Writer stage never got built, the piece that would have turned the Planner and Data Analyst's findings into a real answer. Both modules still only run from tests.
+  - **More UI surface.** The interface has one job: put real evidence in front of a reader. An admin dashboard or a settings page would turn it into something else, a full operations product, which was never the goal here.
 
   **Part 4 — Decision links.** *(next)*
 
