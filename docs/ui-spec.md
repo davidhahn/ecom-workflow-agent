@@ -81,7 +81,13 @@ The UI is a portfolio surface for the Ops Intelligence Agent. Its job is to make
   - **A second agentic investigation workflow.** The error analysis after the first eval run pointed somewhere else: a write-refusal bug, and eval categories too small to trust yet. Those won, so the Report Writer stage never got built, the piece that would have turned the Planner and Data Analyst's findings into a real answer. Both modules still only run from tests.
   - **More UI surface.** The interface has one job: put real evidence in front of a reader. An admin dashboard or a settings page would turn it into something else, a full operations product, which was never the goal here.
 
-  **Part 4 — Decision links.** *(next)*
+  **Part 4 — Decision links.** Five entries from `DECISIONS.md`, picked for what each one reveals about how a call got made.
+
+  - **Why SQL safety runs on four separate layers** (`DECISIONS.md` #5). A mistake that slips past one check has three more chances to get caught.
+  - **Where the groundedness check still lets a lie through** (`DECISIONS.md` #32). It checks whether a rule number showed up in what got retrieved, and stops there, so a wrong claim attached to a real number slips past clean.
+  - **A judge grading itself, caught before it ran** (`DECISIONS.md` #41). The judge and the app under test read the same model env var, so swapping the model under test would have swapped the judge too.
+  - **Haiku was cheaper, and it stayed on the bench** (`DECISIONS.md` #44). It matched Sonnet almost everywhere, and lost the cases that carry the real cost: refund totals, compliance verdicts.
+  - **The pipeline that works and has nowhere to run** (`DECISIONS.md` #45). Error analysis pointed at bugs in the measured core first, and a third agent lost to that ranking.
 
 - **Data:** Static content: a committed SVG, and prose written from `ARCHITECTURE.md` and the enforcement code (`app/query/validation.py`, `app/query/service.py`, `app/permissions.py`, `app/orchestrator/refund_evaluator.py`, `app/tickets/service.py`, `app/orchestrator/groundedness.py`). Nothing is fetched at runtime.
 - **States:** None. The page is static, and it follows the same fail-loudly rule as Evidence: a missing asset breaks the build.
