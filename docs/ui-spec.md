@@ -13,15 +13,15 @@ The UI is a portfolio surface for the Ops Intelligence Agent. Its job is to make
 ### 1. Scenario Demo (`/`, built) — primary landing page
 - **Job:** Prove the architecture in one screen, without requiring the viewer to think of a question themselves.
 - **Story:** As a recruiter, I want to run a curated scenario and see the actual result next to the behavior that was promised up front, so I can judge for myself whether the claim holds, in under a minute.
-- **Components:** A static, hand-curated `SCENARIOS` array (`lib/scenarios.ts`) — no authoring UI. Five `ScenarioCard`s (data analysis, policy retrieval, refund approval, ambiguous refund refusal, injection attempt), each: name, one-sentence business context, a boxed "expected behavior" statement, a "Run scenario" button, and a result panel once run. Below the cards, a free-form refund request box (folded in from the former standalone Refunds page) for a viewer who wants to try their own input against the same deterministic gate.
+- **Components:** A static, hand-curated `SCENARIOS` array (`lib/scenarios.ts`) — no authoring UI. Five `ScenarioCard`s (data analysis, policy retrieval, refund approval, ambiguous refund refusal, injection attempt), each: name, one-sentence business context, an "expected behavior" statement collapsed behind a native `<details>` (it opens automatically once a result exists, which is the moment the promise can be compared against what happened), a "Run scenario" button, and a result panel once run. Below the cards, collapsed behind its own `<details>`: a free-form refund request box (folded in from the former standalone Refunds page) for a viewer who wants to try their own input against the same deterministic gate.
 - **Data:** `AnalyzeResponse` from `POST /api/query/analyze` (data-analysis and policy-retrieval cards) or `RefundEvaluateResponse` from `POST /api/refund/evaluate` (the other three cards, plus the free-form box). Result rendering is shared via `AnalyzeResult`/`RefundResult` components, also reused by `/ask` and the free-form box respectively.
-- **States:** Idle: card shows only the setup (name/context/expected/button), no placeholder result. Loading: button reads "Running…", disabled. Error: red panel with message; 429 shows retry-after. Success: badge row + answer (analyze) or status badge + rule + reasoning + extracted fields (refund), plus a "View execution trace" link.
+- **States:** Idle: card shows only the setup (name, context, the collapsed expected-behavior row, button), no placeholder result. Loading: button reads "Running…", disabled. Error: red panel with message; 429 shows retry-after. Success: badge row + answer (analyze) or status badge + rule + reasoning + extracted fields (refund), plus a "View execution trace" link.
 - **Navigation:** Each result's trace link goes to `/activity/{request_log_id}`. No other navigation on this page.
 
 ### 2. Ask (`/ask`, moved, secondary)
 - **Job:** Demonstrate free-form, open-ended querying — for a viewer who wants to go beyond the curated scenarios.
 - **Story:** As a hiring manager, I want to ask my own question and see the same gating and attribution the curated cards show, so I can confirm the behavior isn't cherry-picked.
-- **Components:** `ExampleChip` row, textarea + submit, `AnalyzeResult` (badge row, warning panels, `Markdown` answer, sources, trace link).
+- **Components:** Textarea + submit first, then an `ExampleChip` row collapsed behind a `<details>` ("Not sure what to ask? Try an example") below the form. The textarea's placeholder already shows one inline example, so the chips can wait for a second click. `AnalyzeResult` (badge row, warning panels, `Markdown` answer, sources, trace link).
 - **Data:** `AnalyzeResponse` from `POST /api/query/analyze`. Rate-limit headers.
 - **States:** Same as Scenario Demo's analyze path — loading/error/idle handled identically since both use `AnalyzeResult`.
 - **Navigation:** Demoted out of the primary nav position (was `/`, now `/ask`, second tab). Reachable from `NavHeader` on every page.
@@ -29,26 +29,26 @@ The UI is a portfolio surface for the Ops Intelligence Agent. Its job is to make
 ### 3. Activity (`/activity`, unchanged)
 - **Job:** Prove observability exists: every request is logged with latency, tokens, cost, and gate outcomes.
 - **Story:** As a hiring manager, I want to scan recent requests and pick one worth inspecting, using cost and groundedness at a glance.
-- **Components:** Table (time, type, latency, tokens, cost, grounded `Badge`, cached `Badge`), inline expandable trace per row (existing behavior, left as-is — not replaced by the new per-id route below).
+- **Components:** Table (time, type, latency, cost, grounded `Badge`, cached `Badge`). Every row links to that request's Execution Trace page. The time cell carries the real anchor for keyboard and middle-click, and the whole row is clickable for everyone else. The old inline per-row expansion is gone: it only ever covered `analyze` rows, and the per-id page shows the same trace with more context. Token counts moved off this table to the per-id page too. The story here is "pick a request worth inspecting, using cost and groundedness at a glance," and tokens belong to the inspection.
 - **Data:** `RequestLogRow[]` from `GET /api/observability/requests`.
 - **States:** Loading: single "Loading…" line. Error: red panel with the failed path and status. Empty: "No requests logged yet."
-- **Navigation:** Unchanged.
+- **Navigation:** Every row opens `/activity/{id}`.
 
 ### 4. Execution Trace (`/activity/[id]`, built)
 - **Job:** Reconstruct one request end to end on a single screen, addressable by a direct link.
 - **Story:** As a hiring manager, I want to inspect one request and determine which tools ran, what evidence was used, which guardrails executed, and what the request cost, without searching through logs or source code.
-- **Components:** Header (question, time, latency, tokens, cost, retry count), `Badge` row for gate outcomes (request type, grounded, cached), `ToolCallTrace` (sequenced calls with latency split between tools and LLM), retrieved RAG chunks (`rag_chunks_retrieved`) via `JsonPreview`, final output via `JsonPreview`.
-- **Data:** `RequestLogDetailRow` from `GET /api/observability/requests/{id}` — the same endpoint Activity's inline expansion already used.
+- **Components:** Header (question, time, latency, tokens, cost, retry count), `Badge` row for gate outcomes (request type, grounded, cached), `ToolCallTrace` (sequenced calls with latency split between tools and LLM), and one collapsed "Raw request log data" `<details>` holding both the retrieved RAG chunks (`rag_chunks_retrieved`) and the final output, each via `JsonPreview`.
+- **Data:** `RequestLogDetailRow` from `GET /api/observability/requests/{id}`.
 - **States:** Loading: "Loading trace…". Error: red panel (a 404 renders here; the "← Back to Activity" link above the heading is always present regardless of state, so a bad id never strands the viewer). Empty: `tool_calls` null or empty renders "No tool calls made for this request" (handled inside `ToolCallTrace`).
-- **Navigation:** Back link to Activity. Linked from every Scenario Demo card result, from `/ask`, and from the free-form refund box.
+- **Navigation:** Back link to Activity. Linked from every Scenario Demo card result, from `/ask`, from the free-form refund box, and from every Activity row.
 - **Backend dependency, resolved:** `AnalyzeResponse`/`RefundEvaluateResponse` didn't expose their own `request_log` row's id. Added `request_log_id: uuid.UUID` to both schemas — see `DECISIONS.md` #54 for the full reasoning (in particular, why the analyze cache-hit path needed an explicit id override).
 
 ### 5. Evaluation Lab (`/evaluation-lab`, proposed, not yet built)
-- **Job:** Show a reader the real eval numbers, where they came from, and what they still don't cover.
-- **Story:** As a recruiter, I want one screen with the headline pass rates. As a hiring manager, I want the case counts, the environment behind each number, and the calibration work underneath.
+- **Job:** Show a reader the real eval numbers and where each one came from.
+- **Story:** As a recruiter, I want one screen with the headline pass rates. As a hiring manager, I want the case counts and the environment behind each number, plus the calibration work underneath.
 - **Components:** A headline pass-rate stat and a one-line environment strip (model, judge, dataset version, commit, cache flag, run id) read from the latest committed `experiment.json`. A per-category table read from that same run's `results.json`, one row per category with `n`, pass/fail, and the pass rate the file already computed. The recruiter's read ends there. Below the table, collapsed by default behind native `<details>`: a fuller run-details block (the same environment fields plus skipped categories and cases), then the six committed eval reports in order (`frozen_suite.md`, `primary_results.md`, `experiment_history.md`, `measurement_context.md`, `findings.md`, `methodology.md`), each with a one-line hook on its collapsed row so a hiring manager can pick what to expand.
-- **Data:** `evals/results/20260822-201944/results.json` and its sibling `experiment.json`, plus the six `evals/*.md` files, all read server-side at render time (`apps/web/src/lib/evals.ts`). Every number on the page is a field already computed in a committed file. Nothing gets fetched, and nothing gets recalculated against a different denominator on the way in.
-- **States:** Loading: none, the page is static. Error: none at runtime — a missing or malformed source file throws during `next build`, so a bad artifact fails the build instead of rendering a wrong page.
+- **Data:** `evals/results/20260822-201944/results.json` and its sibling `experiment.json`, plus the six `evals/*.md` files, all read server-side at render time (`apps/web/src/lib/evals.ts`). Every number on the page is a field already computed in a committed file, displayed with its original denominator intact.
+- **States:** Loading: none, the page is static. Error: none at runtime. A missing or malformed source file throws during `next build`, so a bad artifact fails the build before it can render a wrong page.
 - **Navigation:** New "Evaluation Lab" tab in `NavHeader`.
 
 ### 6. Architecture (`/architecture`, proposed, not yet built)

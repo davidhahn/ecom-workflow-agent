@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-// apps/web is two levels under the repo root (see next.config.ts's
-// turbopack.root, which locates the same place the same way).
+// apps/web sits two levels under the repo root. next.config.ts's
+// turbopack.root points at the same place.
 const REPO_ROOT = path.resolve(process.cwd(), "..", "..");
 const RESULTS_DIR = path.join(REPO_ROOT, "evals", "results", "20260822-201944");
 

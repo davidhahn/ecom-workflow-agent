@@ -55,10 +55,17 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{scenario.businessContext}</p>
       </div>
 
-      <div className="rounded-md border border-dashed border-black/15 p-3 text-xs dark:border-white/15">
-        <p className="font-medium text-gray-700 dark:text-gray-300">Expected behavior</p>
-        <p className="mt-1 text-gray-500 dark:text-gray-400">{scenario.expectedBehavior}</p>
-      </div>
+      {/* Collapsed until a result exists. The promise matters most once
+          there is a result to compare it against. */}
+      <details
+        open={state.status === "success" || undefined}
+        className="rounded-md border border-dashed border-black/15 text-xs dark:border-white/15"
+      >
+        <summary className="cursor-pointer select-none px-3 py-2 font-medium text-gray-700 dark:text-gray-300">
+          Expected behavior
+        </summary>
+        <p className="px-3 pb-2 text-gray-500 dark:text-gray-400">{scenario.expectedBehavior}</p>
+      </details>
 
       <button
         type="button"

@@ -33,8 +33,8 @@ describe("Evaluation Lab page", () => {
 
     for (const category of results.categories) {
       // Short category names like "sql" or "rag" also appear inside the
-      // rendered report prose below the table, so more than one match is
-      // expected — this only confirms the table row exists, not uniqueness.
+      // rendered report prose below the table. This check confirms the
+      // table row exists and accepts extra matches.
       expect(screen.getAllByText(category.category).length).toBeGreaterThan(0);
     }
   });

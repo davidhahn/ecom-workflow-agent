@@ -11,11 +11,11 @@ const REPORT_SUMMARIES: Record<string, { title: string; hook: string }> = {
   },
   "primary_results.md": {
     title: "Primary results",
-    hook: "Baseline against current, category by category, with sources for every number.",
+    hook: "Baseline against current, with a source for every number.",
   },
   "experiment_history.md": {
     title: "Experiment history",
-    hook: "Each change, what the measurement showed, and the decision that followed.",
+    hook: "One row per change: the measured effect, then the decision it led to.",
   },
   "measurement_context.md": {
     title: "Measurement context",
@@ -27,7 +27,7 @@ const REPORT_SUMMARIES: Record<string, { title: string; hook: string }> = {
   },
   "methodology.md": {
     title: "Methodology",
-    hook: "How the numbers were made, their limits, and the command that reproduces them.",
+    hook: "How the numbers were made, and the command that reproduces them.",
   },
 };
 
@@ -48,8 +48,8 @@ export default function EvaluationLabPage() {
           </span>
         </p>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Every number on this page reads from one committed eval run and the reports written from
-          it. Nothing is typed in by hand.
+          Every number on this page comes from one committed eval run and the reports written from
+          it.
         </p>
         <p className="mt-3 font-mono text-xs text-gray-500 dark:text-gray-400">
           {experiment.application_model} · judge {experiment.judge_model} · dataset{" "}
@@ -93,8 +93,8 @@ export default function EvaluationLabPage() {
         </table>
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           One run each, from <code>evals/results/{results.timestamp}</code>. The Primary Results
-          report below draws on repeated runs for some categories — see its sourcing notes before
-          comparing a number here against a number there.
+          report below draws on repeated runs for some categories, so check its sourcing notes
+          before comparing a number here against a number there.
         </p>
       </div>
 

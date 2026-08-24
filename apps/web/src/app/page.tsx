@@ -47,9 +47,7 @@ export default function ScenarioDemoPage() {
       <div>
         <h1 className="text-xl font-semibold">Scenario demo</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Five curated requests exercise the agent&apos;s SQL and policy-retrieval tool paths and its
-          deterministic refund gate, including how it refuses and how it holds up against
-          adversarial input. Run any of them to see the actual result and the execution trace
+          Run any of these five curated requests to see the real result and the execution trace
           behind it.
         </p>
       </div>
@@ -60,16 +58,16 @@ export default function ScenarioDemoPage() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-black/10 pt-6 dark:border-white/10">
-        <div>
-          <h2 className="text-base font-semibold">Try your own refund request</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Same refund evaluator as above, free-form. Evaluates a decision only — it never writes
+      <details className="border-t border-black/10 pt-6 dark:border-white/10">
+        <summary className="cursor-pointer select-none">
+          <h2 className="inline text-base font-semibold">Try your own refund request</h2>
+          <span className="mt-0.5 block text-sm text-gray-500 dark:text-gray-400">
+            Same refund evaluator as above, free-form. It evaluates a decision and writes nothing
             to the refunds table.
-          </p>
-        </div>
+          </span>
+        </summary>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-3">
           <textarea
             value={requestText}
             onChange={(e) => setRequestText(e.target.value)}
@@ -94,13 +92,17 @@ export default function ScenarioDemoPage() {
         </form>
 
         {state.status === "error" && (
-          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <div className="mt-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
             {state.message}
           </div>
         )}
 
-        {state.status === "success" && <RefundResult result={state.result} />}
-      </div>
+        {state.status === "success" && (
+          <div className="mt-3">
+            <RefundResult result={state.result} />
+          </div>
+        )}
+      </details>
     </div>
   );
 }

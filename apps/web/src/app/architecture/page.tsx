@@ -93,7 +93,7 @@ export default function ArchitecturePage() {
       <div>
         <h1 className="text-xl font-semibold">Architecture</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          What the model decides, what the code decides, and why.
+          How decisions split between the model and the code, and why.
         </p>
       </div>
 

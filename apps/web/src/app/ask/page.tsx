@@ -58,12 +58,6 @@ export default function AskPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {EXAMPLE_QUESTIONS.map((example) => (
-          <ExampleChip key={example} label={example} onClick={() => setQuestion(example)} />
-        ))}
-      </div>
-
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <textarea
           value={question}
@@ -87,6 +81,17 @@ export default function AskPage() {
           )}
         </div>
       </form>
+
+      <details>
+        <summary className="cursor-pointer select-none text-sm text-gray-500 dark:text-gray-400">
+          Not sure what to ask? Try an example
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {EXAMPLE_QUESTIONS.map((example) => (
+            <ExampleChip key={example} label={example} onClick={() => setQuestion(example)} />
+          ))}
+        </div>
+      </details>
 
       {state.status === "error" && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">

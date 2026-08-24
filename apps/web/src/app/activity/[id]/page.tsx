@@ -282,17 +282,27 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
         </div>
       </div>
 
-      {detail.rag_chunks_retrieved !== null && (
-        <div>
-          <p className="mb-2 text-sm font-medium">Raw request log data: retrieved policy chunks</p>
-          <JsonPreview value={detail.rag_chunks_retrieved} />
+      <details className="rounded-md border border-black/10 dark:border-white/10">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+          Raw request log data
+        </summary>
+        <div className="flex flex-col gap-4 border-t border-black/10 px-4 py-3 dark:border-white/10">
+          {detail.rag_chunks_retrieved !== null && (
+            <div>
+              <p className="mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                Retrieved policy chunks
+              </p>
+              <JsonPreview value={detail.rag_chunks_retrieved} />
+            </div>
+          )}
+          <div>
+            <p className="mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+              Final output
+            </p>
+            <JsonPreview value={detail.output} />
+          </div>
         </div>
-      )}
-
-      <div>
-        <p className="mb-2 text-sm font-medium">Raw request log data: final output</p>
-        <JsonPreview value={detail.output} />
-      </div>
+      </details>
     </div>
   );
 }
