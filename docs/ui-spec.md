@@ -43,20 +43,20 @@ The UI is a portfolio surface for the Ops Intelligence Agent. Its job is to make
 - **Navigation:** Back link to Activity. Linked from every Scenario Demo card result, from `/ask`, and from the free-form refund box.
 - **Backend dependency, resolved:** `AnalyzeResponse`/`RefundEvaluateResponse` didn't expose their own `request_log` row's id. Added `request_log_id: uuid.UUID` to both schemas — see `DECISIONS.md` #54 for the full reasoning (in particular, why the analyze cache-hit path needed an explicit id override).
 
-### 5. Evidence (`/evidence`, proposed, not yet built)
-- **Job:** Present eval results as proof, not as claims.
-- **Story:** As a recruiter, I want one screen stating what was measured and the headline numbers; as a hiring manager, I want the case counts, calibration method, and known failure modes behind them.
-- **Components:** Short intro (`Markdown`), summary stat rows (case count, pass rate, groundedness calibration figures), then rendered report sections sourced from the committed eval reports (`evals/*.md`).
-- **Data:** Build-time imports of committed eval artifacts. No fetch, no backend, no analytics infrastructure. Numbers update only when a new eval run is committed; state the run date on the page.
-- **States:** Loading: none (static). Error: none at runtime; a missing artifact fails the build, which is the fail-loudly behavior we want. Empty: not applicable while artifacts are committed.
-- **Navigation:** New "Evidence" tab in `NavHeader`. Deep links from the intro to the trace of a real logged request where one exists.
+### 5. Evaluation Lab (`/evaluation-lab`, proposed, not yet built)
+- **Job:** Show a reader the real eval numbers, where they came from, and what they still don't cover.
+- **Story:** As a recruiter, I want one screen with the headline pass rates. As a hiring manager, I want the case counts, the environment behind each number, and the calibration work underneath.
+- **Components:** A headline pass-rate stat and a one-line environment strip (model, judge, dataset version, commit, cache flag, run id) read from the latest committed `experiment.json`. A per-category table read from that same run's `results.json`, one row per category with `n`, pass/fail, and the pass rate the file already computed. The recruiter's read ends there. Below the table, collapsed by default behind native `<details>`: a fuller run-details block (the same environment fields plus skipped categories and cases), then the six committed eval reports in order (`frozen_suite.md`, `primary_results.md`, `experiment_history.md`, `measurement_context.md`, `findings.md`, `methodology.md`), each with a one-line hook on its collapsed row so a hiring manager can pick what to expand.
+- **Data:** `evals/results/20260822-201944/results.json` and its sibling `experiment.json`, plus the six `evals/*.md` files, all read server-side at render time (`apps/web/src/lib/evals.ts`). Every number on the page is a field already computed in a committed file. Nothing gets fetched, and nothing gets recalculated against a different denominator on the way in.
+- **States:** Loading: none, the page is static. Error: none at runtime — a missing or malformed source file throws during `next build`, so a bad artifact fails the build instead of rendering a wrong page.
+- **Navigation:** New "Evaluation Lab" tab in `NavHeader`.
 
 ### 6. Architecture (`/architecture`, proposed, not yet built)
 - **Job:** Show what the model decides and what the code decides, and say why, without a tour of the repo.
 - **Story:** As a hiring manager, I want to understand which responsibilities belong to the model, which are enforced deterministically, and why the system was designed this way, without reading the entire repository.
 - **Components:**
 
-  **Part 1 — Architecture diagram.** `docs/img/architecture.svg`. The README reuses the same file.
+  **Part 1 — Architecture diagram.** `docs/img/architecture-diagram.svg`. The README reuses the same file.
 
   Flow, top to bottom: user request, agent/orchestrator loop, SQL tool or Policy/RAG tool, one deterministic enforcement seam, final response. The seam holds two chains side by side: the SQL chain (generated SQL, AST allowlist, cost gate, readonly DB role, audit) and the refund/actions chain (request, deterministic waterfall, draft, confirm, permission). A trace log branches off the orchestrator, the seam, and the final response.
 
@@ -72,7 +72,7 @@ The UI is a portfolio surface for the Ops Intelligence Agent. Its job is to make
     | explanation (why the answer says what it says) | draft/confirm ticket lifecycle (`draft_support_ticket` creates a draft in memory, and a second call, `confirm_support_ticket`, under its own permission, writes it to the database) |
     | | groundedness check (`check_groundedness` matches cited rule numbers and titles against the chunks retrieved for that answer) |
 
-  **Part 3 — Deliberately not built.** Every one of these is a tool I know how to use. Each one stayed out for a specific reason.
+  **Part 3 — Deliberately not built.** Every one of these is a tool I know how to use. Each one stayed out for a specific reason. On the page, each entry's title stays visible and its reasoning sits behind a native `<details>`, so the list scans in six lines.
 
   - **Multi-agent decomposition.** A Planner and a Data Analyst module already exist, tested and working. No endpoint routes a live request through them, because the measured workflow never turned up a problem only a third agent could fix. Every additional agent is more latency, and one more thing that can break.
   - **A workflow framework (LangGraph or similar).** The orchestration today is one direct call to the Anthropic SDK, with a single bounded retry. It's small enough to read start to finish in one sitting. A framework migration would change the plumbing, and leave every failure the evals have found exactly where it is.

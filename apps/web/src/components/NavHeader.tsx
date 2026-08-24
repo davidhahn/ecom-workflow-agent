@@ -7,6 +7,8 @@ const TABS = [
   { href: "/", label: "Scenarios" },
   { href: "/ask", label: "Ask" },
   { href: "/activity", label: "Activity" },
+  { href: "/evaluation-lab", label: "Evaluation Lab" },
+  { href: "/architecture", label: "Architecture" },
 ];
 
 export function NavHeader() {
