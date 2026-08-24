@@ -1,4 +1,4 @@
-"""Tests for the shared-secret check between apps/web/middleware.ts and this
+"""Tests for the shared-secret check between apps/web/src/middleware.ts and this
 backend (app/proxy_secret.py). Uses TestClient against the real app, same
 as test_permissions.py — exercises the actual middleware wiring in
 app/main.py, not a reimplementation of it.

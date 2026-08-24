@@ -97,7 +97,7 @@ This runs `openapi-typescript http://localhost:8000/openapi.json -o src/generate
 
 ### Shared proxy secret (`INTERNAL_PROXY_SECRET`)
 
-Every request the backend receives except `GET /health` must carry an `X-Internal-Proxy-Secret` header matching `INTERNAL_PROXY_SECRET` exactly, checked by `apps/api/app/proxy_secret.py` — anything missing or mismatched gets a `403`. `apps/web/middleware.ts` is the only thing that's supposed to know this value; it reads it from its own server-side `INTERNAL_PROXY_SECRET` env var (never `NEXT_PUBLIC_`-prefixed, never sent to the browser) and injects the header on every `/api/*` request it proxies to the backend. CORS (`apps/api/app/main.py`) is a second, independent layer restricting which browser origins can call the API at all — neither substitutes for the other.
+Every request the backend receives except `GET /health` must carry an `X-Internal-Proxy-Secret` header matching `INTERNAL_PROXY_SECRET` exactly, checked by `apps/api/app/proxy_secret.py` — anything missing or mismatched gets a `403`. `apps/web/src/middleware.ts` is the only thing that's supposed to know this value; it reads it from its own server-side `INTERNAL_PROXY_SECRET` env var (never `NEXT_PUBLIC_`-prefixed, never sent to the browser) and injects the header on every `/api/*` request it proxies to the backend. CORS (`apps/api/app/main.py`) is a second, independent layer restricting which browser origins can call the API at all — neither substitutes for the other.
 
 This means the **same secret value must be set manually in two places** after first deploy, and they must match byte-for-byte:
 - Render: `ecom-ops-api` service → **Environment** → `INTERNAL_PROXY_SECRET`

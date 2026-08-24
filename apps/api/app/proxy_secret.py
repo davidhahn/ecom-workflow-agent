@@ -1,5 +1,5 @@
 """Shared-secret check between the Next.js Edge Middleware proxy
-(apps/web/middleware.ts) and this backend. The deployed FastAPI URL has no
+(apps/web/src/middleware.ts) and this backend. The deployed FastAPI URL has no
 other authentication in front of it, so this is what actually stands
 between that URL and anyone who finds it — implemented as blanket ASGI
 middleware (checked on every request) rather than a per-route dependency
