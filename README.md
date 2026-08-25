@@ -1,6 +1,6 @@
 # ecom-workflow-agent
 
-An operations agent for an eCommerce business, built around one idea: Claude only proposes what to do. A separate Python layer decides if that proposal gets to run, and an eval suite checks whether any of it works.
+This operations agent for an eCommerce business exists to answer one question: what happens when the model gets something wrong, and how would you know? The model interprets the request, and deterministic code decides what to do next, checking whether its claims hold up against what it retrieved or computed. I run it against an eval suite built from known answers, and I've broken the live system on purpose more than once, just to watch how it fails.
 
 **[Live demo](https://ecom-workflow-agent-web.vercel.app/)** · [Evals & defects found](EVALS.md) · [Architecture decisions](ARCHITECTURE.md) · [Full decision log](DECISIONS.md) · [Setup & deployment](docs/DEPLOY.md) · [Blog series](https://blog.davidhahn.co/)
 
@@ -9,53 +9,13 @@ An operations agent for an eCommerce business, built around one idea: Claude onl
 <!-- TODO: record a 20-30s GIF: run a scenario, watch the badges, click into the trace -->
 ![Demo](docs/demo.gif)
 
-## 1. What is this project?
+## 2. Architecture
 
-An ops team asks two kinds of questions day to day. Some can only be answered by querying real data, like the refund rate for Electronics. Others come down to reading a policy document, like what has to happen before a damaged-shipping refund gets approved. This project handles both through one interface, and adds a third capability: turning a free-text refund request into an approve or deny decision, with the policy rule behind it named.
+![Architecture diagram: a user request flows through the agent loop into the SQL tool or the RAG tool, through a deterministic enforcement seam, to a final response and request log.](docs/img/architecture-diagram.svg)
 
-The real goal is proving an LLM can sit inside a business workflow that involves money and policy, without being trusted to make the final call. Every answer the system gives traces back to something checkable: a real database row, a retrieved policy passage, or a rule the code enforces no matter what the model says.
+> The LLM interprets requests and proposes actions. Deterministic layers independently enforce SQL safety, permissions, refund policy, approval boundaries, and auditing.
 
-I built this as a portfolio project, for roles that put LLMs in front of real operational decisions. What matters most is what happens when the system gets something wrong, and how you'd know.
-
-## 2. How does it work?
-
-```mermaid
-flowchart TD
-    Q[User question] --> LOOP["Agent loop<br/>Claude reads the request, picks tools,<br/>drafts SQL, writes the final explanation"]
-    R[Refund request] --> EXT["Extraction<br/>Claude pulls fields from free text"]
-    LOOP --> SQLT["SQL tool<br/>candidate query"]
-    LOOP --> RAGT["RAG tool<br/>policy retrieval"]
-
-    subgraph SEAM["Deterministic enforcement seam · code decides, model judgment ends here"]
-        direction TB
-        AST[AST allowlist] --> COST[Cost gate] --> ROLE[Read-only DB role] --> AUDIT[Audit log]
-        GROUND["Groundedness + topic-coverage<br/>checks (heuristic match)"]
-        WATER[Refund rule waterfall] --> APPR["Approval boundaries<br/>draft / confirm + permissions"]
-    end
-
-    SQLT --> AST
-    RAGT --> GROUND
-    EXT --> WATER
-    AUDIT --> ANS[Final response]
-    GROUND --> ANS
-    APPR --> ANS
-    ANS --> LOG[("Request log<br/>tool calls · guardrail outcomes · latency ·<br/>tokens · cost · retries · final status")]
-```
-
-The horizontal band is the load-bearing idea. Claude does all its work above it: reading the request, choosing tools, drafting candidate SQL, interpreting retrieved policy, writing the final explanation. Everything below it runs as plain code, on decisions where correctness shouldn't depend on how persuasive a model output sounds: which SQL executes, what a query may cost, what the database role permits, how a refund gets decided, who can confirm a write.
-
-Every execution also feeds the request log at the bottom. Each request records its tool calls, guardrail outcomes, latency, token usage, dollar cost, retry state, and final status, and the live Activity page renders all of it.
-
-Eight pieces make this work, each doing one job:
-
-- **Orchestrator:** the tool-calling loop that lets Claude pick SQL, policy search, both, or neither. It hands off to whichever gate applies, and never touches the database or the index directly.
-- **SQL path:** turns a question into a query, then checks it against an allowlist, a cost limit, and a restricted database role before it runs.
-- **RAG path:** retrieves policy passages by similarity. If nothing clears the relevance bar, it says "I don't know," rather than falling back to the closest match.
-- **Semantic correctness layer:** checks whether the final answer's claims are backed by what got retrieved or computed, catching a confident-sounding answer with nothing real behind it.
-- **Refund evaluator:** a fixed rule waterfall over real order data, with zero model calls in the decision itself, so it can't invent a threshold the policy doesn't have.
-- **Permission gate:** role-based access on the single-tool endpoints (SQL, policy search, tickets, invoices). The read/write split is what matters.
-- **Investigation pipeline:** gathers evidence for open-ended questions like "why did revenue drop." It's built and tested, but not wired to an endpoint yet.
-- **Eval harness:** the offline suite that scores every path above against real expected answers, and the reason every other claim on this page is checkable.
+[See the full breakdown of what's enforced and why →](https://ecom-workflow-agent-web.vercel.app/architecture)
 
 ## 3. Key design decisions
 
