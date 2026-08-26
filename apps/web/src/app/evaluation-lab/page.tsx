@@ -144,7 +144,7 @@ export default function EvaluationLabPage() {
         </div>
       </details>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <div>
           <h2 className="text-lg font-semibold">Reports</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -156,18 +156,18 @@ export default function EvaluationLabPage() {
           return (
             <details
               key={report.name}
-              className="rounded-md border border-black/10 dark:border-white/10"
+              className="overflow-hidden rounded-md border border-black/10 dark:border-white/10"
             >
-              <summary className="cursor-pointer select-none px-4 py-3">
-                <span className="text-sm font-medium">{summary.title}</span>
+              <summary className="cursor-pointer select-none px-5 py-4">
+                <span className="text-base font-medium">{summary.title}</span>
                 <span className="ml-2 font-mono text-xs text-gray-400 dark:text-gray-500">
                   evals/{report.name}
                 </span>
-                <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
                   {summary.hook}
                 </span>
               </summary>
-              <div className="border-t border-black/10 px-4 py-4 dark:border-white/10">
+              <div className="border-t border-black/10 bg-black/[0.015] px-5 py-6 dark:border-white/10 dark:bg-white/[0.02]">
                 <Markdown content={report.content} />
               </div>
             </details>

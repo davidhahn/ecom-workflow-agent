@@ -16,7 +16,7 @@ export function NavHeader() {
 
   return (
     <header className="border-b border-black/10 dark:border-white/10">
-      <div className="mx-auto flex max-w-3xl items-center gap-6 px-4 py-3">
+      <div className="mx-auto flex max-w-4xl items-center gap-6 px-4 py-3">
         <span className="font-semibold">Ops Intelligence Agent</span>
         <nav className="flex gap-4">
           {TABS.map((tab) => {

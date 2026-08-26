@@ -9,7 +9,7 @@ const CASE_STUDY_URL: string | null = null;
 export function IntroBanner() {
   return (
     <div className="border-b border-black/10 bg-black/[0.03] px-4 py-2 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
-      <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-3 gap-y-1">
         <span>
           A demo AI ops agent for an eCommerce business, ask questions, evaluate refunds, see the
           full decision trace.

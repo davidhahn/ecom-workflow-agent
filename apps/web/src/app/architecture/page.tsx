@@ -103,7 +103,7 @@ export default function ArchitecturePage() {
         <ExpandableImage
           src="/architecture-diagram.svg"
           alt="Request flow: user request through the agent/orchestrator loop, into the SQL tool or the Policy/RAG tool, through a deterministic enforcement seam, to a final response, with a trace log recording every stage."
-          className="mx-auto w-full max-w-3xl rounded-md border border-black/10 dark:border-white/10"
+          className="mx-auto w-full max-w-4xl rounded-md border border-black/10 dark:border-white/10"
         />
         <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
           Click to enlarge.
