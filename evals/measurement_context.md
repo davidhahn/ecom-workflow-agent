@@ -1,14 +1,16 @@
 # Measurement Context
 
-A metric depends partly on how the system was set up when it ran. Change the embedding provider, and the same query can rank a different chunk first. This project already lived through that. The strips below name the setup behind every result in `primary_results.md` and `experiment_history.md`, so nobody has to guess which environment a number came from.
+A single number, like "92% pass rate," doesn't mean much on its own. It depends on which model answered the questions, which embedding provider searched the policy documents, and which version of the case file was used. Change any of those and the same query can behave differently, which is exactly what happened once in this project. Each block below records that exact setup for one specific result, so nobody reading `primary_results.md` or `experiment_history.md` has to guess which environment a number came from.
 
 ## The gap this project already hit
 
-Almost every "current" number so far ran locally: today's live rerun, the ablation study, the model comparison. Local embeddings, threshold 0.46. Production runs Voyage, threshold 0.48.
+Almost every "current" number in this project's reports ran locally: today's live rerun, the ablation study, the model comparison. All of them used the local embedding model, at a 0.46 relevance threshold. Production runs a different, hosted provider instead, called Voyage, at a 0.48 threshold.
 
-One real case shows these aren't interchangeable. The query `"damaged shipments policy"` ranks the correct policy chunk 2nd locally, distance 0.4191, well inside the 0.46 cutoff. Under Voyage, the same query and corpus rank that chunk 4th, distance 0.6101, outside any threshold that would still make sense. Nothing about the question changed. The embedding space did.
+One real case shows these aren't interchangeable. The query `"damaged shipments policy"` ranks the correct policy chunk 2nd locally, distance 0.4191, well inside the 0.46 cutoff. Under Voyage, the same query and corpus rank that chunk 4th, distance 0.6101, outside any threshold that would still make sense. The query and the corpus stayed exactly the same. Only the embedding provider was different, and that alone moved the correct chunk from a safe 2nd place to an unusable 4th.
 
 ## Result sets
+
+Each block below is one experiment's full configuration, everything that could affect its numbers, recorded together so a reader can check whether two results are comparable before treating them as such.
 
 **Today's live rerun** (`refund_evaluator`, `groundedness`, `topic_coverage`, `resilience` current, `mixed` current)
 
@@ -74,4 +76,4 @@ Relevance threshold: 0.48
 
 ## What to do with this
 
-Read a "current" number next to its strip. A 100% measured locally is a claim about the local configuration. It says nothing about Voyage until someone checks. `primary_results.md`'s `rag` row is exactly that kind of claim, real and still unverified against what production runs today.
+Always read a "current" number next to its configuration strip. A 100% pass rate measured locally is a claim about the local setup only. Whether it holds under Voyage is a separate question until someone checks. The `rag` row in `primary_results.md` is exactly that kind of claim: real, and still unverified against what production runs today.
