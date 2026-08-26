@@ -82,9 +82,11 @@ export default function EvaluationLabPage() {
                 <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{c.what_it_tests}</td>
                 <td className="py-2 pr-4">
                   {!c.comparison_ready && (
-                    <Badge tone="neutral">
-                      regression check (n&lt;{results.comparison_readiness.threshold_n})
-                    </Badge>
+                    <span title="This category has too few cases to trust as a percentage. See the note below the table.">
+                      <Badge tone="neutral">
+                        too few cases to compare (n&lt;{results.comparison_readiness.threshold_n})
+                      </Badge>
+                    </span>
                   )}
                 </td>
               </tr>
@@ -96,6 +98,9 @@ export default function EvaluationLabPage() {
           report below draws on repeated runs for some categories, so check its sourcing notes
           before comparing a number here against a number there.
         </p>
+        <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <Markdown content={results.comparison_readiness.note} />
+        </div>
       </div>
 
       <details className="rounded-md border border-black/10 dark:border-white/10">

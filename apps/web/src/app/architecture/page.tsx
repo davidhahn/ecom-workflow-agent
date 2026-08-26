@@ -1,3 +1,5 @@
+import { ExpandableImage } from "@/components/ExpandableImage";
+
 const RESPONSIBILITY_ROWS: { llm: string; enforced: string }[] = [
   { llm: "tool selection", enforced: "tool permissions (`require_permission` checks the calling role before any tool runs)" },
   {
@@ -98,12 +100,14 @@ export default function ArchitecturePage() {
       </div>
 
       <section>
-        {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimization needed */}
-        <img
+        <ExpandableImage
           src="/architecture-diagram.svg"
           alt="Request flow: user request through the agent/orchestrator loop, into the SQL tool or the Policy/RAG tool, through a deterministic enforcement seam, to a final response, with a trace log recording every stage."
-          className="mx-auto w-full max-w-2xl rounded-md border border-black/10 dark:border-white/10"
+          className="mx-auto w-full max-w-3xl rounded-md border border-black/10 dark:border-white/10"
         />
+        <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
+          Click to enlarge.
+        </p>
       </section>
 
       <section>
