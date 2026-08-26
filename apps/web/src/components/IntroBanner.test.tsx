@@ -15,11 +15,11 @@ vi.mock("@/lib/api", async () => {
 
 const BANNER_TEXT = /a demo ai ops agent for an ecommerce business/i;
 
-// This is what layout.tsx actually composes around {children} for every
-// route — reproduced here (rather than rendering the real RootLayout,
-// whose root JSX is <html>/<body>, awkward to mount directly under
-// RTL's container) so the test proves the banner sits *outside* and
-// alongside distinct page content, not baked into any one page.
+// This is what layout.tsx composes around {children} for every route,
+// reproduced here (mounting the real RootLayout is awkward under RTL's
+// container, since its root JSX is <html>/<body>) so the test proves the
+// banner sits *outside* and alongside distinct page content, not baked
+// into any one page.
 function renderRoute(page: React.ReactNode) {
   return render(
     <RoleProvider>

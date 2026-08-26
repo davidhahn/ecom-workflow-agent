@@ -44,7 +44,7 @@ describe("ScenarioCard", () => {
     expect(screen.getByRole("heading", { name: analyzeScenario.name })).toBeInTheDocument();
     expect(screen.getByText(analyzeScenario.businessContext)).toBeInTheDocument();
     expect(screen.getByText(analyzeScenario.expectedBehavior)).toBeInTheDocument();
-    // No result yet — nothing claiming an outcome before the scenario runs.
+    // No result yet. Nothing should claim an outcome before the scenario runs.
     expect(screen.queryByRole("link", { name: "View execution trace" })).not.toBeInTheDocument();
   });
 

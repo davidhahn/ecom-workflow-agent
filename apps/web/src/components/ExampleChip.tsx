@@ -1,5 +1,5 @@
 // type="button" is load-bearing: these render inside a <form>, and a
-// <button> without an explicit type defaults to type="submit" — which
+// <button> without an explicit type defaults to type="submit", which
 // would auto-submit the form on click. Examples only populate a field;
 // the user still has to press the real submit button themselves.
 export function ExampleChip({ label, onClick }: { label: string; onClick: () => void }) {

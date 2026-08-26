@@ -14,7 +14,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 // Best-effort "what did this request end in" label, generic across every
-// request_type — including ones the current UI never links to (sql, rag,
+// request_type, including ones the current UI never links to (sql, rag,
 // ticket_*, invoice_*), reachable only by a direct /activity/[id] URL.
 export function deriveConcreteStatus(detail: RequestLogDetailRow): string {
   const out = asRecord(detail.output);
@@ -22,7 +22,7 @@ export function deriveConcreteStatus(detail: RequestLogDetailRow): string {
 
   // refund_evaluate and sql both return a literal `status` string already
   // shaped for display (approved/denied/.../could_not_process, or
-  // success/rejected/error) — reuse it verbatim rather than reformatting.
+  // success/rejected/error). Reuse it verbatim, don't reformat it.
   if (typeof out.status === "string") return out.status;
 
   if (detail.request_type === "analyze") {
@@ -90,8 +90,8 @@ export type ReliabilityOutcome = { label: string; tone: BadgeTone };
 // already derived above.
 export function deriveReliabilityOutcome(detail: RequestLogDetailRow): ReliabilityOutcome {
   const status = deriveConcreteStatus(detail);
-  if (status === "could_not_process") return { label: "Refused — could not process", tone: "neutral" };
-  if (status === "rejected") return { label: "Refused — validation rejected", tone: "neutral" };
+  if (status === "could_not_process") return { label: "Refused: could not process", tone: "neutral" };
+  if (status === "rejected") return { label: "Refused: validation rejected", tone: "neutral" };
   if (status === "incomplete") return { label: "Incomplete", tone: "warning" };
   if (status === "error") return { label: "Failed", tone: "danger" };
   const retried = (detail.retry_count ?? 0) > 0;
@@ -114,7 +114,7 @@ export function deriveGuardrails(detail: RequestLogDetailRow): GuardrailField[] 
     fields.push({
       label: "Permission",
       caption: "Code checks the requesting role against the tool's required permission before the model ever runs.",
-      value: `Denied — role lacks '${String(out.required_permission ?? "?")}' permission`,
+      value: `Denied: role lacks '${String(out.required_permission ?? "?")}' permission`,
       tone: "danger",
     });
     return fields;
@@ -149,13 +149,13 @@ export function deriveGuardrails(detail: RequestLogDetailRow): GuardrailField[] 
       fields.push({
         label: "Approval required",
         caption: "The refund rule engine routes anything above its dollar threshold to a manager, no exceptions.",
-        value: `Manager approval — rule ${String(out.rule_applied ?? "?")}`,
+        value: `Manager approval: rule ${String(out.rule_applied ?? "?")}`,
         tone: "warning",
       });
     } else if (out.status === "flagged_for_review") {
       fields.push({
         label: "Flagged for review",
-        caption: "The refund rule engine flagged this pattern for manual review instead of deciding on its own.",
+        caption: "The refund rule engine flagged this pattern for manual review. It didn't decide on its own.",
         value: `rule ${String(out.rule_applied ?? "?")}`,
         tone: "warning",
       });
@@ -164,7 +164,7 @@ export function deriveGuardrails(detail: RequestLogDetailRow): GuardrailField[] 
 
   if (detail.request_type === "sql" && out.status === "rejected") {
     // Which of the 4 safety layers rejected it lives in query_audit_log's
-    // layer_outcomes, not in this response — see module comment.
+    // layer_outcomes, not in this response. See the module comment above.
     fields.push({
       label: "SQL validation",
       caption: "The deterministic SQL safety layer rejected this query before it ever reached the database.",

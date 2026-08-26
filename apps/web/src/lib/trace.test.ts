@@ -128,12 +128,12 @@ describe("deriveReliabilityOutcome", () => {
   it("labels a refund refusal as refused, not failed", () => {
     expect(
       deriveReliabilityOutcome(detail({ request_type: "refund_evaluate", output: { status: "could_not_process" } }))
-    ).toEqual({ label: "Refused — could not process", tone: "neutral" });
+    ).toEqual({ label: "Refused: could not process", tone: "neutral" });
   });
 
   it("labels a rejected SQL query as refused", () => {
     expect(deriveReliabilityOutcome(detail({ request_type: "sql", output: { status: "rejected" } }))).toEqual({
-      label: "Refused — validation rejected",
+      label: "Refused: validation rejected",
       tone: "neutral",
     });
   });
@@ -190,7 +190,7 @@ describe("deriveGuardrails", () => {
       {
         label: "Permission",
         caption: "Code checks the requesting role against the tool's required permission before the model ever runs.",
-        value: "Denied — role lacks 'write' permission",
+        value: "Denied: role lacks 'write' permission",
         tone: "danger",
       },
     ]);
@@ -248,7 +248,7 @@ describe("deriveGuardrails", () => {
       {
         label: "Approval required",
         caption: "The refund rule engine routes anything above its dollar threshold to a manager, no exceptions.",
-        value: "Manager approval — rule 6",
+        value: "Manager approval: rule 6",
         tone: "warning",
       },
     ]);
@@ -347,7 +347,7 @@ describe("ragToolSummary", () => {
 
   it("returns an empty array (not null) when nothing cleared the relevance threshold", () => {
     // Real shape from apps/api/app/rag/service.py when nothing matches:
-    // {message: "..."} — an object, not an array. This must stay
+    // {message: "..."}, an object, not an array. This must stay
     // distinguishable from "not a RAG call at all" (null).
     expect(ragToolSummary(toolCall({ tool_name: "search_policy", output: { message: "no relevant evidence" } }))).toEqual(
       []

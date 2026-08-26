@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// Backend base URL — same variable next.config.ts's rewrite used to read.
+// Backend base URL. Same variable next.config.ts's rewrite used to read.
 // Public because the default (localhost:8000) is dev-only and the deployed
 // value isn't secret; what must stay server-side is the header below.
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -13,7 +13,7 @@ const INTERNAL_PROXY_SECRET = process.env.INTERNAL_PROXY_SECRET;
 export function middleware(request: NextRequest) {
   if (!INTERNAL_PROXY_SECRET) {
     throw new Error(
-      "INTERNAL_PROXY_SECRET is not set — required to proxy /api requests to the backend."
+      "INTERNAL_PROXY_SECRET is not set. It's required to proxy /api requests to the backend."
     );
   }
 

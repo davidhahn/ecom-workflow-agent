@@ -5,7 +5,7 @@ import { useState } from "react";
 const TRUNCATE_AT = 80;
 
 // Click-to-expand raw JSON, used for tool-call input/output in the activity
-// trace view — those payloads range from a one-line query object to a full
+// trace view. Those payloads range from a one-line query object to a full
 // RAG chunk list, too wide to always show inline in a table cell.
 export function JsonPreview({ value }: { value: unknown }) {
   const [expanded, setExpanded] = useState(false);

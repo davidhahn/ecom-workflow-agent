@@ -207,7 +207,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                         {rag.map((chunk, i) => (
                           <li key={i}>
                             {chunk.sourceDoc}
-                            {chunk.ruleNumber !== null ? ` — rule ${chunk.ruleNumber}` : ""}
+                            {chunk.ruleNumber !== null ? ` (rule ${chunk.ruleNumber})` : ""}
                             {chunk.similarity !== null ? ` (similarity ${chunk.similarity.toFixed(3)})` : ""}
                           </li>
                         ))}

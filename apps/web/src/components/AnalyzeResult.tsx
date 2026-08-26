@@ -3,7 +3,7 @@ import type { AnalyzeResponse } from "@/lib/api";
 import { Badge } from "@/components/Badge";
 import { Markdown } from "@/components/Markdown";
 
-// Shared between the Ask page and analyze-type ScenarioCards — same
+// Shared between the Ask page and analyze-type ScenarioCards: same
 // response shape, same rendering.
 export function AnalyzeResult({ result }: { result: AnalyzeResponse }) {
   if (result.incomplete) {
@@ -34,8 +34,8 @@ export function AnalyzeResult({ result }: { result: AnalyzeResponse }) {
         <div className="flex flex-col gap-1 rounded-md border-2 border-red-400 bg-red-50 p-4 text-sm text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
           <p className="font-semibold">This response contains an unverified claim</p>
           <p>
-            At least one cited policy rule wasn&apos;t among what was actually retrieved for this
-            request. The answer is still shown below — treat it with caution until this is checked.
+            At least one cited policy rule wasn&apos;t among what was retrieved for this
+            request. The answer is still shown below. Treat it with caution until this is checked.
           </p>
           {result.ungrounded_claims.length > 0 && (
             <ul className="mt-1 list-disc pl-4">
@@ -52,7 +52,7 @@ export function AnalyzeResult({ result }: { result: AnalyzeResponse }) {
           <p className="font-semibold">This response may reference unavailable data</p>
           <p>
             This response may reference shipment/delivery data not available to the current
-            toolset. The answer is still shown below — treat it with caution until this is checked.
+            toolset. The answer is still shown below. Treat it with caution until this is checked.
           </p>
         </div>
       )}
@@ -66,7 +66,7 @@ export function AnalyzeResult({ result }: { result: AnalyzeResponse }) {
             {result.sources.map((source, i) => (
               <li key={i}>
                 {source.source_doc}
-                {source.rule_number !== null ? ` — rule ${source.rule_number}` : ""}
+                {source.rule_number !== null ? ` (rule ${source.rule_number})` : ""}
               </li>
             ))}
           </ul>

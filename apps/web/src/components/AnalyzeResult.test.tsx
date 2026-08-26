@@ -27,7 +27,7 @@ describe("AnalyzeResult", () => {
     expect(link).toHaveAttribute("href", "/activity/abc-123");
   });
 
-  it("renders the answer and reflects which tool paths actually ran", () => {
+  it("renders the answer and reflects which tool paths ran", () => {
     render(<AnalyzeResult result={baseResult({ sql_used: true, rag_used: false })} />);
 
     expect(screen.getByText(/highest refund rate/i)).toBeInTheDocument();

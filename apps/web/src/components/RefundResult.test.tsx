@@ -44,7 +44,7 @@ describe("RefundResult", () => {
     );
 
     expect(screen.getByText("could_not_process")).toBeInTheDocument();
-    // No rule number applies to a refusal — nothing invented in its place.
+    // No rule number applies to a refusal. Nothing gets invented in its place.
     expect(screen.queryByText(/^rule /)).not.toBeInTheDocument();
     expect(screen.getByText(/could not identify which customer/i)).toBeInTheDocument();
     // A null extracted field renders as an explicit placeholder, not "null"

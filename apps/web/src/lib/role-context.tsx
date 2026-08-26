@@ -15,7 +15,7 @@ type RoleContextValue = {
 
 const RoleContext = createContext<RoleContextValue | null>(null);
 
-// Client-side-only, per-session demo mechanic — no persistence across page
+// Client-side-only, per-session demo mechanic. No persistence across page
 // reloads, no real auth. Resets to DEFAULT_ROLE on every page load.
 export function RoleProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<DemoRole>(DEFAULT_ROLE);

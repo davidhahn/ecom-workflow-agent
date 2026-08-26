@@ -62,7 +62,7 @@ describe("Execution Trace page", () => {
 
     await waitFor(() => expect(screen.getByText(/failed \(404\): not found/)).toBeInTheDocument());
     // A bad id must never strand the viewer with no way back. The link must
-    // name its own destination — "Activity" alone told a reviewer nothing.
+    // name its own destination. "Activity" alone told a reviewer nothing.
     expect(screen.getByRole("link", { name: /back to the full request log/i })).toBeInTheDocument();
   });
 
@@ -88,17 +88,17 @@ describe("Execution Trace page", () => {
     expect(screen.getByText(/no guardrail checks apply/i)).toBeInTheDocument();
     expect(screen.getByText("no token usage")).toBeInTheDocument();
     expect(screen.getByText("not cached")).toBeInTheDocument();
-    // retry_count is null, not 0 — the "N retries" line must not appear at
-    // all rather than rendering a misleading "null retries".
+    // retry_count is null, not 0. The "N retries" line must not appear at
+    // all. Rendering a misleading "null retries" would be worse.
     expect(screen.queryByText(/retr(y|ies)/)).not.toBeInTheDocument();
-    // No RAG data at all for this request type — the raw-chunks section
-    // must not render an empty/misleading block.
+    // No RAG data at all for this request type. The raw-chunks section
+    // must not render an empty or misleading block.
     expect(screen.queryByText(/retrieved policy chunks/i)).not.toBeInTheDocument();
   });
 
   it("does not claim a guardrail ran when the trace data can't support that claim", async () => {
-    // sql/rag/ticket_* rows carry no grounded/topic-coverage signal at all —
-    // the guardrails section must say so plainly, not show empty badges.
+    // sql/rag/ticket_* rows carry no grounded/topic-coverage signal at all.
+    // The guardrails section must say so plainly, not show empty badges.
     vi.mocked(getRequestLog).mockResolvedValue(
       baseDetail({ request_type: "sql", output: { status: "success", sql_executed: "SELECT 1" } })
     );
@@ -125,7 +125,7 @@ describe("Execution Trace page", () => {
         `/#${scenario.id}`
       )
     );
-    // Only one back-link when the origin is known — the generic "full
+    // Only one back-link when the origin is known. The generic "full
     // request log" link would be redundant next to a link that already
     // says exactly where this came from.
     expect(screen.queryByRole("link", { name: /back to the full request log/i })).not.toBeInTheDocument();

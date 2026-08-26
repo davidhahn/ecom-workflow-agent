@@ -10,7 +10,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   could_not_process: "neutral",
 };
 
-// Shared between the free-form refund box and refund-type ScenarioCards —
+// Shared between the free-form refund box and refund-type ScenarioCards:
 // same response shape, same rendering.
 export function RefundResult({ result }: { result: RefundEvaluateResponse }) {
   return (
