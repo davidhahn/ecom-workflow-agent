@@ -41,7 +41,9 @@ describe("IntroBanner renders app-level, not page-local", () => {
     renderRoute(<ScenarioDemoPage />);
 
     expect(screen.getByText(BANNER_TEXT)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Scenario demo" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /an ops agent that shows its work/i })
+    ).toBeInTheDocument();
   });
 
   it("includes a GitHub link", () => {
