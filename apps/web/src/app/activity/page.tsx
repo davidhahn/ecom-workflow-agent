@@ -34,10 +34,10 @@ export default function ActivityPage() {
   }, [role]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold">Activity</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+    <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold">Activity</h1>
+        <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           Most recent requests across all endpoints. Any row opens that request&apos;s execution
           trace.
         </p>
@@ -62,12 +62,12 @@ export default function ActivityPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-black/10 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                <th className="py-2 pr-4 font-medium">Time</th>
-                <th className="py-2 pr-4 font-medium">Type</th>
-                <th className="py-2 pr-4 font-medium">Latency</th>
-                <th className="py-2 pr-4 font-medium">Cost</th>
-                <th className="py-2 pr-4 font-medium">Grounded</th>
-                <th className="py-2 pr-4 font-medium">Cached</th>
+                <th className="py-3 pr-4 font-medium">Time</th>
+                <th className="py-3 pr-4 font-medium">Type</th>
+                <th className="py-3 pr-4 font-medium">Latency</th>
+                <th className="py-3 pr-4 font-medium">Cost</th>
+                <th className="py-3 pr-4 font-medium">Grounded</th>
+                <th className="py-3 pr-4 font-medium">Cached</th>
               </tr>
             </thead>
             <tbody>
@@ -77,7 +77,7 @@ export default function ActivityPage() {
                   onClick={() => router.push(`/activity/${row.id}`)}
                   className="cursor-pointer border-b border-black/5 hover:bg-black/[0.03] dark:border-white/5 dark:hover:bg-white/[0.03]"
                 >
-                  <td className="py-2 pr-4 whitespace-nowrap">
+                  <td className="py-3 pr-4 whitespace-nowrap">
                     {/* This link is the row's real anchor, so keyboard and
                         middle-click work. Mouse clicks land on the row's
                         onClick, and stopPropagation keeps one click from
@@ -90,14 +90,14 @@ export default function ActivityPage() {
                       {new Date(row.created_at).toLocaleString()}
                     </Link>
                   </td>
-                  <td className="py-2 pr-4">{row.request_type}</td>
-                  <td className="py-2 pr-4">{row.latency_ms} ms</td>
-                  <td className="py-2 pr-4">
+                  <td className="py-3 pr-4">{row.request_type}</td>
+                  <td className="py-3 pr-4">{row.latency_ms} ms</td>
+                  <td className="py-3 pr-4">
                     {row.estimated_cost_usd !== null
                       ? `$${row.estimated_cost_usd.toFixed(4)}`
                       : "—"}
                   </td>
-                  <td className="py-2 pr-4">
+                  <td className="py-3 pr-4">
                     {row.grounded === null ? (
                       "—"
                     ) : (
@@ -106,7 +106,7 @@ export default function ActivityPage() {
                       </Badge>
                     )}
                   </td>
-                  <td className="py-2 pr-4">
+                  <td className="py-3 pr-4">
                     {row.cached && <Badge tone="neutral">cached</Badge>}
                   </td>
                 </tr>

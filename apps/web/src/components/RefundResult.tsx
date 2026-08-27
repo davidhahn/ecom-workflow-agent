@@ -14,7 +14,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 // same response shape, same rendering.
 export function RefundResult({ result }: { result: RefundEvaluateResponse }) {
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-black/10 p-4 dark:border-white/10">
+    <div className="flex flex-col gap-5 rounded-md border border-black/10 p-6 dark:border-white/10">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={STATUS_TONE[result.status] ?? "neutral"}>{result.status}</Badge>
         {result.rule_applied !== null && (
@@ -22,7 +22,7 @@ export function RefundResult({ result }: { result: RefundEvaluateResponse }) {
         )}
       </div>
 
-      <p className="text-sm">{result.reasoning}</p>
+      <p className="max-w-prose text-base leading-relaxed">{result.reasoning}</p>
 
       {Object.keys(result.extracted_fields).length > 0 && (
         <div className="text-xs text-gray-500 dark:text-gray-400">

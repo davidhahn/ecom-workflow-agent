@@ -49,8 +49,8 @@ export default function ExecutionTracePage() {
     state.status === "success" ? SCENARIOS.find((s) => s.input === state.detail.input) : undefined;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-2">
         {sourceScenario ? (
           <Link
             href={`/#${sourceScenario.id}`}
@@ -66,8 +66,8 @@ export default function ExecutionTracePage() {
             ← Back to the full request log
           </Link>
         )}
-        <h1 className="mt-1 text-xl font-semibold">Execution trace</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-2xl font-semibold">Execution trace</h1>
+        <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           What happened when this request ran, step by step. Steps labeled{" "}
           <span className="font-medium text-foreground">Model</span> were decided by Claude. Steps
           labeled <span className="font-medium text-foreground">Code</span> ran as fixed logic.
@@ -107,18 +107,18 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
       : reliability.tone;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       {detail.cached && (
-        <div className="rounded-md border-2 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="max-w-prose rounded-md border-2 border-amber-400 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
           Served from cache. This trace is the original request that produced this answer. Claude and
           the tools below ran once, the first time this question was asked.
         </div>
       )}
 
       {/* Request summary */}
-      <div className="rounded-md border border-black/10 p-4 dark:border-white/10">
-        <p className="text-sm font-medium">{detail.input}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <div className="rounded-md border border-black/10 p-6 dark:border-white/10">
+        <p className="max-w-prose text-base font-medium">{detail.input}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
           <Badge tone="neutral">{detail.request_type}</Badge>
           <Badge tone="neutral">{new Date(detail.created_at).toLocaleString()}</Badge>
           <Badge tone={statusTone}>{concreteStatus}</Badge>
@@ -128,7 +128,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {/* Workflow progress */}
       <div>
-        <p className="mb-2 text-sm font-medium">Workflow progress</p>
+        <p className="mb-3 text-base font-medium">Workflow progress</p>
         <div className="flex flex-wrap items-center gap-2">
           {phases.map((phase, i) => (
             <span key={phase.label} className="flex items-center gap-2">
@@ -141,11 +141,11 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {/* Tool calls */}
       <div>
-        <p className="mb-2 text-sm font-medium">Tool calls</p>
+        <p className="mb-3 text-base font-medium">Tool calls</p>
         <ToolCallTrace toolCalls={toolCalls} totalLatencyMs={detail.latency_ms} llmLatencyMs={detail.llm_latency_ms} />
 
         {toolCalls.length > 0 && (
-          <div className="mt-3 flex flex-col gap-2">
+          <div className="mt-4 flex flex-col gap-3">
             {toolCalls.map((call) => {
               const sql = sqlToolSummary(call);
               const rag = ragToolSummary(call);
@@ -153,7 +153,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                 return (
                   <div
                     key={call.sequence}
-                    className="rounded-md border border-black/10 p-3 text-xs dark:border-white/10"
+                    className="rounded-md border border-black/10 p-4 text-xs dark:border-white/10"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium text-gray-700 dark:text-gray-300">
@@ -191,7 +191,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                 return (
                   <div
                     key={call.sequence}
-                    className="rounded-md border border-black/10 p-3 text-xs dark:border-white/10"
+                    className="rounded-md border border-black/10 p-4 text-xs dark:border-white/10"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium text-gray-700 dark:text-gray-300">
@@ -228,15 +228,15 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {/* Guardrail outcomes */}
       <div>
-        <p className="mb-2 text-sm font-medium">Guardrail outcomes</p>
+        <p className="mb-3 text-base font-medium">Guardrail outcomes</p>
         {guardrails.length === 0 ? (
           <p className="text-xs text-gray-500 dark:text-gray-400">
             No guardrail checks apply to this request type.
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {guardrails.map((field) => (
-              <div key={field.label} className="flex flex-col gap-0.5 text-xs">
+              <div key={field.label} className="flex flex-col gap-1 text-xs">
                 <div className="flex flex-wrap items-baseline gap-2">
                   <Badge tone={field.tone}>{field.label}</Badge>
                   <span className="text-gray-600 dark:text-gray-400">{field.value}</span>
@@ -250,11 +250,11 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {/* Reliability and operational data */}
       <div>
-        <p className="mb-2 text-sm font-medium">Reliability &amp; operational data</p>
+        <p className="mb-3 text-base font-medium">Reliability &amp; operational data</p>
         <div className="flex flex-wrap gap-2">
           <Badge tone={reliability.tone}>{reliability.label}</Badge>
         </div>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <span>{latency.totalMs} ms total</span>
           {latency.llmMs !== null ? (
             <>

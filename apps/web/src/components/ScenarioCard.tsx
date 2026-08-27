@@ -48,23 +48,24 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
   return (
     <div
       id={scenario.id}
-      className="flex flex-col gap-4 rounded-md border border-black/10 p-4 scroll-mt-20 dark:border-white/10"
+      className="flex flex-col gap-5 rounded-md border border-black/10 p-6 scroll-mt-20 dark:border-white/10"
     >
       <div>
-        <h2 className="text-base font-semibold">{scenario.name}</h2>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{scenario.businessContext}</p>
+        <h2 className="text-lg font-semibold">{scenario.name}</h2>
+        <p className="mt-2 max-w-prose text-base text-gray-600 dark:text-gray-300">
+          {scenario.businessContext}
+        </p>
       </div>
 
       {/* Collapsed until a result exists. The promise matters most once
           there is a result to compare it against. */}
-      <details
-        open={state.status === "success" || undefined}
-        className="rounded-md border border-dashed border-black/15 text-xs dark:border-white/15"
-      >
-        <summary className="cursor-pointer select-none px-3 py-2 font-medium text-gray-700 dark:text-gray-300">
+      <details open={state.status === "success" || undefined} className="rounded-md bg-black/[0.02] dark:bg-white/[0.03]">
+        <summary className="cursor-pointer select-none px-4 py-3 text-xs font-medium text-gray-700 dark:text-gray-300">
           Expected behavior
         </summary>
-        <p className="px-3 pb-2 text-gray-500 dark:text-gray-400">{scenario.expectedBehavior}</p>
+        <p className="max-w-prose px-4 pb-3 text-sm text-gray-500 dark:text-gray-400">
+          {scenario.expectedBehavior}
+        </p>
       </details>
 
       <button

@@ -49,10 +49,10 @@ export default function AskPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold">Ask</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+    <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold">Ask</h1>
+        <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           Ask a question over ops data (SQL) and/or refund policy (RAG). The agent decides which
           tools it needs.
         </p>
@@ -64,7 +64,7 @@ export default function AskPage() {
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="e.g. What is the refund rate for Electronics this quarter?"
           rows={3}
-          className="w-full rounded-md border border-black/15 bg-transparent p-3 text-sm outline-none focus:border-black/40 dark:border-white/15 dark:focus:border-white/40"
+          className="w-full rounded-md border border-black/15 bg-transparent p-4 text-sm outline-none focus:border-black/40 dark:border-white/15 dark:focus:border-white/40"
         />
         <div className="flex items-center gap-3">
           <button

@@ -91,10 +91,10 @@ const DECISIONS_URL = "https://github.com/davidhahn/ecom-workflow-agent/blob/mai
 
 export default function ArchitecturePage() {
   return (
-    <div className="flex flex-col gap-10">
-      <div>
-        <h1 className="text-xl font-semibold">Architecture</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+    <div className="flex flex-col gap-14">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold">Architecture</h1>
+        <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           How decisions split between the model and the code, and why.
         </p>
       </div>
@@ -111,8 +111,8 @@ export default function ArchitecturePage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Responsibility split</h2>
-        <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
+        <h2 className="mb-4 text-xl font-semibold">Responsibility split</h2>
+        <p className="mb-5 max-w-prose text-base text-gray-600 dark:text-gray-300">
           One question: what decisions does this system delegate to probabilistic behavior? The
           model handles the parts that need flexibility, like reading free text, writing SQL, and
           interpreting policy language. Every row on the right is a real constraint. It runs
@@ -122,15 +122,15 @@ export default function ArchitecturePage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-black/10 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                <th className="py-2 pr-4 font-medium">LLM proposes / interprets</th>
-                <th className="py-2 pr-4 font-medium">Deterministic systems enforce</th>
+                <th className="py-3 pr-4 font-medium">LLM proposes / interprets</th>
+                <th className="py-3 pr-4 font-medium">Deterministic systems enforce</th>
               </tr>
             </thead>
             <tbody>
               {RESPONSIBILITY_ROWS.map((row, i) => (
                 <tr key={i} className="border-b border-black/5 align-top dark:border-white/5">
-                  <td className="py-2 pr-4">{row.llm}</td>
-                  <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{row.enforced}</td>
+                  <td className="py-3 pr-4">{row.llm}</td>
+                  <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">{row.enforced}</td>
                 </tr>
               ))}
             </tbody>
@@ -139,21 +139,21 @@ export default function ArchitecturePage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Deliberately not built</h2>
-        <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
+        <h2 className="mb-4 text-xl font-semibold">Deliberately not built</h2>
+        <p className="mb-5 max-w-prose text-base text-gray-600 dark:text-gray-300">
           Every one of these is a tool I know how to use. Each one stayed out for a specific
           reason.
         </p>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {NOT_BUILT.map((item) => (
             <details
               key={item.title}
               className="rounded-md border border-black/10 dark:border-white/10"
             >
-              <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium">
+              <summary className="cursor-pointer select-none px-5 py-3.5 text-sm font-medium">
                 {item.title}
               </summary>
-              <p className="border-t border-black/10 px-4 py-3 text-sm text-gray-600 dark:border-white/10 dark:text-gray-300">
+              <p className="max-w-prose border-t border-black/10 px-5 py-4 text-sm text-gray-600 dark:border-white/10 dark:text-gray-300">
                 {item.body}
               </p>
             </details>
@@ -162,12 +162,12 @@ export default function ArchitecturePage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Decision links</h2>
-        <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
+        <h2 className="mb-4 text-xl font-semibold">Decision links</h2>
+        <p className="mb-5 max-w-prose text-base text-gray-600 dark:text-gray-300">
           Five entries from <code>DECISIONS.md</code>, picked for what each one reveals about how
           a call got made.
         </p>
-        <dl className="flex flex-col gap-4">
+        <dl className="flex flex-col gap-5">
           {DECISION_LINKS.map((item) => (
             <div key={item.entry}>
               <dt className="font-medium">

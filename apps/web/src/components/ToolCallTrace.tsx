@@ -24,7 +24,7 @@ export function ToolCallTrace({
   const sumLatencyMs = toolCalls.reduce((sum, call) => sum + call.latency_ms, 0);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {llmLatencyMs != null ? (
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Total request time: <span className="font-medium text-foreground">{totalLatencyMs} ms</span>

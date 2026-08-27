@@ -38,20 +38,20 @@ export default function EvaluationLabPage() {
   const skippedCaseCount = Object.keys(results.skipped_case_ids).length;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-12">
       <div>
-        <h1 className="text-xl font-semibold">Evaluation Lab</h1>
-        <p className="mt-2 text-3xl font-semibold">
+        <h1 className="text-2xl font-semibold">Evaluation Lab</h1>
+        <p className="mt-3 text-3xl font-semibold">
           {results.overall.passed}/{results.overall.total}
           <span className="ml-2 text-lg font-normal text-gray-500 dark:text-gray-400">
             cases passed ({results.overall.pass_rate.toFixed(1)}%)
           </span>
         </p>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-2 max-w-prose text-base text-gray-600 dark:text-gray-300">
           Every number on this page comes from one committed eval run and the reports written from
           it.
         </p>
-        <p className="mt-3 font-mono text-xs text-gray-500 dark:text-gray-400">
+        <p className="mt-4 font-mono text-xs text-gray-500 dark:text-gray-400">
           {experiment.application_model} · judge {experiment.judge_model} · dataset{" "}
           {experiment.eval_dataset_version} · commit {experiment.git_commit} · cache{" "}
           {experiment.cache_bypassed ? "bypassed" : "used"} · run {results.timestamp}
@@ -62,25 +62,25 @@ export default function EvaluationLabPage() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-black/10 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-              <th className="py-2 pr-4 font-medium">Category</th>
-              <th className="py-2 pr-4 font-medium">n</th>
-              <th className="py-2 pr-4 font-medium">Passed</th>
-              <th className="py-2 pr-4 font-medium">Pass rate</th>
-              <th className="py-2 pr-4 font-medium">What it tests</th>
-              <th className="py-2 pr-4 font-medium"></th>
+              <th className="py-3 pr-4 font-medium">Category</th>
+              <th className="py-3 pr-4 font-medium">n</th>
+              <th className="py-3 pr-4 font-medium">Passed</th>
+              <th className="py-3 pr-4 font-medium">Pass rate</th>
+              <th className="py-3 pr-4 font-medium">What it tests</th>
+              <th className="py-3 pr-4 font-medium"></th>
             </tr>
           </thead>
           <tbody>
             {results.categories.map((c) => (
               <tr key={c.category} className="border-b border-black/5 dark:border-white/5">
-                <td className="py-2 pr-4 font-mono">{c.category}</td>
-                <td className="py-2 pr-4">{c.n}</td>
-                <td className="py-2 pr-4">
+                <td className="py-3 pr-4 font-mono">{c.category}</td>
+                <td className="py-3 pr-4">{c.n}</td>
+                <td className="py-3 pr-4">
                   {c.passed}/{c.n}
                 </td>
-                <td className="py-2 pr-4">{c.pass_rate.toFixed(1)}%</td>
-                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{c.what_it_tests}</td>
-                <td className="py-2 pr-4">
+                <td className="py-3 pr-4">{c.pass_rate.toFixed(1)}%</td>
+                <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">{c.what_it_tests}</td>
+                <td className="py-3 pr-4">
                   {!c.comparison_ready && (
                     <span title="This category has too few cases to trust as a percentage. See the note below the table.">
                       <Badge tone="neutral">
@@ -144,10 +144,10 @@ export default function EvaluationLabPage() {
         </div>
       </details>
 
-      <div className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Reports</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-xl font-semibold">Reports</h2>
+          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
             The six committed reports behind the table above. Each one expands in place.
           </p>
         </div>
