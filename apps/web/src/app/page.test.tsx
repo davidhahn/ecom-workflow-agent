@@ -1,64 +1,67 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { RoleProvider } from "@/lib/role-context";
-import { SCENARIOS } from "@/lib/scenarios";
-import ScenarioDemoPage from "./page";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { getEvalResults } from "@/lib/evals";
+import HomePage from "./page";
 
-vi.mock("@/lib/api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
-  return {
-    ...actual,
-    analyzeQuestion: vi.fn(),
-    evaluateRefund: vi.fn(),
-  };
-});
+describe("Landing page", () => {
+  it("renders the hero heading and value prop", () => {
+    render(<HomePage />);
 
-import { analyzeQuestion, evaluateRefund } from "@/lib/api";
+    expect(
+      screen.getByRole("heading", { name: /an ops agent that shows its work/i, level: 1 })
+    ).toBeInTheDocument();
+  });
 
-function renderScenarioDemoPage() {
-  return render(
-    <RoleProvider>
-      <ScenarioDemoPage />
-    </RoleProvider>
-  );
-}
+  it("shows the real overall pass rate from the committed results.json, not a typed-in number", () => {
+    const results = getEvalResults();
+    render(<HomePage />);
 
-describe("Scenario Demo landing page", () => {
-  it("renders a card for each curated scenario with its name and expected behavior", () => {
-    renderScenarioDemoPage();
+    expect(
+      screen.getByText(new RegExp(`${results.overall.passed}/${results.overall.total}`))
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        new RegExp(`eval cases pass \\(${results.overall.pass_rate.toFixed(1).replace(".", "\\.")}%\\)`)
+      )
+    ).toBeInTheDocument();
+  });
 
-    for (const scenario of SCENARIOS) {
-      expect(screen.getByRole("heading", { name: scenario.name })).toBeInTheDocument();
-      expect(screen.getByText(scenario.expectedBehavior)).toBeInTheDocument();
+  it("renders the proof snapshot for the injection-attempt scenario", () => {
+    render(<HomePage />);
+
+    expect(screen.getByText("Already run")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /run this scenario live/i })).toHaveAttribute(
+      "href",
+      "/scenarios#injection-attempt"
+    );
+  });
+
+  it("renders a highlight stat card for each curated category with real numbers from results.json", () => {
+    const results = getEvalResults();
+    render(<HomePage />);
+
+    for (const name of ["sql_semantic", "rag", "refund_evaluator", "permission"]) {
+      const category = results.categories.find((c) => c.category === name)!;
+      expect(screen.getByText(name)).toBeInTheDocument();
+      expect(screen.getAllByText(`${category.passed}/${category.n}`).length).toBeGreaterThan(0);
     }
   });
 
-  it("running an analyze-type scenario calls analyzeQuestion with that scenario's exact input", () => {
-    renderScenarioDemoPage();
-    const scenario = SCENARIOS.find((s) => s.endpoint === "analyze")!;
+  it("links into every other page in the site", () => {
+    render(<HomePage />);
 
-    const card = screen.getByRole("heading", { name: scenario.name }).closest("div")!.parentElement!;
-    fireEvent.click(within(card).getByRole("button", { name: "Run scenario" }));
-
-    expect(analyzeQuestion).toHaveBeenCalledWith(scenario.input, "read_only_viewer");
+    for (const href of ["/scenarios", "/ask", "/activity", "/evaluation-lab", "/architecture"]) {
+      expect(screen.getAllByRole("link").some((link) => link.getAttribute("href") === href)).toBe(
+        true
+      );
+    }
   });
 
-  it("running a refund-type scenario calls evaluateRefund with that scenario's exact input", () => {
-    renderScenarioDemoPage();
-    const scenario = SCENARIOS.find((s) => s.endpoint === "refund")!;
+  it("renders an explore card for every destination page", () => {
+    render(<HomePage />);
 
-    const card = screen.getByRole("heading", { name: scenario.name }).closest("div")!.parentElement!;
-    fireEvent.click(within(card).getByRole("button", { name: "Run scenario" }));
-
-    expect(evaluateRefund).toHaveBeenCalledWith(scenario.input, "read_only_viewer");
-  });
-
-  it("renders the free-form refund box beneath the curated scenarios", () => {
-    renderScenarioDemoPage();
-
-    expect(screen.getByRole("heading", { name: "Try your own refund request" })).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText(/wireless headphones/i)
-    ).toBeInTheDocument();
+    for (const name of ["Scenarios", "Ask", "Activity", "Evaluation Lab", "Architecture"]) {
+      expect(screen.getByRole("heading", { name, level: 3 })).toBeInTheDocument();
+    }
   });
 });

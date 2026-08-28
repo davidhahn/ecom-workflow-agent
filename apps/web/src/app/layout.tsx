@@ -16,7 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ops Intelligence Agent",
+  title: {
+    template: "%s · Ops Intelligence Agent",
+    default: "Ops Intelligence Agent",
+  },
   description: "Enterprise Operations Intelligence Agent",
 };
 

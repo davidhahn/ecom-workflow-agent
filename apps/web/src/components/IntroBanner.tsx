@@ -1,5 +1,5 @@
 // TODO: replace with the real repo URL before deploying.
-const GITHUB_REPO_URL = "https://github.com/davidhahn/ecom-workflow-agent";
+export const GITHUB_REPO_URL = "https://github.com/davidhahn/ecom-workflow-agent";
 
 // No case-study URL provided yet. Per instructions, the "Read the case
 // study" link is omitted entirely (not rendered pointing at a placeholder)

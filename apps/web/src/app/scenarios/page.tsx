@@ -1,5 +1,9 @@
 import { ScenarioDemo } from "@/components/ScenarioDemo";
 
+export const metadata = {
+  title: "Scenarios",
+};
+
 export default function ScenariosPage() {
   return (
     <div className="flex flex-col gap-12">
