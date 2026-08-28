@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { RoleProvider } from "@/lib/role-context";
 import { IntroBanner } from "@/components/IntroBanner";
 import AskPage from "@/app/ask/page";
-import ScenarioDemoPage from "@/app/page";
+import ScenariosPage from "@/app/scenarios/page";
 
 // Both pages call app/lib/api at module scope; mocked here purely so
 // rendering them doesn't attempt a real network request, not because
@@ -12,6 +12,13 @@ vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return { ...actual, analyzeQuestion: vi.fn(), evaluateRefund: vi.fn() };
 });
+
+// IntroBanner reads the route to decide whether to render itself at all
+// (it hides on the landing page). Set this before each render.
+let mockPathname = "/ask";
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname,
+}));
 
 const BANNER_TEXT = /a demo ai ops agent for an ecommerce business/i;
 
@@ -31,28 +38,37 @@ function renderRoute(page: React.ReactNode) {
 
 describe("IntroBanner renders app-level, not page-local", () => {
   it("renders on the Ask route, alongside Ask-page-specific content", () => {
+    mockPathname = "/ask";
     renderRoute(<AskPage />);
 
     expect(screen.getByText(BANNER_TEXT)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ask" })).toBeInTheDocument();
   });
 
-  it("renders on the Scenario Demo route, alongside Scenario-Demo-specific content", () => {
-    renderRoute(<ScenarioDemoPage />);
+  it("renders on the Scenarios route, alongside Scenarios-page-specific content", () => {
+    mockPathname = "/scenarios";
+    renderRoute(<ScenariosPage />);
 
     expect(screen.getByText(BANNER_TEXT)).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /an ops agent that shows its work/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Scenarios" })).toBeInTheDocument();
+  });
+
+  it("renders nothing on the landing route, which tells the same story itself", () => {
+    mockPathname = "/";
+    const { container } = render(<IntroBanner />);
+
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("includes a GitHub link", () => {
+    mockPathname = "/ask";
     render(<IntroBanner />);
 
     expect(screen.getByRole("link", { name: "View on GitHub" })).toBeInTheDocument();
   });
 
   it("omits the case-study link when no case-study URL is configured", () => {
+    mockPathname = "/ask";
     render(<IntroBanner />);
 
     expect(screen.queryByRole("link", { name: /case study/i })).not.toBeInTheDocument();

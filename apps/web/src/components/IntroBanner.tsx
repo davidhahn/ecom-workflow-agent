@@ -1,3 +1,7 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
 // TODO: replace with the real repo URL before deploying.
 export const GITHUB_REPO_URL = "https://github.com/davidhahn/ecom-workflow-agent";
 
@@ -7,6 +11,10 @@ export const GITHUB_REPO_URL = "https://github.com/davidhahn/ecom-workflow-agent
 const CASE_STUDY_URL: string | null = null;
 
 export function IntroBanner() {
+  const pathname = usePathname();
+  // The landing page already tells this story itself, at more length.
+  if (pathname === "/") return null;
+
   return (
     <div className="border-b border-black/10 bg-black/[0.03] px-6 py-3 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
       <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-4 gap-y-1">
