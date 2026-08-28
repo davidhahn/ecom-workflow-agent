@@ -53,10 +53,10 @@ export default function ExecutionTracePage() {
       <div className="flex flex-col gap-2">
         {sourceScenario ? (
           <Link
-            href={`/#${sourceScenario.id}`}
+            href={`/scenarios#${sourceScenario.id}`}
             className="text-xs text-gray-500 hover:text-foreground dark:text-gray-400"
           >
-            ← Back to &quot;{sourceScenario.name}&quot; on the Scenario Demo
+            ← Back to &quot;{sourceScenario.name}&quot; on Scenarios
           </Link>
         ) : (
           <Link

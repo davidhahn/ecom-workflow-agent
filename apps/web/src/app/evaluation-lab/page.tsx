@@ -156,7 +156,8 @@ export default function EvaluationLabPage() {
           return (
             <details
               key={report.name}
-              className="overflow-hidden rounded-md border border-black/10 dark:border-white/10"
+              id={report.name.replace(/\.md$/, "")}
+              className="scroll-mt-20 overflow-hidden rounded-md border border-black/10 dark:border-white/10"
             >
               <summary className="cursor-pointer select-none px-5 py-4">
                 <span className="text-base font-medium">{summary.title}</span>

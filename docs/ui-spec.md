@@ -103,7 +103,7 @@ The UI is a portfolio surface for the Ops Intelligence Agent. Its job is to make
 
 ## Design constraints
 
-Existing Tailwind setup and visual language only (current border/gray palette, `Badge` tones, table styles). Reuse `Badge`, `ToolCallTrace`, `Markdown`, `ExampleChip`, `JsonPreview`, and the new `AnalyzeResult`/`RefundResult`/`ScenarioCard`. The role selector moved out of `NavHeader` into a page-level `RoleFooter` (present on every page, below `<main>`) — it's supporting technical context, not the first thing a cold viewer sees. All views keep the strict loading / error / empty handling above; no silent fallbacks.
+Existing Tailwind setup and visual language only (current border/gray palette, `Badge` tones, table styles). Reuse `Badge`, `ToolCallTrace`, `Markdown`, `ExampleChip`, `JsonPreview`, and the new `AnalyzeResult`/`RefundResult`/`ScenarioCard`. There's no role picker anywhere in the UI. The role stays pinned to `read_only_viewer` through `RoleProvider`, and `setRole` is never called. That's fine for now: neither `/query/analyze` nor `/refund/evaluate` checks the role at all, and the tool-backed endpoints that do check it (tickets, invoices, direct SQL) aren't wired into any page yet. A role picker would be UI with nothing behind it. Build one only once a page actually calls a role-gated endpoint. All views keep the strict loading / error / empty handling above; no silent fallbacks.
 
 ## Explicitly not building
 

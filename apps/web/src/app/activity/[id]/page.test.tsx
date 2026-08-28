@@ -122,7 +122,7 @@ describe("Execution Trace page", () => {
     await waitFor(() =>
       expect(screen.getByRole("link", { name: new RegExp(scenario.name, "i") })).toHaveAttribute(
         "href",
-        `/#${scenario.id}`
+        `/scenarios#${scenario.id}`
       )
     );
     // Only one back-link when the origin is known. The generic "full
@@ -137,7 +137,7 @@ describe("Execution Trace page", () => {
     renderTracePage();
 
     await waitFor(() => expect(screen.getByText("some one-off free-form question")).toBeInTheDocument());
-    expect(screen.queryByText(/on the scenario demo/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/on scenarios/i)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /back to the full request log/i })).toBeInTheDocument();
   });
 
