@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { IntroBanner } from "@/components/IntroBanner";
 import { NavHeader } from "@/components/NavHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { RoleProvider } from "@/lib/role-context";
 import "./globals.css";
 
@@ -37,7 +38,8 @@ export default function RootLayout({
         <RoleProvider>
           <IntroBanner />
           <NavHeader />
-          <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16">{children}</main>
+          <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12 sm:py-16">{children}</main>
+          <SiteFooter />
         </RoleProvider>
       </body>
     </html>

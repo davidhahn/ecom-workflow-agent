@@ -40,7 +40,7 @@ export function RefundResult({ result }: { result: RefundEvaluateResponse }) {
 
       <Link
         href={`/activity/${result.request_log_id}`}
-        className="self-start text-xs font-medium underline underline-offset-2 hover:no-underline"
+        className="self-start text-xs font-medium text-accent underline underline-offset-2 hover:no-underline"
       >
         View execution trace
       </Link>

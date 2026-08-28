@@ -72,7 +72,7 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
         type="button"
         onClick={run}
         disabled={state.status === "loading"}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40"
+        className="self-start rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:opacity-40"
       >
         {state.status === "loading" ? "Running…" : "Run scenario"}
       </button>

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/Badge";
 import { ExpandableImage } from "@/components/ExpandableImage";
 import { InjectionSnapshot } from "@/components/InjectionSnapshot";
-import { GITHUB_REPO_URL } from "@/components/IntroBanner";
+import { GITHUB_REPO_URL } from "@/lib/site";
 import { RESPONSIBILITY_ROWS } from "@/lib/architecture";
 import { getEvalResults, type EvalCategoryResult } from "@/lib/evals";
 
@@ -77,7 +77,7 @@ export default function HomePage() {
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <Link
             href="/scenarios"
-            className="rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background"
+            className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground"
           >
             Run a live scenario →
           </Link>
@@ -85,7 +85,7 @@ export default function HomePage() {
             href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-medium underline underline-offset-2 hover:no-underline"
+            className="text-sm font-medium text-accent underline underline-offset-2 hover:no-underline"
           >
             View on GitHub
           </a>
@@ -96,7 +96,7 @@ export default function HomePage() {
             href="/evaluation-lab"
             className="rounded-md border border-black/10 px-4 py-2 text-sm hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
           >
-            <span className="font-semibold">
+            <span className="font-semibold text-accent">
               {results.overall.passed}/{results.overall.total}
             </span>{" "}
             <span className="text-gray-500 dark:text-gray-400">
@@ -107,14 +107,14 @@ export default function HomePage() {
             href="/architecture"
             className="rounded-md border border-black/10 px-4 py-2 text-sm hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
           >
-            <span className="font-semibold">{RESPONSIBILITY_ROWS.length}</span>{" "}
+            <span className="font-semibold text-accent">{RESPONSIBILITY_ROWS.length}</span>{" "}
             <span className="text-gray-500 dark:text-gray-400">checks that run without the model</span>
           </Link>
           <Link
             href="/activity"
             className="rounded-md border border-black/10 px-4 py-2 text-sm hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
           >
-            <span className="font-semibold">Every request</span>{" "}
+            <span className="font-semibold text-accent">Every request</span>{" "}
             <span className="text-gray-500 dark:text-gray-400">traced end to end</span>
           </Link>
         </div>
@@ -169,7 +169,7 @@ export default function HomePage() {
 
         <Link
           href="/architecture"
-          className="self-start text-sm font-medium underline underline-offset-2 hover:no-underline"
+          className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline"
         >
           Full breakdown →
         </Link>
@@ -187,7 +187,7 @@ export default function HomePage() {
           {highlights.map((c) => (
             <div key={c.category} className="rounded-md border border-black/10 p-4 dark:border-white/10">
               <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{c.category}</p>
-              <p className="mt-1 text-2xl font-semibold">
+              <p className="mt-1 text-2xl font-semibold text-accent">
                 {c.passed}/{c.n}
               </p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -205,7 +205,7 @@ export default function HomePage() {
 
         <Link
           href="/evaluation-lab"
-          className="self-start text-sm font-medium underline underline-offset-2 hover:no-underline"
+          className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline"
         >
           See the full breakdown →
         </Link>

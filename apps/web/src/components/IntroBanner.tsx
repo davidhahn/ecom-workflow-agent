@@ -1,9 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-
-// TODO: replace with the real repo URL before deploying.
-export const GITHUB_REPO_URL = "https://github.com/davidhahn/ecom-workflow-agent";
+import { GITHUB_REPO_URL } from "@/lib/site";
 
 // No case-study URL provided yet. Per instructions, the "Read the case
 // study" link is omitted entirely (not rendered pointing at a placeholder)
@@ -17,7 +15,7 @@ export function IntroBanner() {
 
   return (
     <div className="border-b border-black/10 bg-black/[0.03] px-6 py-3 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
-      <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-4 gap-y-1">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-1">
         <span>
           A demo AI ops agent for an eCommerce business. Ask a question or evaluate a refund, then
           see the full decision trace behind it.
@@ -26,7 +24,7 @@ export function IntroBanner() {
           href={GITHUB_REPO_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium underline underline-offset-2 hover:no-underline"
+          className="font-medium text-accent underline underline-offset-2 hover:no-underline"
         >
           View on GitHub
         </a>

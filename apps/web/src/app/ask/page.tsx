@@ -51,7 +51,7 @@ export default function AskPage() {
   return (
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Ask</h1>
+        <h1 className="text-3xl font-semibold">Ask</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           Ask a question over ops data (SQL) and/or refund policy (RAG). The agent decides which
           tools it needs.
@@ -70,7 +70,7 @@ export default function AskPage() {
           <button
             type="submit"
             disabled={state.status === "loading" || !question.trim()}
-            className="self-start rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40"
+            className="self-start rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:opacity-40"
           >
             {state.status === "loading" ? "Asking…" : "Ask"}
           </button>

@@ -36,7 +36,7 @@ export default function ActivityPage() {
   return (
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Activity</h1>
+        <h1 className="text-3xl font-semibold">Activity</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           Most recent requests across all endpoints. Any row opens that request&apos;s execution
           trace.
@@ -85,7 +85,7 @@ export default function ActivityPage() {
                     <Link
                       href={`/activity/${row.id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="hover:underline"
+                      className="hover:text-accent hover:underline"
                     >
                       {new Date(row.created_at).toLocaleString()}
                     </Link>

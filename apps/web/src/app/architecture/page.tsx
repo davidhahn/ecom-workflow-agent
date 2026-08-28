@@ -62,7 +62,7 @@ export default function ArchitecturePage() {
   return (
     <div className="flex flex-col gap-14">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Architecture</h1>
+        <h1 className="text-3xl font-semibold">Architecture</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           How decisions split between the model and the code, and why.
         </p>

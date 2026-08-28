@@ -66,7 +66,7 @@ export default function ExecutionTracePage() {
             ← Back to the full request log
           </Link>
         )}
-        <h1 className="text-2xl font-semibold">Execution trace</h1>
+        <h1 className="text-3xl font-semibold">Execution trace</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           What happened when this request ran, step by step. Steps labeled{" "}
           <span className="font-medium text-foreground">Model</span> were decided by Claude. Steps

@@ -74,7 +74,7 @@ export function InjectionSnapshot() {
 
         <Link
           href="/scenarios#injection-attempt"
-          className="self-start text-sm font-medium underline underline-offset-2 hover:no-underline"
+          className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline"
         >
           Run this scenario live →
         </Link>

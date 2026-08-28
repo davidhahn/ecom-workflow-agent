@@ -40,7 +40,7 @@ export default function EvaluationLabPage() {
   return (
     <div className="flex flex-col gap-12">
       <div>
-        <h1 className="text-2xl font-semibold">Evaluation Lab</h1>
+        <h1 className="text-3xl font-semibold">Evaluation Lab</h1>
         <p className="mt-3 text-3xl font-semibold">
           {results.overall.passed}/{results.overall.total}
           <span className="ml-2 text-lg font-normal text-gray-500 dark:text-gray-400">
