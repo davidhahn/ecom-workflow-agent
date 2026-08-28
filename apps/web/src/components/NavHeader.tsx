@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { href: "/", label: "Scenarios" },
+  { href: "/scenarios", label: "Scenarios" },
   { href: "/ask", label: "Ask" },
   { href: "/activity", label: "Activity" },
   { href: "/evaluation-lab", label: "Evaluation Lab" },
@@ -17,7 +17,9 @@ export function NavHeader() {
   return (
     <header className="border-b border-black/10 dark:border-white/10">
       <div className="mx-auto flex max-w-4xl items-center gap-6 px-6 py-4">
-        <span className="font-semibold">Ops Intelligence Agent</span>
+        <Link href="/" className="font-semibold">
+          Ops Intelligence Agent
+        </Link>
         <nav className="flex gap-4">
           {TABS.map((tab) => {
             const active = pathname === tab.href;
