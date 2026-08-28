@@ -9,39 +9,39 @@ import { getEvalResults, type EvalCategoryResult } from "@/lib/evals";
 
 export const metadata: Metadata = {
   description:
-    "Claude proposes what to do next. Deterministic code decides what actually runs, checks its claims, and logs the whole trail.",
+    "Claude reads the request and decides what to do next. Separate code checks that decision, checks its claims, and logs the whole thing.",
 };
 
-// Curated, not the full category list — these four map to the site's three
-// core capabilities (SQL, RAG, refunds) plus the permission gate. Numbers
-// still come from the committed run, so they can't drift from the choice.
+// A curated subset, not the full category list. These four map to the
+// site's three core capabilities (SQL, RAG, refunds) plus the permission
+// gate. The numbers still come from the committed run either way.
 const HIGHLIGHT_CATEGORIES = ["sql_semantic", "rag", "refund_evaluator", "permission"];
 
 const EXPLORE_LINKS: { href: string; label: string; description: string }[] = [
   {
     href: "/scenarios",
     label: "Scenarios",
-    description: "Run a curated case and see the result next to the behavior that was promised.",
+    description: "Pick a scenario, run it, and see if it does what it's supposed to.",
   },
   {
     href: "/ask",
     label: "Ask",
-    description: "Ask your own question, over SQL data and refund policy both.",
+    description: "Ask your own question about the data or the policy. Claude picks which one it needs.",
   },
   {
     href: "/activity",
     label: "Activity",
-    description: "Every request logged: latency, cost, and gate outcomes.",
+    description: "A running log of every request, with what it cost and what it triggered.",
   },
   {
     href: "/evaluation-lab",
     label: "Evaluation Lab",
-    description: "The real eval numbers, and where each one came from.",
+    description: "The actual eval numbers, and where each one comes from.",
   },
   {
     href: "/architecture",
     label: "Architecture",
-    description: "What the model decides, what the code decides, and why.",
+    description: "Where the model's judgment ends and the code takes over, and why.",
   },
 ];
 
@@ -62,9 +62,10 @@ export default function HomePage() {
           An ops agent that shows its work
         </h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Claude reads the request and proposes what to do. Deterministic code decides whether
-          that&apos;s allowed, checks its claims against what was retrieved, and logs the whole
-          trail so the answer isn&apos;t the only evidence.
+          Claude reads the request and decides what to do next. A separate layer of code checks
+          that decision before anything runs. It compares each claim in the answer against what
+          actually got retrieved. Then it writes down everything that happened. You can look at
+          all of it.
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -107,9 +108,7 @@ export default function HomePage() {
             className="rounded-md border border-black/10 px-4 py-2 text-sm hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
           >
             <span className="font-semibold">{RESPONSIBILITY_ROWS.length}</span>{" "}
-            <span className="text-gray-500 dark:text-gray-400">
-              deterministic checks run independent of the model
-            </span>
+            <span className="text-gray-500 dark:text-gray-400">checks that run without the model</span>
           </Link>
           <Link
             href="/activity"
@@ -127,7 +126,9 @@ export default function HomePage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">How it works</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Claude proposes. Separate code enforces. Every step gets logged.
+            Claude figures out what to do next. Code checks it before anything runs, no
+            exceptions. Every step gets a written record. You can look through it later, whenever
+            you want.
           </p>
         </div>
 
@@ -136,24 +137,26 @@ export default function HomePage() {
             <p className="font-mono text-xs text-gray-400 dark:text-gray-500">1</p>
             <h3 className="mt-1 font-semibold">Model proposes</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              Claude reads the request, drafts SQL, or reads a retrieved policy chunk. It never
-              touches the database or writes a decision.
+              Claude reads the request. It figures out whether the answer needs a SQL query or a
+              policy lookup, and drafts one. The database access and the final decision both
+              belong to the code that checks its work.
             </p>
           </div>
           <div className="rounded-md border border-black/10 p-5 dark:border-white/10">
             <p className="font-mono text-xs text-gray-400 dark:text-gray-500">2</p>
             <h3 className="mt-1 font-semibold">Code decides</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              An AST allowlist, a cost gate, a restricted database role, and a fixed refund
-              waterfall each run independent of the model.
+              A handful of checks run before anything touches real data. One checks the SQL
+              against an allowlist. Another caps how expensive a query can get. Refunds follow
+              their own fixed set of rules, model or no model.
             </p>
           </div>
           <div className="rounded-md border border-black/10 p-5 dark:border-white/10">
             <p className="font-mono text-xs text-gray-400 dark:text-gray-500">3</p>
             <h3 className="mt-1 font-semibold">Everything is logged</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              Every request writes its own record: tools called, gates passed, cost, latency, and
-              the final answer.
+              Every request leaves a paper trail. You can open it up and see exactly what
+              happened, step by step, cost included.
             </p>
           </div>
         </div>
@@ -174,9 +177,9 @@ export default function HomePage() {
 
       <section className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">Measured, not asserted</h2>
+          <h2 className="text-xl font-semibold">What the evals actually show</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Every claim on this site traces back to one committed eval run.
+            Every claim here comes from one real eval run I can point to.
           </p>
         </div>
 
@@ -196,9 +199,7 @@ export default function HomePage() {
 
         {failing.length > 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {failing.map((c) => c.category).join(", ")}{" "}
-            {failing.length === 1 ? "isn't" : "aren't"} at 100% yet. Every failure is documented,
-            not hidden.
+            Still not at 100%: {failing.map((c) => c.category).join(", ")}.
           </p>
         )}
 
