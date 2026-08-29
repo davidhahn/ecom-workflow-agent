@@ -31,6 +31,12 @@ describe("RefundResult", () => {
     expect(screen.getByText("Ceramic Coffee Mug")).toBeInTheDocument();
   });
 
+  it("hides the trace link when traceHref is explicitly null, for a captured snapshot", () => {
+    render(<RefundResult result={baseResult({})} traceHref={null} />);
+
+    expect(screen.queryByRole("link", { name: "View execution trace" })).not.toBeInTheDocument();
+  });
+
   it("displays a refusal (could_not_process) result correctly", () => {
     render(
       <RefundResult

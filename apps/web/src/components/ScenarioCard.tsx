@@ -13,17 +13,25 @@ import { AnalyzeResult } from "@/components/AnalyzeResult";
 import { RefundResult } from "@/components/RefundResult";
 import type { Scenario } from "@/lib/scenarios";
 import { useRole } from "@/lib/role-context";
+import { getScenarioSnapshot, SNAPSHOT_CAPTURED_AT } from "@/lib/snapshots";
 
 type State =
-  | { status: "idle" }
+  | { status: "snapshot" }
   | { status: "loading" }
   | { status: "success"; endpoint: "analyze"; result: AnalyzeResponse }
   | { status: "success"; endpoint: "refund"; result: RefundEvaluateResponse }
   | { status: "error"; message: string };
 
+const CAPTURED_DATE = new Date(SNAPSHOT_CAPTURED_AT).toLocaleDateString(undefined, {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+
 export function ScenarioCard({ scenario }: { scenario: Scenario }) {
-  const [state, setState] = useState<State>({ status: "idle" });
+  const [state, setState] = useState<State>({ status: "snapshot" });
   const { role } = useRole();
+  const snapshot = getScenarioSnapshot(scenario);
 
   async function run() {
     if (state.status === "loading") return;
@@ -57,9 +65,13 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
         </p>
       </div>
 
-      {/* Collapsed until a result exists. The promise matters most once
-          there is a result to compare it against. */}
-      <details open={state.status === "success" || undefined} className="rounded-md bg-black/[0.02] dark:bg-white/[0.03]">
+      {/* A result is always on screen now, either the captured snapshot or
+          a fresh run, so the promise is always right there to compare
+          against. */}
+      <details
+        open={state.status === "snapshot" || state.status === "success" || undefined}
+        className="rounded-md bg-black/[0.02] dark:bg-white/[0.03]"
+      >
         <summary className="cursor-pointer select-none px-4 py-3 text-xs font-medium text-gray-700 dark:text-gray-300">
           Expected behavior
         </summary>
@@ -74,12 +86,25 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
         disabled={state.status === "loading"}
         className="self-start rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:opacity-40"
       >
-        {state.status === "loading" ? "Running…" : "Run scenario"}
+        {state.status === "loading" ? "Running…" : "Run it fresh"}
       </button>
 
       {state.status === "error" && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           {state.message}
+        </div>
+      )}
+
+      {state.status === "snapshot" && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Captured from a real run on {CAPTURED_DATE}.
+          </p>
+          {scenario.endpoint === "analyze" ? (
+            <AnalyzeResult result={snapshot as AnalyzeResponse} traceHref={null} />
+          ) : (
+            <RefundResult result={snapshot as RefundEvaluateResponse} traceHref={null} />
+          )}
         </div>
       )}
 

@@ -4,8 +4,16 @@ import { Badge } from "@/components/Badge";
 import { Markdown } from "@/components/Markdown";
 
 // Shared between the Ask page and analyze-type ScenarioCards: same
-// response shape, same rendering.
-export function AnalyzeResult({ result }: { result: AnalyzeResponse }) {
+// response shape, same rendering. traceHref defaults to this result's own
+// trace. Pass null to hide the link entirely, for a captured snapshot
+// whose request_log_id points at a row the demo DB may have already reset.
+export function AnalyzeResult({
+  result,
+  traceHref = `/activity/${result.request_log_id}`,
+}: {
+  result: AnalyzeResponse;
+  traceHref?: string | null;
+}) {
   if (result.incomplete) {
     return (
       <div className="flex max-w-prose flex-col gap-2 rounded-md border-2 border-amber-400 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
@@ -73,12 +81,14 @@ export function AnalyzeResult({ result }: { result: AnalyzeResponse }) {
         </div>
       )}
 
-      <Link
-        href={`/activity/${result.request_log_id}`}
-        className="self-start text-xs font-medium text-accent underline underline-offset-2 hover:no-underline"
-      >
-        View execution trace
-      </Link>
+      {traceHref !== null && (
+        <Link
+          href={traceHref}
+          className="self-start text-xs font-medium text-accent underline underline-offset-2 hover:no-underline"
+        >
+          View execution trace
+        </Link>
+      )}
     </div>
   );
 }

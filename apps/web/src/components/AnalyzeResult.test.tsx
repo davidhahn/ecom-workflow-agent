@@ -47,6 +47,21 @@ describe("AnalyzeResult", () => {
     expect(screen.getByText("rule 15")).toBeInTheDocument();
   });
 
+  it("hides the trace link when traceHref is explicitly null, for a captured snapshot", () => {
+    render(<AnalyzeResult result={baseResult({})} traceHref={null} />);
+
+    expect(screen.queryByRole("link", { name: "View execution trace" })).not.toBeInTheDocument();
+  });
+
+  it("uses a supplied traceHref instead of the result's own request_log_id", () => {
+    render(<AnalyzeResult result={baseResult({ request_log_id: "abc-123" })} traceHref="/somewhere/else" />);
+
+    expect(screen.getByRole("link", { name: "View execution trace" })).toHaveAttribute(
+      "href",
+      "/somewhere/else"
+    );
+  });
+
   it("renders an incomplete request as a distinct warning, not a normal answer with badges", () => {
     render(
       <AnalyzeResult

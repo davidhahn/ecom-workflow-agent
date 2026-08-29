@@ -11,8 +11,16 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 };
 
 // Shared between the free-form refund box and refund-type ScenarioCards:
-// same response shape, same rendering.
-export function RefundResult({ result }: { result: RefundEvaluateResponse }) {
+// same response shape, same rendering. traceHref defaults to this result's
+// own trace. Pass null to hide the link entirely, for a captured snapshot
+// whose request_log_id points at a row the demo DB may have already reset.
+export function RefundResult({
+  result,
+  traceHref = `/activity/${result.request_log_id}`,
+}: {
+  result: RefundEvaluateResponse;
+  traceHref?: string | null;
+}) {
   return (
     <div className="flex flex-col gap-5 rounded-md border border-black/10 p-6 dark:border-white/10">
       <div className="flex flex-wrap items-center gap-2">
@@ -38,12 +46,14 @@ export function RefundResult({ result }: { result: RefundEvaluateResponse }) {
         </div>
       )}
 
-      <Link
-        href={`/activity/${result.request_log_id}`}
-        className="self-start text-xs font-medium text-accent underline underline-offset-2 hover:no-underline"
-      >
-        View execution trace
-      </Link>
+      {traceHref !== null && (
+        <Link
+          href={traceHref}
+          className="self-start text-xs font-medium text-accent underline underline-offset-2 hover:no-underline"
+        >
+          View execution trace
+        </Link>
+      )}
     </div>
   );
 }

@@ -39,12 +39,20 @@ describe("Scenarios page", () => {
     }
   });
 
+  it("renders each card's captured snapshot up front, with no trace link", () => {
+    renderScenariosPage();
+
+    expect(screen.getAllByText(/captured from a real run/i)).toHaveLength(SCENARIOS.length);
+    expect(screen.queryByRole("link", { name: "View execution trace" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Run it fresh" })).toHaveLength(SCENARIOS.length);
+  });
+
   it("running an analyze-type scenario calls analyzeQuestion with that scenario's exact input", () => {
     renderScenariosPage();
     const scenario = SCENARIOS.find((s) => s.endpoint === "analyze")!;
 
-    const card = screen.getByRole("heading", { name: scenario.name }).closest("div")!.parentElement!;
-    fireEvent.click(within(card).getByRole("button", { name: "Run scenario" }));
+    const card = screen.getByRole("heading", { name: scenario.name }).closest(`#${scenario.id}`)!;
+    fireEvent.click(within(card).getByRole("button", { name: "Run it fresh" }));
 
     expect(analyzeQuestion).toHaveBeenCalledWith(scenario.input, "read_only_viewer");
   });
@@ -53,8 +61,8 @@ describe("Scenarios page", () => {
     renderScenariosPage();
     const scenario = SCENARIOS.find((s) => s.endpoint === "refund")!;
 
-    const card = screen.getByRole("heading", { name: scenario.name }).closest("div")!.parentElement!;
-    fireEvent.click(within(card).getByRole("button", { name: "Run scenario" }));
+    const card = screen.getByRole("heading", { name: scenario.name }).closest(`#${scenario.id}`)!;
+    fireEvent.click(within(card).getByRole("button", { name: "Run it fresh" }));
 
     expect(evaluateRefund).toHaveBeenCalledWith(scenario.input, "read_only_viewer");
   });
