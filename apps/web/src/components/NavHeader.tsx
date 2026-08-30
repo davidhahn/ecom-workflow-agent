@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, useReducedMotion, type Transition } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { GITHUB_REPO_URL } from "@/lib/site";
@@ -12,8 +13,24 @@ const TABS = [
   { href: "/architecture", label: "Architecture" },
 ];
 
+// Same spring feel as ui/tabs.tsx (sourced from beUI), reused here for the
+// active-link underline. Not a beUI file pull: there's no separate beUI nav
+// component, this reapplies its layoutId indicator technique to real page
+// navigation instead of client-side tab state. It works because NavHeader
+// lives in the root layout and stays mounted across route changes, so a
+// stable layoutId can animate the bar sliding to the new active link
+// instead of just popping there.
+const INDICATOR_LAYOUT_ID = "nav-active-indicator";
+const INDICATOR_TRANSITION: Transition = {
+  type: "spring",
+  stiffness: 170,
+  damping: 24,
+  mass: 1.2,
+};
+
 export function NavHeader() {
   const pathname = usePathname();
+  const reduce = useReducedMotion();
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-background/85 backdrop-blur dark:border-white/10">
@@ -30,11 +47,19 @@ export function NavHeader() {
                 href={tab.href}
                 className={
                   active
-                    ? "font-medium text-accent underline underline-offset-4"
-                    : "text-gray-500 hover:text-accent dark:text-gray-400"
+                    ? "relative font-medium text-accent"
+                    : "relative text-gray-500 hover:text-accent dark:text-gray-400"
                 }
               >
                 {tab.label}
+                {active && (
+                  <motion.span
+                    layoutId={INDICATOR_LAYOUT_ID}
+                    layout="position"
+                    transition={reduce ? { duration: 0 } : INDICATOR_TRANSITION}
+                    className="absolute right-0 -bottom-1 left-0 h-0.5 bg-accent"
+                  />
+                )}
               </Link>
             );
           })}
