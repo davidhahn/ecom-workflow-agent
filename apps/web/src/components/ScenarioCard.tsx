@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { AnalyzeResult } from "@/components/AnalyzeResult";
 import { RefundResult } from "@/components/RefundResult";
+import { Button } from "@/components/ui/button";
 import type { Scenario } from "@/lib/scenarios";
 import { useRole } from "@/lib/role-context";
 import { getScenarioSnapshot, SNAPSHOT_CAPTURED_AT } from "@/lib/snapshots";
@@ -80,14 +81,9 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
         </p>
       </details>
 
-      <button
-        type="button"
-        onClick={run}
-        disabled={state.status === "loading"}
-        className="self-start rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:opacity-40"
-      >
+      <Button type="button" onClick={run} disabled={state.status === "loading"} className="self-start">
         {state.status === "loading" ? "Running…" : "Run it fresh"}
-      </button>
+      </Button>
 
       {state.status === "error" && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">

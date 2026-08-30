@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/Badge";
 import { ExpandableImage } from "@/components/ExpandableImage";
 import { SnapshotTabs } from "@/components/SnapshotTabs";
+import { Button } from "@/components/ui/button";
 import { GITHUB_REPO_URL } from "@/lib/site";
 import { RESPONSIBILITY_ROWS } from "@/lib/architecture";
 import { getEvalResults, type EvalCategoryResult } from "@/lib/evals";
@@ -89,12 +90,9 @@ export default function HomePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          <Link
-            href="/scenarios"
-            className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground"
-          >
-            Run a live scenario →
-          </Link>
+          <Button asChild>
+            <Link href="/scenarios">Run a live scenario →</Link>
+          </Button>
           <a
             href={GITHUB_REPO_URL}
             target="_blank"

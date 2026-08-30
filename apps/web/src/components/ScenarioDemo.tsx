@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { RefundResult } from "@/components/RefundResult";
 import { ScenarioCard } from "@/components/ScenarioCard";
+import { Button } from "@/components/ui/button";
 import { SCENARIOS } from "@/lib/scenarios";
 import { useRole } from "@/lib/role-context";
 
@@ -68,13 +69,13 @@ export function ScenarioDemo() {
             className="w-full rounded-md border border-black/15 bg-transparent p-4 text-sm outline-none focus:border-black/40 dark:border-white/15 dark:focus:border-white/40"
           />
           <div className="flex items-center gap-3">
-            <button
+            <Button
               type="submit"
               disabled={state.status === "loading" || !requestText.trim()}
-              className="self-start rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:opacity-40"
+              className="self-start"
             >
               {state.status === "loading" ? "Evaluating…" : "Evaluate"}
-            </button>
+            </Button>
             {rateLimit?.remaining !== null && rateLimit?.remaining !== undefined && (
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {rateLimit.remaining} of {rateLimit.limit} requests remaining this hour
