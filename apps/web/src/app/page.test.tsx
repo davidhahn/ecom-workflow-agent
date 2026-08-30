@@ -30,7 +30,7 @@ describe("Landing page", () => {
     render(<HomePage />);
 
     expect(screen.getByText(/captured from a real run/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Injection attempt", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Injection attempt", selected: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /run this scenario live/i })).toHaveAttribute(
       "href",
       "/scenarios#injection-attempt"
@@ -40,9 +40,9 @@ describe("Landing page", () => {
   it("switches the snapshot and its live link when another tab is clicked", () => {
     render(<HomePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Data analysis" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Data analysis" }));
 
-    expect(screen.getByRole("button", { name: "Data analysis", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Data analysis", selected: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /run this scenario live/i })).toHaveAttribute(
       "href",
       "/scenarios#data-analysis"

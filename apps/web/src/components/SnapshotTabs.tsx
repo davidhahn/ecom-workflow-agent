@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AnalyzeResult } from "@/components/AnalyzeResult";
 import { Badge } from "@/components/ui/badge";
 import { RefundResult } from "@/components/RefundResult";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AnalyzeResponse, RefundEvaluateResponse } from "@/lib/api";
 import { SCENARIOS } from "@/lib/scenarios";
 import { getScenarioSnapshot, SNAPSHOT_CAPTURED_AT } from "@/lib/snapshots";
@@ -37,50 +38,33 @@ const INJECTED_INSTRUCTION =
 
 export function SnapshotTabs() {
   const [activeId, setActiveId] = useState<TabId>("injection-attempt");
-  const scenario = SCENARIOS.find((s) => s.id === activeId)!;
-  const snapshot = getScenarioSnapshot(scenario);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-black/10 dark:border-white/10">
+    <Tabs
+      value={activeId}
+      onValueChange={(v) => setActiveId(v as TabId)}
+      variant="pill"
+      className="overflow-hidden rounded-lg border border-black/10 dark:border-white/10"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-black/[0.02] px-4 py-2 dark:border-white/10 dark:bg-white/[0.03]">
-        <div className="flex flex-wrap gap-1">
+        <TabsList>
           {TAB_SCENARIO_IDS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveId(id)}
-              aria-pressed={id === activeId}
-              className={
-                id === activeId
-                  ? "rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground"
-                  : "rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:text-accent dark:text-gray-400"
-              }
-            >
+            <TabsTrigger key={id} value={id}>
               {TAB_LABELS[id]}
-            </button>
+            </TabsTrigger>
           ))}
-        </div>
+        </TabsList>
         <span className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
           Captured from a real run · {CAPTURED_DATE}
         </span>
       </div>
 
       <div className="flex flex-col gap-5 p-6">
-        {activeId === "injection-attempt" ? (
-          <InjectionTab snapshot={snapshot as RefundEvaluateResponse} />
-        ) : (
-          <div>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Question</p>
-            <p className="mt-1 max-w-prose text-sm text-gray-700 dark:text-gray-300">{scenario.input}</p>
-          </div>
-        )}
-
-        {activeId === "data-analysis" && (
-          <AnalyzeResult result={snapshot as AnalyzeResponse} traceHref={null} />
-        )}
-        {activeId === "refund-approval" && (
-          <RefundResult result={snapshot as RefundEvaluateResponse} traceHref={null} />
-        )}
+        {TAB_SCENARIO_IDS.map((id) => (
+          <TabsContent key={id} value={id} className="mt-0 flex flex-col gap-5">
+            <TabPanel id={id} />
+          </TabsContent>
+        ))}
 
         <Link
           href={`/scenarios#${activeId}`}
@@ -89,7 +73,33 @@ export function SnapshotTabs() {
           Run this scenario live →
         </Link>
       </div>
-    </section>
+    </Tabs>
+  );
+}
+
+// Each panel looks up its own scenario and snapshot, not just the active
+// one: beUI's TabsContent keeps inactive panels mounted (hidden, not
+// unmounted), so all three render on every pass.
+function TabPanel({ id }: { id: TabId }) {
+  const scenario = SCENARIOS.find((s) => s.id === id)!;
+  const snapshot = getScenarioSnapshot(scenario);
+
+  if (id === "injection-attempt") {
+    return <InjectionTab snapshot={snapshot as RefundEvaluateResponse} />;
+  }
+
+  return (
+    <>
+      <div>
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Question</p>
+        <p className="mt-1 max-w-prose text-sm text-gray-700 dark:text-gray-300">{scenario.input}</p>
+      </div>
+      {id === "data-analysis" ? (
+        <AnalyzeResult result={snapshot as AnalyzeResponse} traceHref={null} />
+      ) : (
+        <RefundResult result={snapshot as RefundEvaluateResponse} traceHref={null} />
+      )}
+    </>
   );
 }
 
