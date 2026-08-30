@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AnalyzeResponse } from "@/lib/api";
-import { Badge } from "@/components/Badge";
+import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 
 // Shared between the Ask page and analyze-type ScenarioCards: same
@@ -26,16 +26,16 @@ export function AnalyzeResult({
   return (
     <div className="flex flex-col gap-5 rounded-md border border-black/10 p-6 dark:border-white/10">
       <div className="flex flex-wrap gap-2">
-        <Badge tone={result.sql_used ? "success" : "neutral"}>
+        <Badge variant={result.sql_used ? "success" : "secondary"}>
           {result.sql_used ? "SQL used" : "SQL not used"}
         </Badge>
-        <Badge tone={result.rag_used ? "success" : "neutral"}>
+        <Badge variant={result.rag_used ? "success" : "secondary"}>
           {result.rag_used ? "Policy lookup used" : "Policy lookup not used"}
         </Badge>
-        <Badge tone={result.grounded ? "success" : "danger"}>
+        <Badge variant={result.grounded ? "success" : "danger"}>
           {result.grounded ? "Grounded" : "Ungrounded claims detected"}
         </Badge>
-        {result.cached && <Badge tone="neutral">Cached</Badge>}
+        {result.cached && <Badge variant="secondary">Cached</Badge>}
       </div>
 
       {!result.grounded && (

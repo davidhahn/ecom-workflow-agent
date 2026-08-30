@@ -128,13 +128,13 @@ describe("deriveReliabilityOutcome", () => {
   it("labels a refund refusal as refused, not failed", () => {
     expect(
       deriveReliabilityOutcome(detail({ request_type: "refund_evaluate", output: { status: "could_not_process" } }))
-    ).toEqual({ label: "Refused: could not process", tone: "neutral" });
+    ).toEqual({ label: "Refused: could not process", tone: "secondary" });
   });
 
   it("labels a rejected SQL query as refused", () => {
     expect(deriveReliabilityOutcome(detail({ request_type: "sql", output: { status: "rejected" } }))).toEqual({
       label: "Refused: validation rejected",
-      tone: "neutral",
+      tone: "secondary",
     });
   });
 
@@ -235,7 +235,7 @@ describe("deriveGuardrails", () => {
         label: "Refusal reason",
         caption: "The deterministic refund rule engine refuses to guess when it can't confidently resolve who's asking.",
         value: "no customer identified",
-        tone: "neutral",
+        tone: "secondary",
       },
     ]);
   });

@@ -4,7 +4,7 @@
 // Which SQL safety layer rejected a query lives in query_audit_log, not in
 // anything this file can reach, so that label stays general.
 
-import type { BadgeTone } from "@/components/Badge";
+import type { BadgeVariant } from "@/components/ui/badge";
 import type { RequestLogDetailRow, ToolCallEntry } from "@/lib/api";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -83,15 +83,15 @@ export function deriveWorkflowPhases(detail: RequestLogDetailRow): WorkflowPhase
   return phases;
 }
 
-export type ReliabilityOutcome = { label: string; tone: BadgeTone };
+export type ReliabilityOutcome = { label: string; tone: BadgeVariant };
 
 // Answers "did this request succeed cleanly, succeed after recovery, refuse
 // intentionally, or fail?" using only retry_count plus the concrete status
 // already derived above.
 export function deriveReliabilityOutcome(detail: RequestLogDetailRow): ReliabilityOutcome {
   const status = deriveConcreteStatus(detail);
-  if (status === "could_not_process") return { label: "Refused: could not process", tone: "neutral" };
-  if (status === "rejected") return { label: "Refused: validation rejected", tone: "neutral" };
+  if (status === "could_not_process") return { label: "Refused: could not process", tone: "secondary" };
+  if (status === "rejected") return { label: "Refused: validation rejected", tone: "secondary" };
   if (status === "incomplete") return { label: "Incomplete", tone: "warning" };
   if (status === "error") return { label: "Failed", tone: "danger" };
   const retried = (detail.retry_count ?? 0) > 0;
@@ -100,7 +100,7 @@ export function deriveReliabilityOutcome(detail: RequestLogDetailRow): Reliabili
     : { label: "Succeeded cleanly", tone: "success" };
 }
 
-export type GuardrailField = { label: string; caption: string; value: string; tone: BadgeTone };
+export type GuardrailField = { label: string; caption: string; value: string; tone: BadgeVariant };
 
 // Only returns fields that apply to this specific request, never a fixed
 // set padded out empty. caption states what the check verifies, so a
@@ -143,7 +143,7 @@ export function deriveGuardrails(detail: RequestLogDetailRow): GuardrailField[] 
         label: "Refusal reason",
         caption: "The deterministic refund rule engine refuses to guess when it can't confidently resolve who's asking.",
         value: String(out.reasoning ?? ""),
-        tone: "neutral",
+        tone: "secondary",
       });
     } else if (out.status === "requires_manager_approval") {
       fields.push({

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listRequestLogs, type RequestLogRow } from "@/lib/api";
-import { Badge } from "@/components/Badge";
+import { Badge } from "@/components/ui/badge";
 import { NextSteps } from "@/components/NextSteps";
 import { useRole } from "@/lib/role-context";
 
@@ -102,13 +102,13 @@ export default function ActivityPage() {
                     {row.grounded === null ? (
                       "—"
                     ) : (
-                      <Badge tone={row.grounded ? "success" : "danger"}>
+                      <Badge variant={row.grounded ? "success" : "danger"}>
                         {row.grounded ? "yes" : "no"}
                       </Badge>
                     )}
                   </td>
                   <td className="py-3 pr-4">
-                    {row.cached && <Badge tone="neutral">cached</Badge>}
+                    {row.cached && <Badge variant="secondary">cached</Badge>}
                   </td>
                 </tr>
               ))}

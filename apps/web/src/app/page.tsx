@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge } from "@/components/Badge";
+import { Badge } from "@/components/ui/badge";
 import { ExpandableImage } from "@/components/ExpandableImage";
 import { SnapshotTabs } from "@/components/SnapshotTabs";
 import { Button } from "@/components/ui/button";
@@ -84,9 +84,9 @@ export default function HomePage() {
         </p>
 
         <div className="flex flex-wrap gap-2">
-          <Badge tone="neutral">Data analysis</Badge>
-          <Badge tone="neutral">Policy lookup</Badge>
-          <Badge tone="neutral">Refund decisions</Badge>
+          <Badge variant="secondary">Data analysis</Badge>
+          <Badge variant="secondary">Policy lookup</Badge>
+          <Badge variant="secondary">Refund decisions</Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 pt-2">

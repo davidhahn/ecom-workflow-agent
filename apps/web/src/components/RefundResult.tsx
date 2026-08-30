@@ -1,13 +1,13 @@
 import Link from "next/link";
 import type { RefundEvaluateResponse } from "@/lib/api";
-import { Badge, type BadgeTone } from "@/components/Badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 
-const STATUS_TONE: Record<string, BadgeTone> = {
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
   approved: "success",
   denied: "danger",
   requires_manager_approval: "warning",
   flagged_for_review: "warning",
-  could_not_process: "neutral",
+  could_not_process: "secondary",
 };
 
 // Shared between the free-form refund box and refund-type ScenarioCards:
@@ -24,7 +24,7 @@ export function RefundResult({
   return (
     <div className="flex flex-col gap-5 rounded-md border border-black/10 p-6 dark:border-white/10">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={STATUS_TONE[result.status] ?? "neutral"}>{result.status}</Badge>
+        <Badge variant={STATUS_VARIANT[result.status] ?? "secondary"}>{result.status}</Badge>
         {result.rule_applied !== null && (
           <span className="text-xs text-gray-500 dark:text-gray-400">rule {result.rule_applied}</span>
         )}

@@ -1,4 +1,4 @@
-import { Badge } from "@/components/Badge";
+import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { NextSteps } from "@/components/NextSteps";
 import { getAllEvalReports, getEvalResults, getExperimentMetadata } from "@/lib/evals";
@@ -85,7 +85,7 @@ export default function EvaluationLabPage() {
                 <td className="py-3 pr-4">
                   {!c.comparison_ready && (
                     <span title="This category has too few cases to trust as a percentage. See the note below the table.">
-                      <Badge tone="neutral">
+                      <Badge variant="secondary">
                         too few cases to compare (n&lt;{results.comparison_readiness.threshold_n})
                       </Badge>
                     </span>

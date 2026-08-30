@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getRequestLog, type RequestLogDetailRow } from "@/lib/api";
-import { Badge } from "@/components/Badge";
+import { Badge } from "@/components/ui/badge";
 import { ToolCallTrace } from "@/components/ToolCallTrace";
 import { JsonPreview } from "@/components/JsonPreview";
 import { useRole } from "@/lib/role-context";
@@ -119,10 +119,10 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
       <div className="rounded-md border border-black/10 p-6 dark:border-white/10">
         <p className="max-w-prose text-base font-medium">{detail.input}</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Badge tone="neutral">{detail.request_type}</Badge>
-          <Badge tone="neutral">{new Date(detail.created_at).toLocaleString()}</Badge>
-          <Badge tone={statusTone}>{concreteStatus}</Badge>
-          {detail.cached && <Badge tone="neutral">Cached</Badge>}
+          <Badge variant="secondary">{detail.request_type}</Badge>
+          <Badge variant="secondary">{new Date(detail.created_at).toLocaleString()}</Badge>
+          <Badge variant={statusTone}>{concreteStatus}</Badge>
+          {detail.cached && <Badge variant="secondary">Cached</Badge>}
         </div>
       </div>
 
@@ -132,7 +132,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
         <div className="flex flex-wrap items-center gap-2">
           {phases.map((phase, i) => (
             <span key={phase.label} className="flex items-center gap-2">
-              <Badge tone={phase.state === "done" ? "success" : "neutral"}>{phase.label}</Badge>
+              <Badge variant={phase.state === "done" ? "success" : "secondary"}>{phase.label}</Badge>
               {i < phases.length - 1 && <span className="text-gray-400 dark:text-gray-600">→</span>}
             </span>
           ))}
@@ -159,8 +159,8 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                       <p className="font-medium text-gray-700 dark:text-gray-300">
                         #{call.sequence} run_sql_query
                       </p>
-                      <Badge tone="neutral">Model proposed</Badge>
-                      <Badge tone="neutral">Code enforced</Badge>
+                      <Badge variant="secondary">Model proposed</Badge>
+                      <Badge variant="secondary">Code enforced</Badge>
                     </div>
                     {sql.sql && (
                       <pre className="mt-1 overflow-x-auto rounded bg-black/5 p-2 font-mono dark:bg-white/5">
@@ -169,7 +169,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                     )}
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       {sql.status && (
-                        <Badge tone={sql.status === "success" ? "success" : "danger"}>{sql.status}</Badge>
+                        <Badge variant={sql.status === "success" ? "success" : "danger"}>{sql.status}</Badge>
                       )}
                       {sql.promptVersion && (
                         <span className="text-gray-500 dark:text-gray-400">
@@ -197,8 +197,8 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
                       <p className="font-medium text-gray-700 dark:text-gray-300">
                         #{call.sequence} search_policy
                       </p>
-                      <Badge tone="neutral">Model proposed</Badge>
-                      <Badge tone="neutral">Code enforced</Badge>
+                      <Badge variant="secondary">Model proposed</Badge>
+                      <Badge variant="secondary">Code enforced</Badge>
                     </div>
                     {rag.length === 0 ? (
                       <p className="mt-1 text-gray-500 dark:text-gray-400">No chunks cleared the relevance threshold.</p>
@@ -238,7 +238,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
             {guardrails.map((field) => (
               <div key={field.label} className="flex flex-col gap-1 text-xs">
                 <div className="flex flex-wrap items-baseline gap-2">
-                  <Badge tone={field.tone}>{field.label}</Badge>
+                  <Badge variant={field.tone}>{field.label}</Badge>
                   <span className="text-gray-600 dark:text-gray-400">{field.value}</span>
                 </div>
                 <p className="text-gray-500 dark:text-gray-500">{field.caption}</p>
@@ -252,7 +252,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
       <div>
         <h2 className="mb-3 text-lg font-semibold">Reliability &amp; operational data</h2>
         <div className="flex flex-wrap gap-2">
-          <Badge tone={reliability.tone}>{reliability.label}</Badge>
+          <Badge variant={reliability.tone}>{reliability.label}</Badge>
         </div>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <span>{latency.totalMs} ms total</span>

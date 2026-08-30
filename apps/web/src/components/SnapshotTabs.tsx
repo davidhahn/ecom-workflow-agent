@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AnalyzeResult } from "@/components/AnalyzeResult";
-import { Badge } from "@/components/Badge";
+import { Badge } from "@/components/ui/badge";
 import { RefundResult } from "@/components/RefundResult";
 import type { AnalyzeResponse, RefundEvaluateResponse } from "@/lib/api";
 import { SCENARIOS } from "@/lib/scenarios";
@@ -112,7 +112,7 @@ function InjectionTab({ snapshot }: { snapshot: RefundEvaluateResponse }) {
       </blockquote>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Badge tone="danger">{snapshot.status}</Badge>
+        <Badge variant="danger">{snapshot.status}</Badge>
         <span className="text-sm text-gray-500 dark:text-gray-400">
           rule {snapshot.rule_applied} · 14-day changed-mind window
         </span>
