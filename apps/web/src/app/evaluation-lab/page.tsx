@@ -1,6 +1,8 @@
 import { Badge } from "@/components/Badge";
 import { Markdown } from "@/components/Markdown";
+import { NextSteps } from "@/components/NextSteps";
 import { getAllEvalReports, getEvalResults, getExperimentMetadata } from "@/lib/evals";
+import { GITHUB_REPO_URL } from "@/lib/site";
 
 // Summary line per report, shown on the collapsed row so a reader can decide
 // what to expand without opening everything.
@@ -175,6 +177,17 @@ export default function EvaluationLabPage() {
           );
         })}
       </div>
+
+      <NextSteps
+        links={[
+          {
+            href: "/architecture",
+            label: "Architecture",
+            note: "See what the model decides and what the code decides.",
+          },
+          { href: GITHUB_REPO_URL, label: "GitHub", note: "Read the code these numbers came from." },
+        ]}
+      />
     </div>
   );
 }

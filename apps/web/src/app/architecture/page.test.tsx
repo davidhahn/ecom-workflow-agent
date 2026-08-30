@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import ArchitecturePage from "./page";
 
@@ -32,7 +32,8 @@ describe("Architecture page", () => {
   it("links all five decisions to the real, public DECISIONS.md", () => {
     render(<ArchitecturePage />);
 
-    const links = screen.getAllByRole("link");
+    const section = screen.getByRole("heading", { name: "Decision links" }).closest("section")!;
+    const links = within(section).getAllByRole("link");
     expect(links).toHaveLength(5);
     for (const link of links) {
       expect(link).toHaveAttribute(

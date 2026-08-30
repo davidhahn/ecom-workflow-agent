@@ -128,7 +128,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {/* Workflow progress */}
       <div>
-        <p className="mb-3 text-base font-medium">Workflow progress</p>
+        <h2 className="mb-3 text-lg font-semibold">Workflow progress</h2>
         <div className="flex flex-wrap items-center gap-2">
           {phases.map((phase, i) => (
             <span key={phase.label} className="flex items-center gap-2">
@@ -141,7 +141,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {/* Tool calls */}
       <div>
-        <p className="mb-3 text-base font-medium">Tool calls</p>
+        <h2 className="mb-3 text-lg font-semibold">Tool calls</h2>
         <ToolCallTrace toolCalls={toolCalls} totalLatencyMs={detail.latency_ms} llmLatencyMs={detail.llm_latency_ms} />
 
         {toolCalls.length > 0 && (
@@ -228,7 +228,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {/* Guardrail outcomes */}
       <div>
-        <p className="mb-3 text-base font-medium">Guardrail outcomes</p>
+        <h2 className="mb-3 text-lg font-semibold">Guardrail outcomes</h2>
         {guardrails.length === 0 ? (
           <p className="text-xs text-gray-500 dark:text-gray-400">
             No guardrail checks apply to this request type.
@@ -250,7 +250,7 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
 
       {/* Reliability and operational data */}
       <div>
-        <p className="mb-3 text-base font-medium">Reliability &amp; operational data</p>
+        <h2 className="mb-3 text-lg font-semibold">Reliability &amp; operational data</h2>
         <div className="flex flex-wrap gap-2">
           <Badge tone={reliability.tone}>{reliability.label}</Badge>
         </div>

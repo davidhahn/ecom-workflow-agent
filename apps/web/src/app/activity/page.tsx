@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listRequestLogs, type RequestLogRow } from "@/lib/api";
 import { Badge } from "@/components/Badge";
+import { NextSteps } from "@/components/NextSteps";
 import { useRole } from "@/lib/role-context";
 
 type State =
@@ -62,12 +63,12 @@ export default function ActivityPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-black/10 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                <th className="py-3 pr-4 font-medium">Time</th>
-                <th className="py-3 pr-4 font-medium">Type</th>
-                <th className="py-3 pr-4 font-medium">Latency</th>
-                <th className="py-3 pr-4 font-medium">Cost</th>
-                <th className="py-3 pr-4 font-medium">Grounded</th>
-                <th className="py-3 pr-4 font-medium">Cached</th>
+                <th className="py-3 pr-4 font-medium tracking-wide uppercase">Time</th>
+                <th className="py-3 pr-4 font-medium tracking-wide uppercase">Type</th>
+                <th className="py-3 pr-4 font-medium tracking-wide uppercase">Latency</th>
+                <th className="py-3 pr-4 font-medium tracking-wide uppercase">Cost</th>
+                <th className="py-3 pr-4 font-medium tracking-wide uppercase">Grounded</th>
+                <th className="py-3 pr-4 font-medium tracking-wide uppercase">Cached</th>
               </tr>
             </thead>
             <tbody>
@@ -115,6 +116,21 @@ export default function ActivityPage() {
           </table>
         </div>
       )}
+
+      <NextSteps
+        links={[
+          {
+            href: "/evaluation-lab",
+            label: "Evaluation Lab",
+            note: "See how these requests get measured.",
+          },
+          {
+            href: "/architecture",
+            label: "Architecture",
+            note: "See what decided each outcome, and why.",
+          },
+        ]}
+      />
     </div>
   );
 }

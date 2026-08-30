@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RoleProvider } from "@/lib/role-context";
 import type { RequestLogRow } from "@/lib/api";
@@ -48,7 +48,8 @@ describe("Activity page", () => {
 
     renderActivityPage();
 
-    const links = await screen.findAllByRole("link");
+    const table = await screen.findByRole("table");
+    const links = within(table).getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "/activity/abc-123",
       "/activity/def-456",

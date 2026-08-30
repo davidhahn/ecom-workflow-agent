@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { AnalyzeResult } from "@/components/AnalyzeResult";
 import { ExampleChip } from "@/components/ExampleChip";
+import { NextSteps } from "@/components/NextSteps";
 import { useRole } from "@/lib/role-context";
 
 type State =
@@ -82,16 +83,14 @@ export default function AskPage() {
         </div>
       </form>
 
-      <details>
-        <summary className="cursor-pointer select-none text-sm text-gray-500 dark:text-gray-400">
-          Not sure what to ask? Try an example
-        </summary>
-        <div className="mt-2 flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2">
+        <p className="text-sm text-gray-500 dark:text-gray-400">Not sure what to ask? Try one of these.</p>
+        <div className="flex flex-wrap gap-2">
           {EXAMPLE_QUESTIONS.map((example) => (
             <ExampleChip key={example} label={example} onClick={() => setQuestion(example)} />
           ))}
         </div>
-      </details>
+      </div>
 
       {state.status === "error" && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
@@ -100,6 +99,21 @@ export default function AskPage() {
       )}
 
       {state.status === "success" && <AnalyzeResult result={state.result} />}
+
+      <NextSteps
+        links={[
+          {
+            href: "/activity",
+            label: "Activity",
+            note: "See every request logged, including this one.",
+          },
+          {
+            href: "/evaluation-lab",
+            label: "Evaluation Lab",
+            note: "Check the real numbers behind this kind of answer.",
+          },
+        ]}
+      />
     </div>
   );
 }

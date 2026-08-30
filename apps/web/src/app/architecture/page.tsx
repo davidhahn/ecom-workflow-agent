@@ -1,4 +1,5 @@
 import { ExpandableImage } from "@/components/ExpandableImage";
+import { NextSteps } from "@/components/NextSteps";
 import { RESPONSIBILITY_ROWS } from "@/lib/architecture";
 
 const NOT_BUILT: { title: string; body: string }[] = [
@@ -152,6 +153,21 @@ export default function ArchitecturePage() {
           ))}
         </dl>
       </section>
+
+      <NextSteps
+        links={[
+          {
+            href: "/scenarios",
+            label: "Scenarios",
+            note: "Watch this split play out on a real request.",
+          },
+          {
+            href: DECISIONS_URL,
+            label: "DECISIONS.md",
+            note: "Read the full log behind every call made here.",
+          },
+        ]}
+      />
     </div>
   );
 }

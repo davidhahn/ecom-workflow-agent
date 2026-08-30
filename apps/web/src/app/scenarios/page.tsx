@@ -1,3 +1,4 @@
+import { NextSteps } from "@/components/NextSteps";
 import { ScenarioDemo } from "@/components/ScenarioDemo";
 
 export const metadata = {
@@ -15,6 +16,13 @@ export default function ScenariosPage() {
       </div>
 
       <ScenarioDemo />
+
+      <NextSteps
+        links={[
+          { href: "/ask", label: "Ask", note: "Ask your own question instead of a curated one." },
+          { href: "/activity", label: "Activity", note: "See every request this demo has logged." },
+        ]}
+      />
     </div>
   );
 }
