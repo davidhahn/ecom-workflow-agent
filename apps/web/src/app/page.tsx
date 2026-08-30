@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ExpandableImage } from "@/components/ExpandableImage";
 import { SnapshotTabs } from "@/components/SnapshotTabs";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { GITHUB_REPO_URL } from "@/lib/site";
 import { RESPONSIBILITY_ROWS } from "@/lib/architecture";
 import { getEvalResults, type EvalCategoryResult } from "@/lib/evals";
@@ -145,32 +146,38 @@ export default function HomePage() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-md border border-black/10 p-5 dark:border-white/10">
-            <p className="font-mono text-xs text-gray-400 dark:text-gray-500">1</p>
-            <h3 className="mt-1 font-semibold">Model proposes</h3>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              Claude reads the request. It figures out whether the answer needs a SQL query or a
-              policy lookup, and drafts one. The database access and the final decision both
-              belong to the code that checks its work.
-            </p>
-          </div>
-          <div className="rounded-md border border-black/10 p-5 dark:border-white/10">
-            <p className="font-mono text-xs text-gray-400 dark:text-gray-500">2</p>
-            <h3 className="mt-1 font-semibold">Code decides</h3>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              A handful of checks run before anything touches real data. One checks the SQL
-              against an allowlist. Another caps how expensive a query can get. Refunds follow
-              their own fixed set of rules, model or no model.
-            </p>
-          </div>
-          <div className="rounded-md border border-black/10 p-5 dark:border-white/10">
-            <p className="font-mono text-xs text-gray-400 dark:text-gray-500">3</p>
-            <h3 className="mt-1 font-semibold">Everything is logged</h3>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              Every request leaves a paper trail. You can open it up and see exactly what
-              happened, step by step, cost included.
-            </p>
-          </div>
+          <Card className="py-5">
+            <CardContent className="px-5">
+              <p className="font-mono text-xs text-gray-400 dark:text-gray-500">1</p>
+              <h3 className="mt-1 font-semibold">Model proposes</h3>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                Claude reads the request. It figures out whether the answer needs a SQL query or a
+                policy lookup, and drafts one. The database access and the final decision both
+                belong to the code that checks its work.
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="py-5">
+            <CardContent className="px-5">
+              <p className="font-mono text-xs text-gray-400 dark:text-gray-500">2</p>
+              <h3 className="mt-1 font-semibold">Code decides</h3>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                A handful of checks run before anything touches real data. One checks the SQL
+                against an allowlist. Another caps how expensive a query can get. Refunds follow
+                their own fixed set of rules, model or no model.
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="py-5">
+            <CardContent className="px-5">
+              <p className="font-mono text-xs text-gray-400 dark:text-gray-500">3</p>
+              <h3 className="mt-1 font-semibold">Everything is logged</h3>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                Every request leaves a paper trail. You can open it up and see exactly what
+                happened, step by step, cost included.
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         <ExpandableImage
@@ -197,28 +204,31 @@ export default function HomePage() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {highlights.map((c) => (
-            <div key={c.category} className="rounded-md border border-black/10 p-4 dark:border-white/10">
-              <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{c.category}</p>
-              <p className="mt-1 text-2xl font-semibold text-accent">
-                {c.passed}/{c.n}
-              </p>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {c.pass_rate.toFixed(1)}%
-              </p>
-            </div>
+            <Card key={c.category} className="py-4">
+              <CardContent className="px-4">
+                <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{c.category}</p>
+                <p className="mt-1 text-2xl font-semibold text-accent">
+                  {c.passed}/{c.n}
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {c.pass_rate.toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           {FINDING_CARDS.map((card) => (
-            <Link
-              key={card.title}
-              href="/evaluation-lab#findings"
-              className="rounded-md border border-black/10 p-5 hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
-            >
-              <h3 className="font-semibold">{card.title}</h3>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{card.body}</p>
-            </Link>
+            <Card key={card.title} className="overflow-hidden p-0">
+              <Link
+                href="/evaluation-lab#findings"
+                className="block p-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
+              >
+                <h3 className="font-semibold">{card.title}</h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{card.body}</p>
+              </Link>
+            </Card>
           ))}
         </div>
 
@@ -240,14 +250,15 @@ export default function HomePage() {
         <h2 className="text-xl font-semibold">Explore</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {EXPLORE_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="rounded-md border border-black/10 p-5 hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
-            >
-              <h3 className="font-semibold">{link.label}</h3>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{link.description}</p>
-            </Link>
+            <Card key={link.href} className="overflow-hidden p-0">
+              <Link
+                href={link.href}
+                className="block p-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
+              >
+                <h3 className="font-semibold">{link.label}</h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{link.description}</p>
+              </Link>
+            </Card>
           ))}
         </div>
       </section>

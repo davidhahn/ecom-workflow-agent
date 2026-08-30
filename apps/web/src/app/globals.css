@@ -64,3 +64,16 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   line-height: 1.6;
 }
+
+/* Real shadcn setups always ship this: without it, sourced components that
+   write a bare `border` (Button's outline variant, Card) fall back to
+   currentColor instead of the border token. Existing hand-written elements
+   keep their explicit border-black/10 classes untouched, since a class
+   selector always outranks this universal one. */
+@layer base {
+  *,
+  ::after,
+  ::before {
+    border-color: var(--border);
+  }
+}

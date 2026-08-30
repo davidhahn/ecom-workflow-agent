@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export type NextStepLink = {
   href: string;
@@ -8,11 +9,13 @@ export type NextStepLink = {
 
 export function NextSteps({ links }: { links: NextStepLink[] }) {
   return (
-    <div className="rounded-md border border-black/10 p-5 dark:border-white/10">
-      <h2 className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
-        Keep going
-      </h2>
-      <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:gap-8">
+    <Card className="gap-3 py-5">
+      <CardHeader className="px-5">
+        <h2 className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
+          Keep going
+        </h2>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 px-5 sm:flex-row sm:gap-8">
         {links.map((link) => {
           const external = link.href.startsWith("http");
           return (
@@ -30,7 +33,7 @@ export function NextSteps({ links }: { links: NextStepLink[] }) {
             </Link>
           );
         })}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
