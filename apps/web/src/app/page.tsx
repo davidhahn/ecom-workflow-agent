@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge } from "@/components/Badge";
 import { ExpandableImage } from "@/components/ExpandableImage";
-import { InjectionSnapshot } from "@/components/InjectionSnapshot";
+import { SnapshotTabs } from "@/components/SnapshotTabs";
 import { GITHUB_REPO_URL } from "@/lib/site";
 import { RESPONSIBILITY_ROWS } from "@/lib/architecture";
 import { getEvalResults, type EvalCategoryResult } from "@/lib/evals";
@@ -16,6 +16,20 @@ export const metadata: Metadata = {
 // site's three core capabilities (SQL, RAG, refunds) plus the permission
 // gate. The numbers still come from the committed run either way.
 const HIGHLIGHT_CATEGORIES = ["sql_semantic", "rag", "refund_evaluator", "permission"];
+
+// Two of the five findings in evals/findings.md, picked to show the site
+// measures real gaps and closes them, not just a pass rate. Both link into
+// the Evaluation Lab's Findings report.
+const FINDING_CARDS: { title: string; body: string }[] = [
+  {
+    title: "Safe SQL, wrong number.",
+    body: "Structural checks passed 21 of 21. The actual values only matched by hand-checking 14 of 21. A prompt fix closed that gap, and it held for three runs after.",
+  },
+  {
+    title: "The same query, two different answers.",
+    body: "One embedding model ranked the right policy chunk second. Production's model ranked it fourth, past the cutoff. The threshold now gets calibrated per provider.",
+  },
+];
 
 const EXPLORE_LINKS: { href: string; label: string; description: string }[] = [
   {
@@ -120,7 +134,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <InjectionSnapshot />
+      <SnapshotTabs />
 
       <section className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
@@ -194,6 +208,19 @@ export default function HomePage() {
                 {c.pass_rate.toFixed(1)}%
               </p>
             </div>
+          ))}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {FINDING_CARDS.map((card) => (
+            <Link
+              key={card.title}
+              href="/evaluation-lab#findings"
+              className="rounded-md border border-black/10 p-5 hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
+            >
+              <h3 className="font-semibold">{card.title}</h3>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{card.body}</p>
+            </Link>
           ))}
         </div>
 

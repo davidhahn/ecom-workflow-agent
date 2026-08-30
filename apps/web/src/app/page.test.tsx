@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { getEvalResults } from "@/lib/evals";
 import HomePage from "./page";
@@ -26,14 +26,36 @@ describe("Landing page", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the proof snapshot for the injection-attempt scenario", () => {
+  it("renders the tabbed snapshot, defaulting to the injection-attempt scenario", () => {
     render(<HomePage />);
 
-    expect(screen.getByText("Already run")).toBeInTheDocument();
+    expect(screen.getByText(/captured from a real run/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Injection attempt", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /run this scenario live/i })).toHaveAttribute(
       "href",
       "/scenarios#injection-attempt"
     );
+  });
+
+  it("switches the snapshot and its live link when another tab is clicked", () => {
+    render(<HomePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Data analysis" }));
+
+    expect(screen.getByRole("button", { name: "Data analysis", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /run this scenario live/i })).toHaveAttribute(
+      "href",
+      "/scenarios#data-analysis"
+    );
+  });
+
+  it("renders both finding cards linking into the Evaluation Lab's findings report", () => {
+    render(<HomePage />);
+
+    const findingLinks = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href") === "/evaluation-lab#findings");
+    expect(findingLinks).toHaveLength(2);
   });
 
   it("renders a highlight stat card for each curated category with real numbers from results.json", () => {
