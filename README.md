@@ -1,6 +1,6 @@
 # ecom-workflow-agent
 
-This operations agent for an eCommerce business exists to answer one question: what happens when the model gets something wrong, and how would you know? The model interprets the request, and deterministic code decides what to do next, checking whether its claims hold up against what it retrieved or computed. I run it against an eval suite built from known answers, and I've broken the live system on purpose more than once, just to watch how it fails.
+This operations agent for an eCommerce business exists to answer one question: what happens when the model gets something wrong, and how would you know? The model interprets the request, and deterministic code decides what's allowed to execute. A separate check flags whether the model's claims hold up against what it retrieved or computed. I run it against an eval suite built from known answers, and I've broken the live system on purpose more than once, just to watch how it fails.
 
 **[Live demo](https://ecom-workflow-agent-web.vercel.app/)** · [Evals & defects found](EVALS.md) · [Architecture decisions](ARCHITECTURE.md) · [Full decision log](DECISIONS.md) · [Setup & deployment](docs/DEPLOY.md) · [Blog series](https://blog.davidhahn.co/)
 
@@ -87,7 +87,7 @@ The demo runs on seeded fixture data that resets daily at 06:00 UTC.
 - **Deterministic scoring wherever possible:** most categories score with `exact_match` or `rule_based` checks against a fixed expected value, no model call inside the scoring itself.
 - **A judge only for semantic criteria:** three categories need one, `mixed`, `prompt_injection`, `request_faithfulness`. Each asks the judge to read free text and decide whether it meets a described standard.
 - **Human audit of every judged label:** the calibration sample found zero disagreements across 33 audited verdicts. Every one of those landed on a pass-shaped outcome, and no `fail` verdict has been checked against a human read yet.
-- **Repeated model-backed runs:** SQL generation and the judged answers built on it vary run to run, and a single pass wouldn't show that. Each model-backed category ran 3 times.
+- **Repeated model-backed runs:** SQL generation and the judged answers built on it vary run to run, and a single pass wouldn't show that. Each model-backed category ran 3 times. `mixed`'s current number above is the one exception. It comes from a single live run, not yet repeated ([`DECISIONS.md` #46](DECISIONS.md)).
 - **Failure taxonomy:** every failure gets traced to a root cause before it's counted. That distinction separated a flawed test case, `sql-05`, from a real bug, `mixed-08`.
 - **Frozen-suite comparison discipline:** a baseline-to-current delta only runs against the same case set. A number from an older suite gets labeled historical, so nobody mistakes it for one with the same denominator.
 - **Production verification:** a passing suite and a working deployment are two different claims. Two real bugs only turned up by testing the live app directly. The suite alone never surfaced them.
@@ -130,7 +130,7 @@ Running the full 79-case suite on every push isn't practical. Half those cases n
 
 Before settling on Claude Sonnet as the production model, I ran the full eval suite against both Sonnet and a cheaper Haiku model, using the same prompts, the same cache-bypassed questions, and the same judge, three runs apiece.
 
-The aggregate score made Haiku look uniformly worse. The per-category breakdown told a sharper story: real gaps in SQL generation and one compliance case, plus one case where Haiku was more reliable than Sonnet. I kept Sonnet, weighing the categories that carry real financial and compliance risk more heavily than the aggregate number. That same per-category read caught a real, fixable prompt gap in Sonnet's own answers, one the aggregate score alone would have hidden as a strength.
+The aggregate score made Haiku look uniformly worse. The per-category breakdown told a sharper story: real gaps in SQL generation and one compliance case, plus one case where Haiku was more reliable than Sonnet. I kept Sonnet, weighing the categories that carry real financial and compliance risk more heavily than the aggregate number. That same per-category read caught a real, fixable prompt gap in Sonnet's own answers, one the aggregate score alone would have hidden as a strength. A one-sentence prompt fix closed that gap later ([`DECISIONS.md` #46](DECISIONS.md)). Sonnet now leads on every case in the comparison.
 
 ## 8. Component deep dives
 
@@ -198,7 +198,7 @@ Two cases generated SQL that passed every structural check and still returned th
 
 ### Retrieval Relevance
 
-Retrieval always returned its closest chunks, on-topic or not. Every one of 15 off-topic questions in the ablation set got a confident-sounding answer, never `I don't know`. Adding a relevance threshold, below which nothing counts as evidence, brought that to 12 of 15.
+Retrieval always returned its closest chunks, on-topic or not. All 5 off-topic questions in the ablation set, run 3 times each, got a confident-sounding answer every time, never `I don't know`. Adding a relevance threshold, below which nothing counts as evidence, brought that to 12 of those 15 runs.
 
 ### Environment Skew
 
@@ -260,7 +260,7 @@ The judge's calibration check found zero disagreements against 33 human-audited 
 
 ### Authentication
 
-Every request carries a role through a plain header, `viewer`, `support_agent`, `manager`, or `admin`, picked by whoever's calling. That's enough to test the permission gate's real logic, the read/write split between roles, without building a login system the gate itself doesn't depend on. Handling a real user's data or a real refund means replacing that header with an actual identity provider and session handling first.
+Every request carries a role through a plain header, `read_only_viewer`, `support_agent`, `manager`, or `admin`, picked by whoever's calling. That's enough to test the permission gate's real logic, the read/write split between roles, without building a login system the gate itself doesn't depend on. Handling a real user's data or a real refund means replacing that header with an actual identity provider and session handling first.
 
 ### Seeded Domain
 
@@ -310,7 +310,7 @@ poetry run python -m app.db.seed
 poetry run python -m app.rag.ingest
 ```
 
-`seed.py` truncates and reseeds the six Part 1 tables with deterministic fixture data, and it's safe to rerun. `rag.ingest` loads the policy corpus RAG retrieves against.
+`seed.py` truncates and reseeds all nine tables with deterministic fixture data, and it's safe to rerun. `rag.ingest` loads the policy corpus RAG retrieves against.
 
 ### API
 

@@ -49,7 +49,7 @@ and no row-level isolation.
 | Orchestration | Anthropic Python SDK (claude-sonnet-4-6) |
 | Embeddings | `EMBEDDING_PROVIDER`-dispatched: local `sentence-transformers` BAAI/bge-m3 (dev default) or hosted Voyage AI `voyage-3.5-lite` at 1024 dims (deploy). See DECISIONS.md #8 |
 | Storage | Postgres + pgvector |
-| Evals | 53 cases in `evals/cases.json`, scored `exact_match` / `rule_based` / `manual_review`. No LLM-as-judge scorer exists. Only the 2 `groundedness` cases are wired into pytest (`test_groundedness_evals.py`); the rest are run manually |
+| Evals | 79 cases in `evals/cases.json`. Most score by exact match or a fixed rule. Three categories score with an AI judge instead. Only the 2 `groundedness` cases are wired into pytest (`test_groundedness_evals.py`); most others run through `evals/run.py`, and `ticket_evaluator`/`invoice_evaluator` still run by hand |
 | Observability | `/activity` page (shipped): per-request latency, tokens, cost, grounded flag, cached flag, plus expandable tool-call trace |
 | Cost/token tracking | Computed in `app/observability/pricing.py`, stored in Postgres as `request_log.estimated_cost_usd`, read via `GET /observability/requests` |
 
