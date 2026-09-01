@@ -372,5 +372,5 @@ Deploying to Render and Vercel: [docs/DEPLOY.md](docs/DEPLOY.md). API surface de
 - **[Architecture decisions](ARCHITECTURE.md):** the load-bearing calls behind this project, written up as decisions with the tradeoffs and open questions attached to each one.
 - **[Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab):** every number in this README, live, with the methodology and the caveats that decide what each one means.
 - **[DECISIONS.md](DECISIONS.md):** the full decision log behind the project, entry by entry, including the ones that never made it into this README.
-- **[ARCHITECTURE_CRITIQUE.md](ARCHITECTURE_CRITIQUE.md):** an independent, adversarial read of this architecture, done cold with no prior context, briefed to find gaps a friendlier read would miss.
+- **[Adversarial architecture review](ARCHITECTURE_CRITIQUE.md):** a critical review of the system's design, and a record of what happened to each finding since.
 - **[UI specification](docs/ui-spec.md):** who each screen is built for and what job it does, useful if the design choices need explaining before the screenshots do.
