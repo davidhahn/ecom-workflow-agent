@@ -9,7 +9,7 @@ describe("Landing page", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /building an ai agent you can inspect, evaluate, and control/i,
+        name: /building an ai agent you can inspect and control/i,
         level: 1,
       })
     ).toBeInTheDocument();

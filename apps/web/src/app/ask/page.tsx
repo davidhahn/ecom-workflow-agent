@@ -56,8 +56,8 @@ export default function AskPage() {
         <h1 className="text-3xl font-semibold">Ask</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           Test the agent across data and knowledge. Claude decides whether the question needs a
-          SQL query, a policy lookup, or both. Deterministic controls restrict what data it can
-          reach, and a grounding check flags any claim the retrieved evidence doesn&apos;t
+          SQL query, a policy lookup, or both. Deterministic controls decide what data it&apos;s
+          allowed to reach. A grounding check flags any claim the retrieved evidence doesn&apos;t
           support.
         </p>
       </div>

@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     default: "Reliable AI Systems Case Study | Ops Intelligence Agent",
   },
   description:
-    "A full-stack AI engineering case study exploring RAG, tool orchestration, evals, deterministic guardrails, permissions, observability, latency, and cost through a working e-commerce agent.",
+    "A full-stack case study in reliable AI systems: grounding, deterministic guardrails, evals, and cost and latency tracking, worked out through a real e-commerce ops agent.",
 };
 
 export default function RootLayout({

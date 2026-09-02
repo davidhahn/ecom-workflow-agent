@@ -39,9 +39,9 @@ export default function ActivityPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold">System Traces</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Inspect what happened behind every answer. Each row opens a full trace: tool path,
-          retrieved evidence, generated SQL, grounding status, guardrail results, latency by step,
-          tokens, cost, cache behavior, and retries.
+          Inspect what happened behind every answer. Each row opens into a full trace: which
+          tools ran, what they returned, whether the groundedness check passed. It also carries
+          the operational side, latency by step, tokens, cost, cache and retry behavior.
         </p>
       </div>
 

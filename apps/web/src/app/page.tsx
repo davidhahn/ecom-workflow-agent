@@ -11,7 +11,7 @@ import { getEvalResults, type EvalCategoryResult } from "@/lib/evals";
 
 export const metadata: Metadata = {
   description:
-    "A full-stack AI engineering case study exploring RAG, tool orchestration, evals, deterministic guardrails, permissions, observability, latency, and cost through a working e-commerce agent.",
+    "A full-stack case study in reliable AI systems: grounding, deterministic guardrails, evals, and cost and latency tracking, worked out through a real e-commerce ops agent.",
 };
 
 // A curated subset, not the full category list. These four map to the
@@ -75,15 +75,13 @@ export default function HomePage() {
           AI Systems Engineering Case Study
         </p>
         <h1 className="text-4xl leading-tight font-semibold sm:text-5xl">
-          Building an AI agent you can inspect, evaluate, and control
+          Building an AI agent you can inspect and control
         </h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          LLMs can reason over messy business questions and choose tools dynamically. Turning that
-          into something dependable raises different problems: grounding answers in real data,
-          controlling what the model can do, measuring unpredictable behavior, handling failures,
-          and tracking the cost and latency of every request. Ops Intelligence Agent is a
-          full-stack e-commerce ops agent built as a working environment for exploring those
-          problems.
+          An LLM can read a messy business question and decide on its own which tool to use.
+          Turning that into something you can rely on is a different problem, closer to systems
+          engineering than to prompting. Ops Intelligence Agent is where I worked through it,
+          using a full-stack e-commerce ops agent as the testbed.
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -142,16 +140,16 @@ export default function HomePage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">1. Can we trust the answer?</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            An LLM can state something confidently that isn&apos;t true. In an ops setting, an
-            answer that cites a policy nobody retrieved, or a number nobody checked, is a
-            liability, not a feature.
+            An LLM can sound completely sure of something that&apos;s wrong. In an ops setting, an
+            answer built on a policy nobody looked up is expensive, and nobody finds out until
+            later.
           </p>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Retrieval compares the question against the policy corpus by similarity and drops
-            anything that doesn&apos;t clear a calibrated relevance threshold, so an off-topic
-            question gets &quot;I don&apos;t know&quot; instead of a confident guess. A separate
-            groundedness check then confirms that any policy rule the final answer cites actually
-            appeared among what got retrieved for that request.
+            Retrieval scores each question against the policy corpus by similarity, and anything
+            under a calibrated threshold gets dropped. An off-topic question comes back with
+            &quot;I don&apos;t know.&quot; It doesn&apos;t get a guess dressed up as an answer. A
+            separate groundedness check goes further. It confirms that any rule the final answer
+            cites showed up in what got retrieved for that request.
           </p>
         </div>
 
@@ -178,11 +176,6 @@ export default function HomePage() {
             </p>
           </Link>
         </div>
-
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Demonstrates: retrieval-augmented generation, relevance thresholding, groundedness
-          verification, uncertainty handling.
-        </p>
       </section>
 
       {/* 2. Can we trust the action? */}
@@ -190,17 +183,18 @@ export default function HomePage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">2. Can we trust the action?</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Reasoning well is one problem. Being allowed to act on that reasoning is another. A
-            tool-calling agent that can also execute is only as safe as the boundary between
-            proposing and doing.
+            A model that reasons well still needs a leash around what it can do. Claude decides
+            what ought to happen next, whether that&apos;s a SQL query or a refund decision.
+            Whether it happens is up to code sitting outside the model.
           </p>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Claude proposes what to do next, a SQL query, a tool call, a refund decision. Nothing
-            takes effect until deterministic code checks it: an AST-level allowlist restricts
-            tables, columns, and functions, a cost gate rejects an expensive query before it runs,
-            and a permission gate checks the calling role against every tool. A restricted
-            database role backstops all of it, so a bug upstream still can&apos;t reach data the
-            role itself doesn&apos;t allow.
+            Before any of that reaches the database, three separate checks get a look at it. One
+            is an AST-level allowlist: it knows which tables, columns, and functions are fair
+            game, and blocks the rest. Another puts a ceiling on how expensive a query is allowed
+            to get, checked before the query runs. A permission gate sits behind both of those,
+            matching the calling role against what that role is allowed to touch. Even if every
+            one of those had a bug, the database role itself only has access to a narrow slice of
+            the schema.
           </p>
         </div>
 
@@ -234,11 +228,6 @@ export default function HomePage() {
           alt="Request flow: user request through the agent/orchestrator loop, into the SQL tool or the Policy/RAG tool, through a deterministic enforcement seam, to a final response, with a trace log recording every stage."
           className="mx-auto w-full max-w-2xl rounded-md border border-black/10 dark:border-white/10"
         />
-
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Demonstrates: deterministic execution, SQL AST validation, permission gating, and an
-          authorization boundary independent of the model.
-        </p>
       </section>
 
       {/* 3. How do we know it works? */}
@@ -246,15 +235,16 @@ export default function HomePage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">3. How do we know it works?</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Behavior that isn&apos;t measured is a story about the system, not evidence for it.
-            A change can look like an improvement in a transcript and still be a regression
-            somewhere the transcript doesn&apos;t show.
+            If you don&apos;t measure behavior, all you have is a story about the system. A change
+            can read like an improvement in one transcript and still be a regression somewhere
+            else, in a place that transcript never shows you.
           </p>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Every claim here comes from a versioned, {results.overall.total}-case eval suite,
-            scored deterministically wherever possible and by a judge model only where the
-            criterion is genuinely semantic. Every change runs through the same harness before it
-            ships, and every failure gets traced to a root cause before it&apos;s counted.
+            Every claim on this page is backed by a versioned eval suite, {results.overall.total}{" "}
+            cases right now, scored by a fixed rule wherever that&apos;s possible, and by a judge
+            model only when a fixed rule can&apos;t capture the question. Every change runs
+            through the same harness before it ships. The harness traces every failure back to a
+            root cause before it counts.
           </p>
         </div>
 
@@ -294,10 +284,6 @@ export default function HomePage() {
           </p>
         )}
 
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Demonstrates: eval-driven development, regression testing, root-cause failure analysis.
-        </p>
-
         <Link
           href="/evaluation-lab"
           className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline"
@@ -311,16 +297,17 @@ export default function HomePage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">4. Can we understand what happened?</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            An answer&apos;s own wording isn&apos;t proof of what actually happened to produce it.
-            Without instrumentation, a production LLM system is a black box you can only debug by
+            The words in an answer aren&apos;t proof of what happened to produce it. Without
+            instrumentation, a production LLM system is a black box, and debugging it means
             guessing.
           </p>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Every request writes its own record: which tools ran, what got retrieved, the SQL that
-            was generated, whether the answer was grounded, which guardrails fired, latency broken
-            down by step, tokens, cost, and whether the response was cached or retried. System
-            Traces renders that record directly, so a claim about what happened doesn&apos;t have
-            to rely on the answer&apos;s own account of itself.
+            Every request writes its own record as it runs. The trace captures which tools got
+            called and what came back from each one. It also captures whether the groundedness
+            check passed and which guardrails fired. Alongside that sits the ordinary operational
+            detail: latency broken down by step, tokens, cost, and whether the answer came from
+            cache. System Traces lays all of it out next to the original request, in the order it
+            happened.
           </p>
         </div>
 
@@ -331,11 +318,6 @@ export default function HomePage() {
           <span className="font-semibold text-accent">Every request</span>{" "}
           <span className="text-gray-500 dark:text-gray-400">traced end to end →</span>
         </Link>
-
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Demonstrates: request tracing, latency/token/cost accounting, cache behavior, retry
-          handling.
-        </p>
       </section>
 
       {/* 5. How should AI and code split the work? */}
@@ -343,16 +325,16 @@ export default function HomePage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">5. How should AI and code split the work?</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Architecture here is a series of decisions about where judgment stays with the model
-            and where it moves to code, and each of those calls has a specific failure mode if
-            it&apos;s drawn in the wrong place.
+            Every part of this architecture is a decision about who holds judgment here, the
+            model or the code. Getting that call wrong has a real failure mode attached to it,
+            whichever direction it goes.
           </p>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            The orchestration seam is &quot;LLM proposes, Python enforces.&quot; Claude keeps
-            tool selection, SQL drafting, field extraction from free text, and synthesizing an
-            answer. Deterministic code keeps permissions, SQL safety, refund policy, and the
-            groundedness check, {RESPONSIBILITY_ROWS.length} responsibility pairs in total, each
-            one a place the design could plausibly have gone the other way.
+            The seam is what the README calls &quot;LLM proposes, Python enforces&quot;: Claude
+            keeps the parts that call for judgment, and ordinary code keeps everything that
+            can&apos;t be left to a guess. The Architecture page maps out{" "}
+            {RESPONSIBILITY_ROWS.length} of these pairs, one by one, each one a place the split
+            could have gone the other way.
           </p>
         </div>
 
@@ -363,11 +345,6 @@ export default function HomePage() {
           <span className="font-semibold text-accent">{RESPONSIBILITY_ROWS.length}</span>{" "}
           <span className="text-gray-500 dark:text-gray-400">checks that run without the model →</span>
         </Link>
-
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Demonstrates: orchestration design, explicit LLM/code boundaries, tradeoff
-          documentation.
-        </p>
       </section>
 
       {/* 6. Does it work as real software? */}
@@ -381,27 +358,26 @@ export default function HomePage() {
           </p>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
             A Next.js and TypeScript frontend talks to a FastAPI backend over generated,
-            type-safe API types. Postgres with pgvector, migrated with Alembic and seeded from a
-            re-runnable fixture script, backs both the transactional data and the policy
-            retrieval index. External calls carry timeouts and bounded retries, failures return
-            structured error states instead of raising, and a deterministic subset of the eval
-            suite gates every push in CI before the app deploys.
+            type-safe API types. Postgres with pgvector backs both the transactional data and the
+            policy retrieval index, migrated with Alembic and seeded from a re-runnable fixture
+            script. External calls carry timeouts and one bounded retry. When something fails
+            anyway, it comes back as a structured error, a status the caller can act on. A
+            deterministic slice of the eval suite has to pass in CI before any of it reaches
+            production.
           </p>
         </div>
-
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Demonstrates: full-stack delivery, API design, data modeling, CI, and deployment.
-        </p>
       </section>
 
       <section className="flex flex-col gap-3 border-t border-black/10 pt-10 dark:border-white/10">
         <h2 className="text-lg font-semibold">Why e-commerce</h2>
         <p className="max-w-prose text-sm text-gray-600 dark:text-gray-300">
-          E-commerce ops is a familiar domain that still surfaces real constraints, orders,
-          refunds, policies, permissions, without hiding the harder engineering questions behind
-          domain complexity. The same patterns, grounding, deterministic control, evaluation,
-          observability, apply just as directly to internal copilots, support agents, financial
-          workflows, and enterprise knowledge systems.
+          E-commerce ops is a familiar domain. Everyone already knows roughly what an order or a
+          refund is. The domain itself doesn&apos;t get in the way of the real engineering
+          questions. It still comes with a real policy to follow and a real permission boundary
+          that has to hold. The same patterns show up anywhere an LLM sits in front of real data
+          and real consequences, an internal copilot or a support agent, say. E-commerce just
+          happened to be the one I could build end to end without waiting on anyone else&apos;s
+          system.
         </p>
       </section>
 

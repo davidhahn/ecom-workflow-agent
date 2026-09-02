@@ -55,9 +55,10 @@ export function ScenarioDemo() {
         <summary className="cursor-pointer select-none">
           <h2 className="inline text-lg font-semibold">Try your own refund request</h2>
           <span className="mt-1 block max-w-prose text-sm text-gray-500 dark:text-gray-400">
-            Separate language understanding from business rules. Claude extracts the request, who&apos;s
-            asking, what product, why. Deterministic logic applies the policy and returns the rule
-            that produced the decision. It evaluates and writes nothing to the refunds table.
+            Separate language understanding from business rules. Claude reads the free-text
+            request and pulls out who&apos;s asking and why. A fixed set of policy rules decides
+            the outcome from there, and the response names exactly which rule produced it.
+            Nothing here writes to the refunds table.
           </span>
         </summary>
 

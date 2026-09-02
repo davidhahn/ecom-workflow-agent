@@ -1,8 +1,8 @@
 # ecom-workflow-agent
 
-A full-stack AI systems case study built around a practical question: what does it take to make an LLM-powered agent useful, measurable, and safe enough to trust with business workflows?
+This is a full-stack case study in AI systems engineering, built around one question: what does it take before you'd trust an LLM-powered agent with a real business workflow?
 
-The project uses e-commerce operations as its testbed. The agent reasons across structured data and policy knowledge, chooses tools dynamically, and produces natural-language answers and decisions. Around that probabilistic core, deterministic software controls execution and permissions, evals measure behavior, grounding checks catch unsupported claims, and request traces expose latency, tokens, cost, and other operational signals.
+E-commerce operations is the testbed. The agent reads structured data and policy documents and decides which tools to reach for. The answer comes back in plain language. None of that reasoning gets to act by itself. Ordinary code, sitting outside the model, decides what's allowed to execute. An eval suite scores every change against the same fixed cases before it reaches the live app. A separate check compares each claim in an answer to what got retrieved, and flags what doesn't match. Every request writes its own record of what happened, cost and latency included.
 
 This operations agent for an eCommerce business exists to answer one question: what happens when the model gets something wrong, and how would you know? The model interprets the request, and deterministic code decides what's allowed to execute. A separate check flags whether the model's claims hold up against what it retrieved or computed. I run it against an eval suite built from known answers, and I've broken the live system on purpose more than once, just to watch how it fails.
 
