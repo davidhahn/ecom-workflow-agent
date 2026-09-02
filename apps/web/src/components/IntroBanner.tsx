@@ -17,8 +17,8 @@ export function IntroBanner() {
     <div className="border-b border-black/10 bg-black/[0.03] px-6 py-3 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-1">
         <span>
-          A demo AI ops agent for an eCommerce business. Ask a question or evaluate a refund, then
-          see the full decision trace behind it.
+          An AI systems engineering case study, using e-commerce ops as the testbed. Ask a
+          question or evaluate a refund, then see the full decision trace behind it.
         </span>
         <a
           href={GITHUB_REPO_URL}

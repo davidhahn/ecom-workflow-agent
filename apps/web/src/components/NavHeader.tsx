@@ -8,7 +8,7 @@ import { GITHUB_REPO_URL } from "@/lib/site";
 const TABS = [
   { href: "/scenarios", label: "Scenarios" },
   { href: "/ask", label: "Ask" },
-  { href: "/activity", label: "Activity" },
+  { href: "/activity", label: "System Traces" },
   { href: "/evaluation-lab", label: "Evaluation Lab" },
   { href: "/architecture", label: "Architecture" },
 ];

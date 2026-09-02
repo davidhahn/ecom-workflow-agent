@@ -8,7 +8,10 @@ describe("Landing page", () => {
     render(<HomePage />);
 
     expect(
-      screen.getByRole("heading", { name: /an ops agent that shows its work/i, level: 1 })
+      screen.getByRole("heading", {
+        name: /building an ai agent you can inspect, evaluate, and control/i,
+        level: 1,
+      })
     ).toBeInTheDocument();
   });
 
@@ -82,7 +85,7 @@ describe("Landing page", () => {
   it("renders an explore card for every destination page", () => {
     render(<HomePage />);
 
-    for (const name of ["Scenarios", "Ask", "Activity", "Evaluation Lab", "Architecture"]) {
+    for (const name of ["Scenarios", "Ask", "System Traces", "Evaluation Lab", "Architecture"]) {
       expect(screen.getByRole("heading", { name, level: 3 })).toBeInTheDocument();
     }
   });

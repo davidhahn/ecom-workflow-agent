@@ -1,5 +1,9 @@
 # ecom-workflow-agent
 
+A full-stack AI systems case study built around a practical question: what does it take to make an LLM-powered agent useful, measurable, and safe enough to trust with business workflows?
+
+The project uses e-commerce operations as its testbed. The agent reasons across structured data and policy knowledge, chooses tools dynamically, and produces natural-language answers and decisions. Around that probabilistic core, deterministic software controls execution and permissions, evals measure behavior, grounding checks catch unsupported claims, and request traces expose latency, tokens, cost, and other operational signals.
+
 This operations agent for an eCommerce business exists to answer one question: what happens when the model gets something wrong, and how would you know? The model interprets the request, and deterministic code decides what's allowed to execute. A separate check flags whether the model's claims hold up against what it retrieved or computed. I run it against an eval suite built from known answers, and I've broken the live system on purpose more than once, just to watch how it fails.
 
 **[Live demo](https://ecom-workflow-agent-web.vercel.app/)** · [Evals & defects found](EVALS.md) · [Architecture decisions](ARCHITECTURE.md) · [Full decision log](DECISIONS.md) · [Setup & deployment](docs/DEPLOY.md) · [Blog series](https://blog.davidhahn.co/)

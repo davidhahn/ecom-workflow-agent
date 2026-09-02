@@ -37,10 +37,11 @@ export default function ActivityPage() {
   return (
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold">Activity</h1>
+        <h1 className="text-3xl font-semibold">System Traces</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Most recent requests across all endpoints. Any row opens that request&apos;s execution
-          trace.
+          Inspect what happened behind every answer. Each row opens a full trace: tool path,
+          retrieved evidence, generated SQL, grounding status, guardrail results, latency by step,
+          tokens, cost, cache behavior, and retries.
         </p>
       </div>
 

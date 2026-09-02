@@ -55,8 +55,10 @@ export default function AskPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold">Ask</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Ask a question over ops data (SQL) and/or refund policy (RAG). The agent decides which
-          tools it needs.
+          Test the agent across data and knowledge. Claude decides whether the question needs a
+          SQL query, a policy lookup, or both. Deterministic controls restrict what data it can
+          reach, and a grounding check flags any claim the retrieved evidence doesn&apos;t
+          support.
         </p>
       </div>
 
@@ -101,7 +103,7 @@ export default function AskPage() {
         links={[
           {
             href: "/activity",
-            label: "Activity",
+            label: "System Traces",
             note: "See every request logged, including this one.",
           },
           {

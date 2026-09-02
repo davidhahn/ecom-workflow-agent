@@ -19,9 +19,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: {
     template: "%s · Ops Intelligence Agent",
-    default: "Ops Intelligence Agent",
+    default: "Reliable AI Systems Case Study | Ops Intelligence Agent",
   },
-  description: "Enterprise Operations Intelligence Agent",
+  description:
+    "A full-stack AI engineering case study exploring RAG, tool orchestration, evals, deterministic guardrails, permissions, observability, latency, and cost through a working e-commerce agent.",
 };
 
 export default function RootLayout({

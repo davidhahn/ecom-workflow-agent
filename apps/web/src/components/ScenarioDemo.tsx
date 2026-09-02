@@ -55,8 +55,9 @@ export function ScenarioDemo() {
         <summary className="cursor-pointer select-none">
           <h2 className="inline text-lg font-semibold">Try your own refund request</h2>
           <span className="mt-1 block max-w-prose text-sm text-gray-500 dark:text-gray-400">
-            Same refund evaluator as above, free-form. It evaluates a decision and writes nothing
-            to the refunds table.
+            Separate language understanding from business rules. Claude extracts the request, who&apos;s
+            asking, what product, why. Deterministic logic applies the policy and returns the rule
+            that produced the decision. It evaluates and writes nothing to the refunds table.
           </span>
         </summary>
 
