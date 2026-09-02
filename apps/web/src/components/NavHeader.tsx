@@ -38,7 +38,7 @@ export function NavHeader() {
         <Link href="/" className="shrink-0 font-semibold">
           Ops Intelligence Agent
         </Link>
-        <nav className="flex min-w-0 flex-1 gap-4 overflow-x-auto whitespace-nowrap">
+        <nav className="flex min-w-0 flex-1 gap-4 overflow-x-auto pb-1.5 whitespace-nowrap">
           {TABS.map((tab) => {
             const active = pathname === tab.href;
             return (
