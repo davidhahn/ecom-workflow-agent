@@ -374,3 +374,4 @@ Deploying to Render and Vercel: [docs/DEPLOY.md](docs/DEPLOY.md). API surface de
 - **[DECISIONS.md](DECISIONS.md):** the full decision log behind the project, entry by entry, including the ones that never made it into this README.
 - **[Adversarial architecture review](ARCHITECTURE_CRITIQUE.md):** a critical review of the system's design, and a record of what happened to each finding since.
 - **[UI specification](docs/ui-spec.md):** who each screen is built for and what job it does, useful if the design choices need explaining before the screenshots do.
+- **[LATER.md](LATER.md):** bigger extensions past the near-term punch list above, each with the reason it's waiting.
