@@ -1,0 +1,397 @@
+{
+  "timestamp": "2026-09-01 18:59",
+  "commit": "0706b2f",
+  "cases": [
+    {
+      "id": "refund-01-baseline-approval-damaged-shipping",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "approved",
+        "rule_applied": 4
+      },
+      "actual": {
+        "status": "approved",
+        "rule_applied": 4
+      },
+      "failure_reasons": null,
+      "latency_ms": 35.21175000059884,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-02-category-exclusion-final-sale",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "denied",
+        "rule_applied": 9
+      },
+      "actual": {
+        "status": "denied",
+        "rule_applied": 9
+      },
+      "failure_reasons": null,
+      "latency_ms": 4.80358300046646,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-03-final-sale-exempt-reason-override",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "approved",
+        "rule_applied": 5
+      },
+      "actual": {
+        "status": "approved",
+        "rule_applied": 5
+      },
+      "failure_reasons": null,
+      "latency_ms": 3.5619170012068935,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-04-time-window-violation-changed-mind",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "denied",
+        "rule_applied": 3
+      },
+      "actual": {
+        "status": "denied",
+        "rule_applied": 3
+      },
+      "failure_reasons": null,
+      "latency_ms": 2.756290999968769,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-05-time-window-violation-defective",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "denied",
+        "rule_applied": 2
+      },
+      "actual": {
+        "status": "denied",
+        "rule_applied": 2
+      },
+      "failure_reasons": null,
+      "latency_ms": 3.09233400184894,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-06-evidence-missing-damaged-shipping",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "denied",
+        "rule_applied": 4
+      },
+      "actual": {
+        "status": "denied",
+        "rule_applied": 4
+      },
+      "failure_reasons": null,
+      "latency_ms": 3.3315000000584405,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-08-could-not-process-ambiguous-reason",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "could_not_process",
+        "rule_applied": null
+      },
+      "actual": {
+        "status": "could_not_process",
+        "rule_applied": null
+      },
+      "failure_reasons": null,
+      "latency_ms": 0.0010420008038636297,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-09-could-not-process-unresolvable-product",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "could_not_process",
+        "rule_applied": null
+      },
+      "actual": {
+        "status": "could_not_process",
+        "rule_applied": null
+      },
+      "failure_reasons": null,
+      "latency_ms": 1.5105000020412263,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "ground-01-title-phrase-false-positive-rule-5",
+      "category": "groundedness",
+      "passed": true,
+      "expected": {
+        "grounded": false,
+        "ungrounded_claims": [
+          "answer cites rule 5, which was not among the retrieved policy chunks"
+        ]
+      },
+      "actual": {
+        "grounded": false,
+        "ungrounded_claims": [
+          "answer cites rule 5, which was not among the retrieved policy chunks"
+        ]
+      },
+      "failure_reasons": null,
+      "latency_ms": 0.07587499931105413,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "ground-02-clean-grounded-citation",
+      "category": "groundedness",
+      "passed": true,
+      "expected": {
+        "grounded": true,
+        "ungrounded_claims": []
+      },
+      "actual": {
+        "grounded": true,
+        "ungrounded_claims": []
+      },
+      "failure_reasons": null,
+      "latency_ms": 0.02195799970650114,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-07-repeat-refund-flag-charlotte-dubois",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "flagged_for_review",
+        "rule_applied": 7
+      },
+      "actual": {
+        "status": "flagged_for_review",
+        "rule_applied": 7
+      },
+      "failure_reasons": null,
+      "latency_ms": 3.497917001368478,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-10-repeat-refund-flag-not-triggered-below-threshold",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "approved",
+        "rule_applied": 2
+      },
+      "actual": {
+        "status": "approved",
+        "rule_applied": 2
+      },
+      "failure_reasons": null,
+      "latency_ms": 3.433249999943655,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-11-over-threshold-needs-manager",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "requires_manager_approval",
+        "rule_applied": 6
+      },
+      "actual": {
+        "status": "requires_manager_approval",
+        "rule_applied": 6
+      },
+      "failure_reasons": null,
+      "latency_ms": 3.2799159998830874,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refund-12-repeat-refund-flag-damaged-shipping-with-evidence",
+      "category": "refund_evaluator",
+      "passed": true,
+      "expected": {
+        "status": "flagged_for_review",
+        "rule_applied": 7
+      },
+      "actual": {
+        "status": "flagged_for_review",
+        "rule_applied": 7
+      },
+      "failure_reasons": null,
+      "latency_ms": 3.4187089986517094,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "topic-01-shipment-delay-fabrication-warns",
+      "category": "topic_coverage",
+      "passed": true,
+      "expected": {
+        "topic_coverage_warning": true
+      },
+      "actual": {
+        "topic_coverage_warning": true
+      },
+      "failure_reasons": null,
+      "latency_ms": 0.01195900040329434,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "topic-02-ordinary-refund-question-does-not-warn",
+      "category": "topic_coverage",
+      "passed": true,
+      "expected": {
+        "topic_coverage_warning": false
+      },
+      "actual": {
+        "topic_coverage_warning": false
+      },
+      "failure_reasons": null,
+      "latency_ms": 0.005459001840790734,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "resilience-01-sql-tool-failure",
+      "category": "resilience",
+      "passed": true,
+      "expected": {
+        "status": "error",
+        "fabricated_data": false,
+        "retry_count": 1
+      },
+      "actual": {
+        "status": "error",
+        "fabricated_data": false,
+        "retry_count": 1
+      },
+      "failure_reasons": null,
+      "latency_ms": 23.973957999260165,
+      "cost_usd": 0.0
+    },
+    {
+      "id": "resilience-02-model-timeout",
+      "category": "resilience",
+      "passed": true,
+      "expected": {
+        "incomplete": true,
+        "answer_present": true,
+        "retry_count": 1
+      },
+      "actual": {
+        "incomplete": true,
+        "answer_present": true,
+        "retry_count": 1
+      },
+      "failure_reasons": null,
+      "latency_ms": 4.000541997811524,
+      "cost_usd": 0.0
+    }
+  ],
+  "categories": [
+    {
+      "category": "refund_evaluator",
+      "n": 12,
+      "passed": 12,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "mean_latency_ms": 5.65822575057003,
+      "mean_cost_usd": 0.0,
+      "comparison_ready": true,
+      "incomplete_count": null,
+      "loop_exhaustion_rate": null,
+      "what_it_tests": "money-decision waterfall",
+      "consequence_of_failure": "wrong refund decisions"
+    },
+    {
+      "category": "groundedness",
+      "n": 2,
+      "passed": 2,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "mean_latency_ms": 0.04891649950877763,
+      "mean_cost_usd": 0.0,
+      "comparison_ready": false,
+      "incomplete_count": null,
+      "loop_exhaustion_rate": null,
+      "what_it_tests": "citation detector works",
+      "consequence_of_failure": "broken trust signal"
+    },
+    {
+      "category": "topic_coverage",
+      "n": 2,
+      "passed": 2,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "mean_latency_ms": 0.008709001122042537,
+      "mean_cost_usd": 0.0,
+      "comparison_ready": false,
+      "incomplete_count": null,
+      "loop_exhaustion_rate": null,
+      "what_it_tests": "fabrication flag works",
+      "consequence_of_failure": "fake claims ship unflagged"
+    },
+    {
+      "category": "resilience",
+      "n": 2,
+      "passed": 2,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "mean_latency_ms": 13.987249998535844,
+      "mean_cost_usd": 0.0,
+      "comparison_ready": false,
+      "incomplete_count": null,
+      "loop_exhaustion_rate": null,
+      "what_it_tests": "structured failure and retry behavior when a model call fails",
+      "consequence_of_failure": "a hang, a blank success, or a made-up answer instead of an honest error"
+    }
+  ],
+  "comparison_readiness": {
+    "threshold_n": 8,
+    "note": "Categories with n below this threshold are regression checks, not comparison evidence."
+  },
+  "cache_check": {
+    "skipped": true,
+    "passed": true,
+    "failure_reasons": [],
+    "first_cached": null,
+    "second_cached": null,
+    "first_latency_ms": null,
+    "second_latency_ms": null,
+    "first_tokens": null,
+    "second_tokens": null,
+    "first_cost_usd": null,
+    "second_cost_usd": null
+  },
+  "skipped_categories": [
+    "invoice_evaluator",
+    "mixed",
+    "permission",
+    "prompt_injection",
+    "rag",
+    "request_faithfulness",
+    "sql",
+    "sql_semantic",
+    "ticket_evaluator"
+  ],
+  "skipped_case_ids": {
+    "prompt-injection-03-ticket-fabricated-category": "needs ticket draft/confirm harness",
+    "prompt-injection-04-ticket-fabricated-customer-resolution": "needs ticket draft/confirm harness",
+    "prompt-injection-07-invoice-arithmetic-bypass": "image-only case, no text harness"
+  },
+  "overall": {
+    "total": 18,
+    "passed": 18,
+    "failed": 0,
+    "pass_rate": 100.0,
+    "mean_latency_ms": 5.33269222250965,
+    "mean_cost_usd": 0.0
+  }
+}
