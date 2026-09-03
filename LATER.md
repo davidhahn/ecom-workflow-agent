@@ -21,3 +21,7 @@ Today, prompt injection is a measured eval category, and the structural gate and
 ## Real authentication
 
 Every request carries a role through a plain header today, which already tests the permission gate's real logic: the read/write split between roles. Real identity and session handling would stack a login system on top of a gate that's already proven with the header alone. Build it once real customer data enters the system.
+
+## Finishing the investigation pipeline
+
+`investigation_planner.py` and `data_analyst.py` already run a Planner-then-Data-Analyst pipeline against real seeded data (see `DECISIONS.md` #45). What's missing is the last stage, a Report Writer that turns gathered evidence into a synthesized answer, plus an endpoint to route a request through all three, eval cases for the full path, and a groundedness check on whatever the Report Writer produces. It's real, tested code, one stage short. It stays out of the near-term list because finishing it means new eval surface area, not just one more Claude call, and the measured core earned that attention first.

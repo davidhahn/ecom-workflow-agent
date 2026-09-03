@@ -10,6 +10,8 @@ apps/api       Python 3.14 + FastAPI backend (poetry)
 packages/shared  Generated TS types (openapi-typescript output, not hand-written)
 ```
 
+This is one monorepo rather than separate frontend and backend repos. There's no organizational split to justify two repos: one developer, one deploy cadence. The tradeoff only pays off because of codegen: `packages/shared` is generated straight from the API's OpenAPI spec, so there's no hand-written type for the contract to drift out of sync with. Skipping codegen would reintroduce the same drift problem two repos would have had, with less visibility into when it happens.
+
 ## Tooling
 
 Workspaces are managed with **pnpm** (not npm) — pnpm's content-addressable store and stricter symlinked `node_modules` avoid the phantom-dependency issues plain npm workspaces allow, which matters once `apps/web` starts importing from `packages/shared`.
@@ -72,6 +74,27 @@ pnpm --filter web dev
 ```
 
 The API exposes a health check at `GET /health`, its OpenAPI spec at `/openapi.json`, the SQL analysis path at `POST /query/sql`, the RAG retrieval path at `POST /query/rag`, two orchestrator flows built on top of both — `POST /query/analyze` (combined SQL + RAG with a structural groundedness check) and `POST /refund/evaluate` (natural-language refund request → decision, no DB mutation) — and a unified request log across all four at `GET /observability/requests` (filter/paginate only, no aggregation) — see `apps/api/README.md` for all of it. RAG needs its policy corpus ingested first: `poetry run python -m app.rag.ingest` (from `apps/api`).
+
+## Tests and evaluations
+
+```bash
+cd apps/api
+poetry run pytest
+```
+
+```bash
+cd apps/api
+poetry run python ../../evals/run.py --subset deterministic
+```
+
+The second command runs the deterministic eval subset, no API key needed and the same one CI runs on every push. The full 79-case suite needs a live model call for most categories:
+
+```bash
+cd apps/api
+EVAL_RATE_LIMIT_BYPASS=1 poetry run python ../../evals/run.py --bypass-cache
+```
+
+See `evals/methodology.md` for what each category measures and how the numbers were made.
 
 ## Codegen: OpenAPI → TypeScript
 

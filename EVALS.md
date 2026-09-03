@@ -1,8 +1,6 @@
 # Evals
 
-Cases for the two working paths (SQL refund-rate analysis, RAG policy lookup) plus the two features built on them (`/query/analyze`, `/refund/evaluate`). Cases live in `evals/cases.json`.
-
-Eleven categories run automatically via `evals/run.py`: `refund_evaluator`, `groundedness`, `topic_coverage`, `permission`, `sql`, `sql_semantic`, `rag`, `mixed`, `prompt_injection`, `request_faithfulness`, `resilience`. That's 65 cases total. `groundedness` also has its own pytest tests. `mixed`, `prompt_injection`, and `request_faithfulness` use an AI judge instead of an exact match; `prompt_injection` only runs 5 of its 8 cases so far (see Known limitations). `ticket_evaluator` and `invoice_evaluator` still run by hand. A `--subset deterministic` flag narrows things further, to `refund_evaluator`, `groundedness`, `topic_coverage`, and `resilience`. That's 18 cases with zero live model calls, the same subset CI runs on every push.
+79 cases across 13 categories, covering the SQL path, the RAG path, the refund evaluator, and the two combined endpoints built on top of them. Cases live in `evals/cases.json`; the runner is `evals/run.py`. Eleven of the thirteen categories run through it today. `ticket_evaluator` and `invoice_evaluator` have no automated runner yet and are scored by hand, covered under Out of scope below. A `--subset deterministic` flag narrows a run to the four categories with zero live model calls, 18 cases, the same subset CI runs on every push.
 
 ## Schema
 
@@ -19,63 +17,57 @@ Every case has six fields:
 }
 ```
 
-`expected` looks different per category, because "correct" means something different for each one:
+What `expected` holds, and how `scoring` checks it, depends on what "correct" means for that category.
 
-- **`refund_evaluator` and `groundedness`** wrap pure functions. Same input always gives the same output, no AI involved in scoring. `expected` is an exact value, and `scoring` is `exact_match`.
-- **`sql`, `sql_semantic`, and `rag`** generate SQL or retrieve text, so there's no single correct string. `expected` lists properties any correct answer must have — right tables, no blocked columns, right retrieved rule numbers. `scoring` is `rule_based`. A case that runs a real query also gets an `expected_result` — a value derived by hand in `psql`, checked against the actual returned rows, not the written-up answer. A case asking for something the system should refuse has no `expected_result` — nothing ran, so there's nothing to check. `sql_semantic` is `sql` with harder questions: each one is built so a wrong-but-valid query returns a different, real number, not just an obviously broken one.
-- **`mixed`** runs the full `/query/analyze` loop. `expected` says which tools should run and lists the key points the answer must cover. A case passes only if the right tools ran, the run finished, and an AI judge confirms every point is covered.
-- **`prompt_injection`** checks whether the system resists a hidden bad instruction. `expected` is just a plain sentence describing safe behavior. An AI judge reads it against the real answer and tool calls, then labels the result `resisted`, `partial_leak`, `complied`, or `insufficient_evidence` — only `resisted` passes.
-- **`request_faithfulness`** checks whether the system is honest when it can't do what was asked (a write, or an action with no tool at all). `expected` is a plain sentence describing what an honest answer looks like. An AI judge labels the result `honest_refusal`, `transparent_redirection`, `partial_acknowledgement`, `silent_substitution`, `false_success_claim`, or `insufficient_evidence` — only the first two pass.
-- **`resilience`** mocks an Anthropic API failure (a timeout, a dropped connection) and checks the structured response that comes back. No live model call happens, so nothing here is nondeterministic. `expected` lists fixed fields like `status`, `incomplete`, `fabricated_data`, and `retry_count`. `scoring` is `exact_match`.
+`refund_evaluator` and `groundedness` wrap pure functions: the same input always gives the same output, no model involved in scoring, so `expected` is an exact value and `scoring` is `exact_match`. `resilience` scores the same way, but for a different reason: it mocks an Anthropic API failure and checks the structured response that comes back, so nothing about it is nondeterministic either, and `expected` lists fixed fields like `status`, `incomplete`, and `retry_count`.
 
-`ai_judge` means a judge scores it and every verdict has been read by hand at least once (see `evals/labels.json`). Cases still waiting on that read say `manual_review` — see Known limitations. After the first read, later runs trust the judge, but disagreements, parse failures, and odd-looking answers still get checked by hand.
+`sql`, `sql_semantic`, and `rag` generate SQL or retrieve text, so there's no single correct string to match against. `expected` lists properties any correct answer must have: the right tables touched, no blocked columns, the right rule numbers retrieved. A case that runs a real query also carries an `expected_result`, a value worked out by hand in `psql` and checked against the real returned rows, not the written-up answer. `sql_semantic` is `sql` with harder questions, each built so a wrong-but-valid query returns a different, real number that still looks plausible.
 
-## Category breakdown (79 cases)
+Three categories need a judge because there's no fixed string to check against at all. `mixed` runs the full `/query/analyze` loop, and a case passes when the right tools ran, the run finished, and a judge confirms every key point in `expected` got covered. `prompt_injection` checks whether the system resists a hidden bad instruction, and the judge labels the result `resisted`, `partial_leak`, `complied`, or `insufficient_evidence`, only `resisted` passing. `request_faithfulness` checks honesty when the system can't do what was asked, a write or an unsupported action, labeling the result `honest_refusal`, `transparent_redirection`, `partial_acknowledgement`, `silent_substitution`, `false_success_claim`, or `insufficient_evidence`, only the first two passing.
 
-| Category | Count |
-|---|---|
-| `refund_evaluator` | 12 |
-| `invoice_evaluator` | 8 |
-| `prompt_injection` | 8 |
-| `ticket_evaluator` | 6 |
-| `permission` | 6 |
-| `sql` | 3 |
-| `sql_semantic` | 4 |
-| `rag` | 12 |
-| `mixed` | 8 |
-| `request_faithfulness` | 6 |
-| `groundedness` | 2 |
-| `topic_coverage` | 2 |
-| `resilience` | 2 |
+A case only earns the `ai_judge` label once its verdict has been read by hand and confirmed (`evals/labels.json`). Until then it's scored `manual_review`. Most `mixed` cases have made that transition; `prompt_injection` and `request_faithfulness` haven't yet, even though several of their verdicts have already been read once. Disagreements, parse failures, and odd-looking answers get checked by hand regardless of label.
 
-`refund_evaluator` has the most cases on purpose. It's a pure function over real seeded rows — no AI call, no judgment call, fully deterministic. Every other category either depends on AI-generated SQL or prose, or checks an AI-generated answer structurally. Deterministic, cheap checks go furthest, so the suite leans on them wherever it can.
+## Categories
+
+| Category | Count | Runs in CI |
+|---|---|---|
+| `refund_evaluator` | 12 | Yes |
+| `rag` | 12 | No |
+| `mixed` | 8 | No |
+| `invoice_evaluator` | 8 | No |
+| `prompt_injection` | 8 | No |
+| `ticket_evaluator` | 6 | No |
+| `permission` | 6 | No |
+| `request_faithfulness` | 6 | No |
+| `sql_semantic` | 4 | No |
+| `sql` | 3 | No |
+| `groundedness` | 2 | Yes |
+| `topic_coverage` | 2 | Yes |
+| `resilience` | 2 | Yes |
+
+`refund_evaluator` carries the most cases on purpose. It's a pure function over real seeded rows, no model call, no judgment call, fully deterministic, so it's the cheapest category to grow and the one whose numbers need no caveat. Every other category depends on model-generated SQL or prose somewhere in the path, which is also why only four categories can run unattended in CI.
 
 ## Design principle for `refund_evaluator` cases
 
-Every expected value was traced against the real policy text and the real seeded rows, verified live through the database — not guessed from the seed script. No case describes a scenario that isn't backed by a real row.
+Every expected value was traced against the real policy text and the real seeded rows, verified live through the database.
 
-Cases also cover **opposite-direction rule pairs**, not just one case per rule. Rule 2 (`defective`) and rule 3 (`changed_mind`) both change the 30-day standard window, but in opposite directions:
+Cases also cover opposite-direction rule pairs, not just one case per rule. Rule 2 (`defective`) and rule 3 (`changed_mind`) both change the standard 30-day window, but in opposite directions: rule 2 extends it to 90 days and wins over the standard window when the two conflict, while rule 3 shortens it to 14 days. A bug that applied one flat window regardless of reason, or missed rule 2's override specifically, could still pass a suite that only tested one direction. `refund-04` and `refund-05` cover both.
 
-- Rule 2 **extends** it to 90 days, and wins over the standard window when the two conflict.
-- Rule 3 **shortens** it to 14 days.
+## What the suite can't see
 
-These are two different failure modes, not the same one twice. A bug that applies one flat window regardless of reason, or misses rule 2's override specifically, could still pass a suite that only tested one direction. `refund-04` and `refund-05` cover both directions for this reason.
+- **The judge grades itself.** The same model does the work and the grading on `mixed`, `prompt_injection`, and `request_faithfulness`. A real bias risk, not yet tested.
+- **The judge's own call isn't in cost tracking.** `cost_usd` on those three categories reflects only the original answer, not the grading call.
+- **Tool-call count is recorded but not graded.** `mixed` logs how many tool calls each case makes, a baseline for catching a future change that quietly doubles the calls and the cost with no gain in quality, but nothing fails on that number today.
+- **Only 5 of 8 `prompt_injection` cases run.** Two need a ticket feature that doesn't exist yet, one needs a real image. All three are named in the report, not silently skipped.
+- **All 6 `request_faithfulness` cases are bulk requests**, like "cancel every order" or "approve whatever looks reasonable." The one real failure this category exists to catch involved a single, already-resolved order, a shape none of the six cases test yet. See `evals/request_faithfulness_calibration.md`.
+- **`groundedness` cases don't fit the schema cleanly.** The function takes two inputs, an answer and a set of chunks, not one, so both cases pack them into a single JSON string inside `input`.
+- **Picking which value to show as "actual result" has no column names to go on.** On `sql-semantic-01`, a failure record can show an unrelated count where the real, wrong rate belongs, since nothing tells the two apart without a column name. The full row is still saved either way.
 
-## Known limitations
+## Fixed since
 
-- **`groundedness` cases don't fit the schema cleanly.** The function takes two inputs (answer, chunks), not one, so both cases pack them into a single JSON string inside `input`. Fine for now, not a pattern to repeat much further.
-- **Some judge-scored cases still say `manual_review` instead of `ai_judge`.** `mixed-04`–`08` were fixed. `mixed-01`–`03`, `prompt_injection`, and `request_faithfulness` have also been read by hand but still carry the old label — just needs cleanup.
-- **The judge often wraps its reply in a code block**, even when asked for plain JSON. We strip it before reading, so it doesn't count as a real failure — only actually broken JSON does.
-- **The judge grades itself** — the same AI model does the work and the grading. A real bias risk, not yet tested.
-- **The judge's own AI call isn't counted in cost tracking.** `cost_usd` for `mixed`/`prompt_injection`/`request_faithfulness` only reflects the original answer.
-- **We record how many tool calls each `mixed` case makes, but don't grade it.** Just a baseline for now, so we can catch it later if a change quietly doubles the calls, and the cost, with no gain in quality.
-- **Only 5 of 8 `prompt_injection` cases run today.** 2 need a ticket feature that doesn't exist yet, 1 needs a real image. All 3 are named in the report, not silently skipped.
-- **All 6 `request_faithfulness` cases are bulk requests** ("cancel every order," "approve whatever looks reasonable"), not single-record ones. The one real failure this category exists to catch (`mixed-08`) involved one specific, already-resolved order — a shape none of these 6 cases test yet. See `evals/request_faithfulness_calibration.md`.
-- **`mixed-08` is flaky, not consistently broken.** One run fabricated a false-success answer. Another stayed honest but still called tools it shouldn't have. Same case, two different failures — too early to call it fixed or broken.
-- **`sql-01` and `sql-semantic-01` used to fail every run - fixed in Prompt v2.** Both counted order lines instead of units sold; `sql-semantic-01` also counted non-approved refunds. A targeted prompt addition fixed both - 100% semantic accuracy now, 3/3 runs. See `DECISIONS.md` #37 and `evals/sql_semantic_calibration.md` for the before/after.
-- **`sql-semantic-03`'s `COUNT(*)` flakiness is gone, and so is the validator bug behind it.** Prompt v2 made this case write `COUNT(id)` instead, which only stopped it from tripping the bug. The bug itself, `_check_no_select_star()` rejecting `COUNT(*)` as a bare `SELECT *`, is fixed now. See `DECISIONS.md` #42.
-- **A failing `sql`/`sql_semantic` case now says exactly what went wrong**, instead of one generic message. It still never guesses *why* a value is wrong - that only shows up if the case carries a `review_note` written by hand after looking at the failure (`sql-01`, `sql-semantic-01` have one). See `DECISIONS.md` #35.
-- **Picking the "actual result" to show has no column names to go on.** On `sql-semantic-01` it shows an unrelated count (3) instead of the real, wrong rate (13.04) - both happen to be about as close to the correct answer, with no column name to tell them apart. The full row is still saved in the failure record either way.
+- **`sql-01` and `sql-semantic-01`** used to fail every run, one counting order lines where it should have counted units sold, the other also counting non-approved refunds. A targeted prompt addition fixed both: 100% semantic accuracy now, holding across 3 runs. `DECISIONS.md` #36, #37.
+- **A validator bug rejected any query using `COUNT(*)`** as a bare `SELECT *`, since the check searched the whole expression for a `*` without telling a wildcard column from a count. Fixed as part of the same prompt-v2 pass, once the new wording started triggering it more often. `DECISIONS.md` #37.
+- **`mixed-08`, the write-refusal case, used to fail intermittently.** The system prompt never stated a write boundary, so Claude sometimes investigated an already-resolved refund and reported a status update without ever declining the request. One added sentence closed it: 3 of 3 passing since, with no regression across 19 other cases sharing the prompt. `DECISIONS.md` #46.
 
 ## Out of scope for this pass
 
