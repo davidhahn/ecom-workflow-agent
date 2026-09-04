@@ -16,13 +16,7 @@ A query can clear every structural check and still answer the wrong question. Sa
 
 ## 2. The system, briefly
 
-The agent handles four kinds of questions. SQL analysis over orders and refunds. Policy lookup against a Postgres/pgvector index. Refund decisions checked against a written policy. Requests that mix all three.
-
-Claude extracts intent through structured tool calls. A Python state machine owns every execution decision. The model never runs a query or writes a record on its own.
-
-Two gates enforce that boundary. A structural gate checks SQL verbs, tables, and columns against an allowlist, and routes refund decisions through fixed thresholds. A groundedness check runs after the fact. It verifies that any policy rule an answer cites was part of what got retrieved for that request.
-
-The structural gate has no way to judge meaning. The groundedness check has no way to stop an unsafe write.
+The agent handles SQL analysis, policy lookup, and refund decisions, plus requests that mix more than one. Claude proposes an action. A Python layer decides whether it runs, checked by two gates that fail in different ways, one structural, one about meaning. Full breakdown: `ARCHITECTURE.md`.
 
 ![Architecture](docs/img/architecture-diagram.svg)
 
@@ -85,8 +79,6 @@ One failure out of one is a thin sample. The severity carried more weight than t
 
 That reordered week two. Fix the write-substitution behavior first. Record the groundedness blind spot. Grow the small categories. Save every run. Move to the model comparison after that, the thing that had been the original plan.
 
-The evaluation changed what got built next.
-
 ## 6. I had to measure the measurement
 
 **Judge calibration.**
@@ -123,12 +115,14 @@ Before trusting a number enough to act on it, I needed evidence it was measuring
 
 With the measurement trustworthy, the same 79 cases ran against `claude-sonnet-4-6` and `claude-haiku-4-5`. Three runs each. Cache bypassed. Same judge, both arms.
 
-| category | n | Sonnet | Haiku | Sonnet cost | Haiku cost |
-|---|---|---|---|---|---|
-| sql | 3 | 9/9 | 7/9 | $0.0071 | $0.0024 |
-| sql_semantic | 4 | 12/12 | 9/12 | $0.0066 | $0.0022 |
-| mixed | 8 | 88% | 84% | $0.0239 | $0.0061 |
-| permission, rag, prompt_injection, request_faithfulness, resilience | — | no gap | no gap | — | — |
+| category | n | Sonnet | Haiku |
+|---|---|---|---|
+| sql | 3 | 9/9 | 7/9 |
+| sql_semantic | 4 | 12/12 | 9/12 |
+| mixed | 8 | 88% | 84% |
+| permission, rag, prompt_injection, request_faithfulness, resilience | n/a | no gap | no gap |
+
+Sonnet cost roughly 3x Haiku across these categories, the price of the accuracy gap below.
 
 Across 45 case-run pairs on `sql`, `sql_semantic`, and `mixed`, 9 went Sonnet-pass, Haiku-fail. All 9 sit on paths that produce a refund total, a refund rate, or a compliance verdict. The specific bugs varied: a truncated date calculation, a dropped currency conversion, a retrieval query missing the one word that surfaces the governing rule.
 
@@ -146,7 +140,7 @@ The gap concentrates where the answer becomes a financial number or a compliance
 | SQL prompt v2 | Semantic accuracy 67% → 100% | keep |
 | Mixed-08 prompt fix | 0/3 → 3/3, 19/19 regression clean | keep |
 | Add RAG relevance threshold | Off-topic refusal 0/15 → 12/15 | keep |
-| Widen RAG retrieval depth (`k`) | Off-topic case `rag-13` already leaks 3 of 3 candidates at current `k`. Widening it would let 5 of 5 leak. No on-topic case gained anything. | **rejected** |
+| Widen RAG retrieval depth (`k`) | `rag-13` already leaks 3 of 3 candidates at current `k`; widening it would make that 5 of 5, with no on-topic gain | **rejected** |
 | Bounded retry on Anthropic calls | Resilience 0/6 → 6/6 | keep, no incident behind it |
 | Cheaper application model (Haiku) | Matched Sonnet on 5 categories, lost ground on the two that carry financial and compliance weight | recommended, not deployed |
 | Per-provider RAG threshold | A real production question got a false "I don't know" that local eval runs never caught | keep |
@@ -155,7 +149,7 @@ Five other things stayed unbuilt on purpose. A Report Writer agent. A reranker f
 
 The Report Writer is the one I most wanted to build. That's probably the tell.
 
-Evaluation earns its cost by telling you to stop sometimes. A suite where every experiment ends in "keep" isn't measuring anything.
+A suite where every experiment ends in "keep" isn't measuring anything.
 
 ## 9. The failure I left open too long
 
@@ -205,12 +199,4 @@ Offline evals made the system better and caught failures I'd have otherwise miss
 
 ## 11. What I'd build next
 
-Ordered by where the evidence points.
-
-- Record which model and prompt version answered each live request. Everything else gets logged already. This is the one gap left.
-- Close the remaining RAG ranking gap under the production embedding provider.
-- Check the judge's `fail` verdicts against human labels, not just its `pass` verdicts.
-- Generalize PII column-scoping past the one hardcoded exclusion.
-- Grow the smallest eval categories past 8 cases before trusting their percentages at scale.
-
-A few things stay unbuilt on purpose. A reranker for a corpus with nothing to rerank. Real authentication that would prove nothing the header-based role doesn't already exercise. The investigation pipeline's synthesis stage, ranked last because it's the one I most want to build for its own sake.
+The near-term list, ranked by evidence, lives in the README. Bigger extensions and the reason each is waiting: `LATER.md`.
