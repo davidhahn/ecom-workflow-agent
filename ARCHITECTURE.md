@@ -1,66 +1,149 @@
 # Architecture
 
-How this system works today: the request flow, the two gates that enforce it, each component, and how it's deployed. For why specific choices were made, see `DECISIONS.md`. For local setup, see `docs/DEPLOY.md`.
+I designed the system to let Claude interpret requests and choose tools while application code controls execution. Data questions can use SQL and policy retrieval together. Refund requests follow a separate path, where code applies the policy rules.
 
-## Request flow
+This document follows those requests through the system and explains where the controls run. The [decision log](DECISIONS.md) records the reasoning behind individual changes.
 
-![Architecture diagram: a user request flows through the agent loop into the SQL tool or the RAG tool, through a deterministic enforcement seam, to a final response and request log.](docs/img/architecture-diagram.svg)
+## How a request moves through the system
 
-A request reaches the API as one of four kinds: a SQL question, a policy question, a refund evaluation, or a mixed request that needs more than one of those. For the mixed case, Claude gets both the SQL and RAG tools on every call and picks freely, both, one, or neither, inside a loop capped at four rounds. Every tool call it proposes routes through the same execution path a direct call to that tool would use, so a query proposed here doesn't get a second, unchecked path to the database.
+![Architecture diagram showing the agent loop, SQL and policy tools, execution controls, and request logging.](docs/img/architecture-diagram.svg)
 
-Each proposal passes through the two gates below before it runs. The result, along with every tool call, guardrail outcome, and retry, gets written to `request_log` as one row, whether the request succeeded or not.
+Consider a request asking about refund rates and the relevant refund policy.
 
-## The two gates
+1. The orchestrator gives Claude access to SQL and policy retrieval tools.
+2. Claude proposes a tool call. A generated SQL query passes validation before running through a restricted database role.
+3. The tool returns its results. Claude can request more evidence within a loop capped at four rounds.
+4. Claude generates an answer. The grounding check compares cited policy names and numbers with the passages retrieved during that request.
+5. The request log records the outcome and execution details.
 
-Claude extracts intent through structured tool calls. A Python layer owns every decision about what's allowed to execute, and the model never runs anything directly.
+The orchestrator calls the same query and retrieval services used by the direct endpoints. Their controls apply wherever those services are called.
 
-That layer is two separate mechanisms. A structural gate checks SQL verbs, tables, and columns against an allowlist, and routes refund decisions through fixed thresholds. It's deterministic and unit-testable: a query or a refund either clears the rules or it doesn't. A groundedness check runs after an answer comes back. It confirms that any policy rule number cited in the answer appeared among the chunks retrieved for that request, matching structurally on the rule's number and title, not by reading what the surrounding sentence claims.
+If Claude keeps requesting tools after the loop limit, the API returns an explicit incomplete response.
 
-The two exist separately because they fail in different ways. A refund can clear every structural check, the right amount, the right authorization tier, a read-only lookup, and still rest on a misapplied or invented policy clause. The structural gate has no way to catch that; it checks structure, never meaning. Folding groundedness into the same gate as one more rule would turn it into a simple pass or fail check. That's the blind spot the split exists to avoid.
+### Refund requests
 
-## Components
+For refunds, I kept the policy decision in application code.
 
-**Orchestrator** (`app/orchestrator/analyze_service.py`) combines the SQL and RAG paths behind `/query/analyze`. Claude gets both tools on every call and picks freely, and the loop is capped at four rounds, so a model that can't converge returns an honest, incomplete response. The system prompt has to state the write boundary explicitly. An early version didn't, and Claude found an already-approved refund and reported "no further action needed" without ever declining the request outright. One added sentence fixed it.
+Claude extracts fields from the request, including the requester, product, and reason. The application resolves the order, then applies the refund rules in order. The first matching rule determines the outcome.
 
-**SQL path** (`app/query/validation.py`, `app/query/claude_client.py`, `app/query/audit.py`) turns a question into a query, then runs it through three independent safety layers before it touches the database. An AST check allowlists tables, columns, and functions, and blocks `customers.email` outright. A cost gate rejects anything too expensive, checked against Postgres's own `EXPLAIN` estimate. A restricted database role, `ops_agent_readonly`, is the backstop: even if the first two layers had a bug, the role itself can't read past what it's granted. Every attempt gets logged, blocked or not.
+Depending on the policy, the result can approve or deny the request, require manager approval, or flag it for review. The response identifies the applicable rule. If the application cannot resolve the customer or product, it returns `could_not_process`.
 
-**RAG path** (`app/rag/service.py`, `app/rag/embeddings.py`, `app/rag/ingest.py`, `app/rag/chunking.py`) retrieves the policy passages relevant to a question and refuses to answer when nothing relevant comes back. Chunks are compared by similarity, and anything below a calibrated distance threshold gets dropped, with no fixed top-k fallback. The threshold isn't portable between embedding providers, covered under Data and deployment below.
+The evaluator reads order data and returns a decision. It does not update the refund record.
 
-**Refund evaluator** (`app/orchestrator/refund_evaluator.py`, `app/orchestrator/refund_extraction.py`) turns a free-text request into an approve or deny decision with a specific rule cited, and it has zero ability to write to the refunds table. Claude only extracts fields: who's asking, what product, why. The decision runs through a fixed rule waterfall over real order rows, first match wins: category exclusion, time window, evidence, repeat-refund flag, approval threshold, then approved. If the customer or product can't be matched confidently, the evaluator refuses to guess.
+## Where the controls run
 
-**Groundedness check** (`app/orchestrator/groundedness.py`, `app/orchestrator/topic_coverage.py`) is described above under The two gates. A second check, topic coverage, catches a related but different problem: an answer stating a fact about something the system has no data for at all, like shipment tracking. Both are deliberately biased toward over-flagging. A false alarm costs a warning banner. A hallucination marked trustworthy costs the user's trust in the whole system.
+### Before tool access
 
-**Permission gate** (`app/permissions.py`) checks a caller's role against what a tool requires before the request reaches it, keyed by tool name against one shared registry, not by endpoint or a string match on the URL. It fronts the single-tool endpoints: SQL, policy search, tickets, invoices. The combined analyze and refund endpoints call only read-only-tier tools internally, open to every role by default, so there's nothing on those two paths yet for the gate to block.
+A shared tool registry defines the permission each tool requires. The permission dependency looks up that requirement by tool name and checks it against the caller’s role.
 
-**Request log** (`app/observability/`) writes exactly one row per call to any of the four main endpoints, success or failure, timed by a context manager that writes on exit no matter how the block exits. Field population is uneven on purpose: token counts and cost only get set where a Claude call happened, `grounded` only applies to analyze, a retry count only appears where a retry ran. The Activity page renders this table directly, so a claim about what happened doesn't have to rely on the answer's own wording.
+This check covers the SQL, policy retrieval, ticket, and invoice endpoints. Drafting and confirming a ticket or invoice use separate tool entries, allowing them to require different permissions.
+
+The analyze and refund endpoints currently use read-only operations and are available to every demo role. Roles come from a caller-set header, so this setup demonstrates permission behavior without establishing the caller’s identity.
+
+### Before SQL execution
+
+Generated SQL passes through validation that restricts statements and database access. The checks reject prohibited queries, including attempts to select `customers.email`.
+
+A cost check uses Postgres’s `EXPLAIN` estimate to reject expensive queries. Execution then uses the restricted `ops_agent_readonly` role.
+
+I added database permissions as an independent control. If application validation misses a prohibited operation, Postgres still enforces the role’s grants.
+
+The refund evaluator uses its own role, `refund_evaluator_readonly`, limited to the tables it needs. It can read customer email to resolve a request. That field is excluded from the evaluator’s response.
+
+### During policy retrieval
+
+Policy documents are split into passages with source metadata. Retrieval compares their embeddings with the question and filters candidates using a calibrated distance threshold.
+
+When no passage qualifies, retrieval returns no supporting evidence. The answer path can then report that the available documents do not support an answer.
+
+The threshold depends on the embedding provider. Local development and production use different models, each with its own calibration.
+
+### After answer generation
+
+The grounding check looks for cited policy numbers and titles in the generated answer. It checks whether those rules appeared in the retrieved passages.
+
+This establishes whether the cited source was retrieved. An answer can still misinterpret that source or apply its rule incorrectly.
+
+Topic coverage checks for claims about subjects the available tools cannot support. Both checks can produce warnings for the user. The generated answer remains visible.
+
+These checks have false positives. For example, mentioning a rule while explaining that it does not apply can still trigger a warning. Calibration findings and coverage gaps are documented in [EVALS.md](EVALS.md).
+
+## What happens when a request fails
+
+I made failures visible in the API response and request logs.
+
+| Condition | System behavior |
+|---|---|
+| SQL fails validation or exceeds the cost limit | The query is rejected before execution. |
+| A covered model call encounters a transient failure | The SQL and analyze paths allow one retry, with a timeout and fixed delay. |
+| Both attempts fail | The path returns its structured error or incomplete response. |
+| The tool loop reaches its limit | Analyze returns an explicit incomplete response. |
+| A refund request cannot be matched to a customer or product | The evaluator returns `could_not_process`. |
+| Retrieval finds no qualifying passages | The tool returns no supporting policy evidence. |
+| An answer cites a policy rule that was not retrieved | The grounding check flags the answer. |
+
+Retry handling currently covers the SQL proposal and analyze calls. Other model-call sites remain outside that wrapper.
+
+Request logs capture outcomes and latency. Token usage and estimated cost are populated where model calls occur. Analyze requests also carry an ordered tool-call trace.
+
+The Activity page exposes these records for inspection. Failure tests exercise the retry behavior and incomplete responses; [EVALS.md](EVALS.md) explains how those checks fit into the suite.
 
 ## Data and deployment
 
-The schema runs against nine seeded tables, customers, products, orders, order items, refunds, support tickets, shipments, web analytics, and campaigns, truncated and reinserted deterministically by `seed.py` so the same edge cases exist on every run. Production reseeds daily on a cron schedule, independent of deploys.
+### Business data
 
-Two separate read-only Postgres roles enforce the boundary at the database itself. `ops_agent_readonly` blocks `customers.email`, since the SQL path's answers can end up quoting whatever it selects. `refund_evaluator_readonly` grants that same column, since the evaluator needs it to look a customer up, but it never writes email into a response, so the same risk doesn't apply.
+The demo uses seeded e-commerce records, including customers, orders, refunds, and support activity. Additional fixtures support shipment questions and campaign analysis.
 
-Local development embeds policy text with a free local model, `BAAI/bge-m3`. Production calls a hosted provider, Voyage AI, because the local model's memory footprint didn't fit the deploy environment. That split is also why the RAG relevance threshold is calibrated separately per provider, covered in the README's limitations.
+The seed script recreates known scenarios for testing. Production reseeds daily, independently of application deployments.
 
-Render hosts the API, the database, and the daily reseed cron. Vercel hosts the frontend separately, behind a shared proxy secret and CORS as two independent perimeter layers. Full deployment steps: `docs/DEPLOY.md`.
+Vendor invoices and operational records, such as request logs, have their own storage. The seeded business tables represent only part of the schema.
 
-## Status
+### Policy documents
 
-Built and live: the SQL and RAG paths, the refund evaluator, the two gates above, permission enforcement, request tracing, and the vendor invoice and support ticket draft/confirm flows.
+Local development uses `BAAI/bge-m3` to embed policy passages. Production uses Voyage AI because the local model’s memory requirements exceeded the deployment environment.
 
-Partially built: an investigation pipeline, a Planner and a Data Analyst that gather evidence for open-ended questions like "why did revenue drop last week" (`DECISIONS.md` #26). It's tested directly against real seeded data but not wired to any endpoint, and it's missing the stage that would turn gathered evidence into a written answer.
+Changing providers changes retrieval behavior. I calibrated relevance thresholds separately, and one known production ranking failure remains open.
 
-Not built: model routing to a cheaper model for low-risk questions, a dedicated prompt-injection defense beyond what the two gates already catch, row-level data isolation, real authentication in place of the header-based demo role, and a general column-classification policy. Today that policy is one hardcoded exclusion, `customers.email`, enforced in `app/query/constants.py` and backed by the column-level grants described above. Nothing beyond that one column has ever been classified as sensitive.
+### Hosting
 
-## Stack
+Vercel hosts the frontend. Render hosts the API and database, along with the scheduled reseed job.
+
+The frontend proxy adds a shared secret to API requests. Backend middleware checks that secret. CORS separately restricts browser access by origin.
+
+Environment configuration and startup commands are in [Setup and deployment](docs/DEPLOY.md).
+
+## Scope and open gaps
+
+The SQL and policy paths, refund evaluation, request tracing, and ticket and invoice draft/confirm flows are implemented.
+
+An investigation pipeline also has a Planner and Data Analyst that gather evidence for questions such as “Why did revenue drop last week?” It is tested directly but has no endpoint or final stage for writing an answer. [Decision 45](DECISIONS.md) records the deferral.
+
+Real customer use would require verified identity and tenant isolation. Sensitive-column handling currently centers on the explicit `customers.email` restriction; a broader classification policy is still needed.
+
+Model routing and further retrieval work remain in [LATER.md](LATER.md).
+
+## Implementation references
+
+| Component | Source |
+|---|---|
+| Analyze loop | [analyze_service.py](apps/api/app/orchestrator/analyze_service.py) |
+| SQL generation | [claude_client.py](apps/api/app/query/claude_client.py) |
+| SQL validation | [validation.py](apps/api/app/query/validation.py) |
+| Policy retrieval | [service.py](apps/api/app/rag/service.py) |
+| Policy ingestion | [ingest.py](apps/api/app/rag/ingest.py) |
+| Refund extraction | [refund_extraction.py](apps/api/app/orchestrator/refund_extraction.py) |
+| Refund rules | [refund_evaluator.py](apps/api/app/orchestrator/refund_evaluator.py) |
+| Answer checks | [groundedness.py](apps/api/app/orchestrator/groundedness.py), [topic_coverage.py](apps/api/app/orchestrator/topic_coverage.py) |
+| Permissions | [permissions.py](apps/api/app/permissions.py) |
+| Request logging | [observability](apps/api/app/observability/) |
+
+### Stack
 
 | Layer | Technology |
-|-------|-----------|
+|---|---|
 | Frontend | Next.js 16, TypeScript, Tailwind CSS |
-| Backend | Python 3.14, FastAPI, uvicorn |
-| Orchestration | Anthropic Python SDK (claude-sonnet-4-6) |
-| Embeddings | `EMBEDDING_PROVIDER`-dispatched: local `sentence-transformers` BAAI/bge-m3 (dev default) or hosted Voyage AI `voyage-3.5-lite` at 1024 dims (deploy). See `DECISIONS.md` #8 |
-| Storage | Postgres + pgvector |
-| Evals | 79 cases in `evals/cases.json`, 18 fully deterministic and run in CI via `evals/run.py --subset deterministic`. `apps/api/tests/` (`poetry run pytest`) covers SQL safety, permissions, refund policy drift, and the groundedness and topic-coverage functions directly, independent of the eval suite |
-| Observability | `/activity` page: per-request latency, tokens, cost, grounded flag, cached flag, plus an expandable tool-call trace |
-| Cost/token tracking | Computed in `app/observability/pricing.py`, stored in Postgres as `request_log.estimated_cost_usd`, read via `GET /observability/requests` |
+| Backend | Python 3.14, FastAPI, SQLAlchemy |
+| Model | Claude through the Anthropic Python SDK |
+| Storage | PostgreSQL with pgvector |
+| Embeddings | Local BAAI/bge-m3; hosted Voyage AI in production |
+| Testing | pytest and a separate evaluation runner |
