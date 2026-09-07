@@ -1,83 +1,78 @@
 # ecom-workflow-agent
 
-An AI agent for e-commerce operations that interprets requests, retrieves structured data and policy context, and chooses the tools it needs to answer.
+This project focuses on the challenges that arise when an LLM starts working with real data, tools, and business rules.
 
-The model decides what should happen. Application code decides what's allowed to execute. That separation keeps a bad model decision from automatically becoming a bad action. A 79-case eval suite measures whether changes improve behavior.
+**What the agent does**
+
+The agent interprets e-commerce operations requests, retrieves structured data and policy context, and chooses the tools it needs to answer.
+
+The model can decide what should happen, but application code decides what is allowed to execute. That separation keeps a bad model decision from automatically becoming a bad action.
 
 **What I built around the model**
 
-* **Execution controls** define what the agent can and cannot do.
-* Every cited claim gets checked against retrieved or computed evidence, a **grounding check** run after the fact.
-* **Evals** score each change against a fixed set of known cases.
-* Every tool call, its latency, cost, and any failure gets written to a **request trace**.
-* **Failure tests** deliberately break outputs and tool paths to see how the system behaves under stress.
+- **Execution controls** that define what the agent can and cannot do.
+- **Grounding checks** that compare cited policy names and numbers with the passages retrieved for an answer.
+- **Evals** that test each change against a fixed set of known cases.
+- **Request traces** that record tool calls, latency, cost, and failures.
+- **Failure tests** that deliberately break outputs and tool paths to show how the system behaves under stress.
 
-**Stack:** Python, FastAPI, Claude, PostgreSQL/pgvector, SQLAlchemy, Next.js, Docker.
+**The broader goal**
+
+The project is about designing a system that can catch, explain, and contain model errors. That pushed the work beyond prompting and into execution control, evaluation, observability, and failure handling.
 
 **[Live demo](https://ecom-workflow-agent-web.vercel.app/)** · [Case study](CASE_STUDY.md) · [Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab)
 
-![The agent refuses an ambiguous refund request because it can't reliably identify the customer, then the execution trace shows why and which controls ran, then the evaluation lab shows the suite that keeps this behavior measured.](docs/img/ambiguous-refusal-demo.gif)
-
-The demo uses seeded data that resets daily, with scenarios covering data queries, policy retrieval, refunds, ambiguous customers, and prompt injection.
-
 ## Results
 
-A 79-case eval suite scores every change against fixed cases. 18 are fully deterministic and run in CI on every push.
+I used a dataset of 79 evaluation cases to test behavior against known answers and expected outcomes. Eighteen cases run in CI without live model calls.
 
-* **SQL correctness:** 57-71% → 100% across three runs. The eval caught two cases where structurally valid SQL returned the wrong number.
-* **Policy retrieval:** 58% → 92%, after adding a relevance threshold so an off-topic question gets an honest "I don't know."
+- **SQL correctness: 67% → 100%.** Seven cases ran three times before and after a prompt change, improving from 14/21 to 21/21 correct answers.
+- **Policy retrieval: 58% → 92%.** A relevance threshold improved handling of off-topic questions. These results use the local embedding model; I still need to repeat the evaluation with the production provider.
 
-[Full report](evals/primary_results.md) · [Methodology](evals/methodology.md) · [Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab)
+[Full report](evals/primary_results.md) · [Methodology](evals/methodology.md)
 
-## How it works
+## See it in action
 
-![Architecture diagram: a user request flows through the agent loop into the SQL tool or the RAG tool, through a deterministic enforcement seam, to a final response and request log.](docs/img/architecture-diagram.svg)
+![An ambiguous refund request is refused, with its execution trace and evaluation results available for inspection.](docs/img/ambiguous-refusal-demo.gif)
 
-Claude gets two tools: one for SQL and one for policy retrieval. It chooses between them inside a capped loop. Every proposed action passes through deterministic execution and permission checks before it runs. Policy claims are checked against retrieved evidence, and every attempt is logged.
-
-The refund evaluator uses a different boundary. Claude extracts the relevant fields: requester, product, and reason. A fixed rule waterfall over real order rows makes the actual decision.
-
-This keeps the model useful for interpretation while leaving decisions that affect execution to code that can be tested directly.
-
-Full breakdown of each layer, file paths included: [ARCHITECTURE.md](ARCHITECTURE.md)
+The demo uses seeded data that resets daily. Try the ambiguous refund scenario to see how the system handles a request without enough information to identify the customer.
 
 ## What the evals found
 
-The first version of the eval suite looked clean until it checked the right thing.
+My original SQL checks verified that a query was safe to run. They missed two calculation errors, including a refund rate that counted order lines where it needed units sold.
 
-A query could pass every safety check and still return the wrong answer because nothing compared the result against a known-correct value. The SQL was valid. The query was allowed to run. The system still produced the wrong result.
+I added assertions against answers calculated directly in the database. Those checks exposed the errors and guided a SQL prompt change. The seven cases then passed across three runs.
 
-Adding that check exposed two failures that the original suite had missed. The model did not need to change. The measurement and enforcement layer did.
+The [case study](CASE_STUDY.md) follows the investigation, including the retrieval and extraction failures that surfaced later.
 
-The same process exposed weaknesses in policy retrieval, free-text extraction, and failure handling. The full investigation is in the [case study](CASE_STUDY.md).
+## How it works
 
-## Limitations
+![Architecture diagram showing the agent loop, SQL and policy tools, execution controls, and request logging.](docs/img/architecture-diagram.svg)
 
-One specific phrasing ranks the wrong policy chunk first under the production embedding model. The relevance thresholds are calibrated against a small, hand-labeled sample.
+For data and policy questions, Claude chooses between SQL and policy retrieval inside a capped loop. Generated queries pass validation and run through a restricted database role. After generation, the grounding check compares cited policy names and numbers with the retrieved passages.
 
-Eval categories run 2 to 12 cases each. That is enough to catch regressions in the current implementation. It is not enough to establish production-scale accuracy.
+Refund requests follow a separate path. Claude extracts the requester, product, and reason. Application code resolves the order and applies the refund rules to return a decision.
 
-The free-text judge has not been calibrated against known failures. Its current checks are based on verdicts that already looked correct.
+Request logs record outcomes and timing. The combined workflow also records tool calls for inspection.
 
-Authentication is currently a caller-set header. Real authentication is unbuilt.
+**Built with:** Python, FastAPI, Claude, PostgreSQL/pgvector, SQLAlchemy, Next.js, and Docker.
+
+[Architecture](ARCHITECTURE.md) covers each component and its execution controls.
+
+## Known limitations
+
+- **Retrieval:** One known phrasing ranks the wrong policy passage first under the production embedding model. I calibrated the thresholds on a small, hand-labeled sample.
+- **Evaluation coverage:** Categories contain 2–12 cases each. They help catch regressions in the tested scenarios; broader accuracy needs a larger dataset.
+- **Judge validation:** I checked the judge against 33 human-labeled verdicts, all from passing outcomes. Its ability to recognize failures remains unmeasured.
+- **Authentication:** Demo roles come from a caller-set header. Real customer use would require verified identity and access controls.
 
 ## Run locally
 
-Requires Python 3.14, Poetry, Node/pnpm, and Docker with pgvector.
-
-```bash
-docker compose up -d
-
-cd apps/api && poetry install && poetry run alembic upgrade head && poetry run python -m app.db.seed
-
-poetry run uvicorn app.main:app --reload --port 8000
-```
-
-Full setup, environment variables, and deployment to Render and Vercel: [docs/DEPLOY.md](docs/DEPLOY.md)
+Requires Python 3.14, Poetry, Node/pnpm, and Docker. Follow [Setup and deployment](docs/DEPLOY.md) for environment configuration and startup commands.
 
 ## More detail
 
-* **[Case study](CASE_STUDY.md)** — the investigation, measurements, and changes that came out of the eval work.
-* **[Architecture](ARCHITECTURE.md)** — the system design, enforcement boundaries, and tradeoffs.
-* **[Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab)** — the live cases, results, and methodology.
-* **[Deployment](docs/DEPLOY.md)** — setup and deployment instructions.
+- **[Case study](CASE_STUDY.md)** — what the evaluations uncovered and how the findings changed the work.
+- **[Architecture](ARCHITECTURE.md)** — request flow, execution controls, and implementation details.
+- **[Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab)** — evaluation results and methodology.
+- **[Deployment](docs/DEPLOY.md)** — local setup and deployment instructions.
