@@ -1,6 +1,20 @@
 # Later
 
-This is the next tier out. README's "What I'd build next" tracks near-term fixes ranked by evidence already in hand. The five items here are bigger extensions, each deferred for a real reason.
+Near-term fixes first, ranked by evidence already in hand. Everything after the divider is a bigger extension, each deferred for a real reason.
+
+## Record the model and prompt version per request
+
+That information only lives in eval run metadata today. It never reaches the live request log, so a real production question can't be traced back to what produced it.
+
+## Close the remaining RAG ranking gap
+
+"Damaged shipments policy" still ranks the wrong passage first under the production embedding model. It's the sharpest concrete accuracy gap sitting in production right now.
+
+## Mock the Anthropic client in the permission tests
+
+`pytest` still needs a real API key to pass, because a few tests exercise live endpoints to confirm role checks. The fix is known and just hasn't happened yet.
+
+---
 
 ## Model routing
 
@@ -12,7 +26,7 @@ The policy corpus holds 21 chunks today. A reranker solves a problem this corpus
 
 ## A general row-level and column-level data policy
 
-The SQL path blocks exactly one column, `customers.email`, hardcoded. That's the entire sensitive-data policy today, and every row is visible to any query the structural gate lets through. Part 1 runs one tenant and one dataset. Add a real policy layer, instead of one more hand-picked exclusion, the day a second tenant or a second sensitive column shows up.
+The SQL path blocks exactly one column, `customers.email`, hardcoded. That's the entire sensitive-data policy today, and every row is visible to any query the structural gate lets through. Part 1 runs one tenant and one dataset. Add a real policy layer the day a second tenant or a second sensitive column shows up.
 
 ## A dedicated prompt-injection defense
 
