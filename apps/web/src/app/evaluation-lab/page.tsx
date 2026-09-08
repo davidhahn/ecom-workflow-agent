@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { NextSteps } from "@/components/NextSteps";
 import { getAllEvalReports, getEvalResults, getExperimentMetadata } from "@/lib/evals";
@@ -8,29 +7,37 @@ import { GITHUB_REPO_URL } from "@/lib/site";
 // what to expand without opening everything.
 const REPORT_SUMMARIES: Record<string, { title: string; hook: string }> = {
   "frozen_suite.md": {
-    title: "Frozen suite",
-    hook: "The 79-case reference point every comparison on this page traces back to.",
+    title: "Dataset and comparison scope",
+    hook: "Which cases belong to the reference dataset and which reports can be compared.",
   },
   "primary_results.md": {
-    title: "Primary results",
-    hook: "Baseline against current, with a source for every number.",
+    title: "Before-and-after results",
+    hook: "How the SQL prompt and retrieval threshold affected the tested cases.",
   },
   "experiment_history.md": {
-    title: "Experiment history",
-    hook: "One row per change: the measured effect, then the decision it led to.",
+    title: "Experiments and decisions",
+    hook: "What I tested, what happened, and which changes I kept or deferred.",
   },
   "measurement_context.md": {
-    title: "Measurement context",
-    hook: "The exact configuration behind each result set, and where local eval and production differ.",
+    title: "Run configurations",
+    hook: "The models, embedding providers, and settings used for each experiment.",
   },
   "findings.md": {
     title: "Findings",
-    hook: "Five investigations, each starting from something that looked wrong.",
+    hook: "The SQL errors, citation-check limitations, and deployed failures I investigated.",
   },
   "methodology.md": {
-    title: "Methodology",
-    hook: "How the numbers were made, and the command that reproduces them.",
+    title: "Evaluation method",
+    hook: "How answers are scored, how I checked the judge, and how to run the suite.",
   },
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  sql: "SQL queries", sql_semantic: "SQL correctness", rag: "Policy retrieval",
+  mixed: "Combined data and policy answers", request_faithfulness: "Unsupported-action responses",
+  groundedness: "Policy citation checks", topic_coverage: "Topic coverage",
+  permission: "Permissions", prompt_injection: "Prompt injection",
+  refund_evaluator: "Refund rules", resilience: "Failure handling",
 };
 
 export default function EvaluationLabPage() {
@@ -43,6 +50,30 @@ export default function EvaluationLabPage() {
     <div className="flex flex-col gap-12">
       <div>
         <h1 className="text-3xl font-semibold">Evaluation Lab</h1>
+        <p className="mt-3 max-w-prose text-base text-gray-600 dark:text-gray-300">
+          I use these evaluations to check changes against known answers and expected behavior.
+          The reports below show what improved, what failed, and how the findings changed what I built.
+        </p>
+      </div>
+
+      <section aria-labelledby="comparison-heading">
+        <h2 id="comparison-heading" className="text-xl font-semibold">Before-and-after results</h2>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead><tr><th className="p-2">Capability</th><th className="p-2">Before</th><th className="p-2">After</th><th className="p-2">Scope</th></tr></thead>
+            <tbody>
+              <tr><td className="p-2">SQL correctness</td><td className="p-2">14/21 (67%)</td><td className="p-2">21/21 (100%)</td><td className="p-2">Seven cases, three runs per configuration</td></tr>
+              <tr><td className="p-2">Policy retrieval</td><td className="p-2">7/12 (58%)</td><td className="p-2">11/12 (92%)</td><td className="p-2">Twelve cases, unchanged results across three runs per configuration</td></tr>
+              <tr><td className="p-2">Combined data and policy answers</td><td className="p-2">7/8</td><td className="p-2">7/8</td><td className="p-2">Eight cases, one run per configuration; the failing case changed</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 max-w-prose text-sm text-gray-600 dark:text-gray-300">These comparisons used the local embedding model. Production uses Voyage and needs a separate evaluation.</p>
+        <a className="mt-3 inline-block text-sm underline underline-offset-2" href="#primary_results">Read the comparison and its sources ↓</a>
+      </section>
+
+      <div>
+        <h2 className="text-xl font-semibold">Saved run: August 22, 2026</h2>
         <p className="mt-3 text-3xl font-semibold">
           {results.overall.passed}/{results.overall.total}
           <span className="ml-2 text-lg font-normal text-gray-500 dark:text-gray-400">
@@ -50,13 +81,8 @@ export default function EvaluationLabPage() {
           </span>
         </p>
         <p className="mt-2 max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Every number on this page comes from one committed eval run and the reports written from
-          it.
-        </p>
-        <p className="mt-4 font-mono text-xs text-gray-500 dark:text-gray-400">
-          {experiment.application_model} · judge {experiment.judge_model} · dataset{" "}
-          {experiment.eval_dataset_version} · commit {experiment.git_commit} · cache{" "}
-          {experiment.cache_bypassed ? "bypassed" : "used"} · run {results.timestamp}
+          This snapshot shows one recorded run. Its totals cover the cases that executed, with
+          skipped cases listed under Run details. The comparisons above draw on separately recorded experiments.
         </p>
       </div>
 
@@ -64,50 +90,38 @@ export default function EvaluationLabPage() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-black/10 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-              <th className="py-3 pr-4 font-medium">Category</th>
-              <th className="py-3 pr-4 font-medium">n</th>
+              <th className="py-3 pr-4 font-medium">Capability</th>
+              <th className="py-3 pr-4 font-medium">Cases run</th>
               <th className="py-3 pr-4 font-medium">Passed</th>
               <th className="py-3 pr-4 font-medium">Pass rate</th>
               <th className="py-3 pr-4 font-medium">What it tests</th>
-              <th className="py-3 pr-4 font-medium"></th>
+
             </tr>
           </thead>
           <tbody>
             {results.categories.map((c) => (
               <tr key={c.category} className="border-b border-black/5 dark:border-white/5">
-                <td className="py-3 pr-4 font-mono">{c.category}</td>
+                <td className="py-3 pr-4">{CATEGORY_LABELS[c.category] ?? c.category}<span className="mt-1 block font-mono text-xs text-gray-500">{c.category}</span></td>
                 <td className="py-3 pr-4">{c.n}</td>
                 <td className="py-3 pr-4">
                   {c.passed}/{c.n}
                 </td>
                 <td className="py-3 pr-4">{c.pass_rate.toFixed(1)}%</td>
                 <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">{c.what_it_tests}</td>
-                <td className="py-3 pr-4">
-                  {!c.comparison_ready && (
-                    <span title="This category has too few cases to trust as a percentage. See the note below the table.">
-                      <Badge variant="secondary">
-                        too few cases to compare (n&lt;{results.comparison_readiness.threshold_n})
-                      </Badge>
-                    </span>
-                  )}
-                </td>
+
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          One run each, from <code>evals/results/{results.timestamp}</code>. The Primary Results
-          report below draws on repeated runs for some categories, so check its sourcing notes
-          before comparing a number here against a number there.
+        <p className="mt-3 max-w-prose text-sm text-gray-500 dark:text-gray-400">
+          Categories contain 2–12 cases. These results describe behavior on the tested scenarios.
+          Repeated runs help assess consistency, but broader coverage requires additional cases.
         </p>
-        <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          <Markdown content={results.comparison_readiness.note} />
-        </div>
       </div>
 
       <details className="rounded-md border border-black/10 dark:border-white/10">
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
-          Run details: skips and environment
+          Run details and skipped cases
         </summary>
         <div className="border-t border-black/10 px-4 py-3 text-sm dark:border-white/10">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
@@ -136,7 +150,7 @@ export default function EvaluationLabPage() {
               <dd className="font-mono">{results.timestamp}</dd>
             </div>
           </dl>
-          {results.skipped_categories.length > 0 && (
+          {(results.skipped_categories.length > 0 || skippedCaseCount > 0) && (
             <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
               Skipped this run: {results.skipped_categories.join(", ")}. {skippedCaseCount}{" "}
               individual case{skippedCaseCount === 1 ? "" : "s"} skipped too, each for a stated
@@ -150,7 +164,7 @@ export default function EvaluationLabPage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">Reports</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            The six committed reports behind the table above. Each one expands in place.
+            Start with the comparisons to see what changed. Each report includes the evidence needed to interpret its results.
           </p>
         </div>
         {reports.map((report) => {
@@ -183,9 +197,9 @@ export default function EvaluationLabPage() {
           {
             href: "/architecture",
             label: "Architecture",
-            note: "See what the model decides and what the code decides.",
+            note: "See how the execution controls and answer checks work.",
           },
-          { href: GITHUB_REPO_URL, label: "GitHub", note: "Read the code these numbers came from." },
+          { href: `${GITHUB_REPO_URL}/blob/main/CASE_STUDY.md`, label: "Case study", note: "Follow the investigation and the decisions it changed." },
         ]}
       />
     </div>

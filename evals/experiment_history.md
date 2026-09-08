@@ -1,6 +1,6 @@
 # Experiment History
 
-This is a running log of every change that affected how this project gets measured, or what it measures. For each row: what changed, what the eval suite showed afterward, and what decision that led to. Rows marked **MEASUREMENT CHANGE** altered the eval suite itself: the ruler. A score moving on one of those rows is evidence about the ruler getting better. It says nothing on its own about whether the underlying system changed.
+Some experiments changed the application. Others corrected how I measured it. Rows marked **MEASUREMENT CHANGE** altered the evaluation process, so a score change in those rows alone does not establish an improvement in application behavior.
 
 ## Table
 
@@ -16,18 +16,18 @@ This is a running log of every change that affected how this project gets measur
 | Add RAG relevance threshold | Off-topic refusal 0/15 → 12/15 (80%) | keep | |
 | Widen RAG retrieval depth (`k`) | A real off-topic case (`rag-13`) already leaks all 3 of its top candidates at the current `k`. Widening `k` to 5 would let all 5 leak. No on-topic case gained anything. | rejected | |
 | Bounded failure handling (retry wrapper around the Anthropic call) | Resilience 0/6, all crashed, → 6/6 | keep, reliability invariant | |
-| Cheaper application model (Haiku) | Matched RAG (100% both). Semantic SQL 21/21 → 16/21. Mixed quality 88% → 84%. Cost and latency roughly a third. | recommended, not deployed | |
+| Cheaper application model (Haiku) | Matched RAG (100% both). Semantic SQL 21/21 → 16/21. Mixed quality 88% → 84%. Cost and latency roughly a third. | retain Sonnet; defer routing selected requests to Haiku | |
 | Per-provider RAG threshold (0.46 local, 0.48 voyage) | A real production question got a false "I don't know" under voyage that local eval runs never caught | keep | |
 | Groundedness matches rule titles as well as numbers | `ground-01` flips from a false ungrounded flag to correctly grounded | keep | |
 | Refund extraction: strip quantity from the product name | `refund-11` live: `could_not_process` → `requires_manager_approval`, the correct outcome | keep | |
-| Live rerun of `mixed` today | `mixed-08` still passes. `mixed-07` fails now, on a real judge finding no prior run caught. | open, not yet fixed | |
+| Local rerun of `mixed`, August 22 | `mixed-08` still passes. `mixed-07` fails now, on a real judge finding no prior run caught. | open, not yet fixed | |
 
-## Two rows worth a second look
+## Decisions from the experiments
 
-**Widening RAG's `k`**, the number of chunks retrieval returns per question, looked like a plausible fix for a known retrieval gap. It made things worse somewhere else. Off-topic questions started leaking through the same door meant to let more of the right chunk in.
+Widening retrieval depth added irrelevant candidates without improving the on-topic cases. I rejected that change.
 
-**The Haiku swap**, replacing the production model with a cheaper one, held its own on most categories. It lost ground on the two that carry financial and compliance weight. Sonnet stays the deployed model.
+Haiku reduced cost but lost accuracy on SQL and some combined workflows. I retained Sonnet and deferred routing selected requests to Haiku.
 
-## mixed-07: a new, open finding
+## mixed-07: an open finding
 
-A live rerun of the suite caught something no earlier saved report had. `mixed-08` is fixed and stayed fixed. `mixed-07` failed on a problem nobody had written a case for. The judge caught the answer disputing a stated fact it should have confirmed against the real data. That row stays open, a candidate for the next round of this table.
+In the August 22 run, `mixed-08` passed after its prompt fix. `mixed-07` failed when the answer disputed a fact supported by the database. That failure remains open in this report.

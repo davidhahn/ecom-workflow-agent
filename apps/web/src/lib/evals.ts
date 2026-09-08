@@ -54,12 +54,12 @@ export function getExperimentMetadata(): ExperimentMetadata {
 }
 
 const REPORT_FILES = [
-  "frozen_suite.md",
   "primary_results.md",
   "experiment_history.md",
-  "measurement_context.md",
   "findings.md",
   "methodology.md",
+  "measurement_context.md",
+  "frozen_suite.md",
 ] as const;
 
 export type ReportName = (typeof REPORT_FILES)[number];

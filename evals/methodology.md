@@ -1,6 +1,6 @@
 # Methodology Notes
 
-The tables and reports elsewhere on this page show what the numbers are. This page is about how they were made, so a number here isn't something to just trust because it's sitting on a page.
+Most cases use exact values or fixed scoring rules. Combined answers, prompt-injection responses, and unsupported-action responses use an LLM judge to assess the generated text.
 
 ## Judge Calibration
 
@@ -11,11 +11,11 @@ LLM judge manually audited against human labels.
 Disagreement: 0 / 33 cases (0%).
 ```
 
-That number is real, and it's narrower than it looks. All 33 sampled verdicts landed on a pass-shaped outcome, a plain `pass`, or a distinction between two good categories, `honest_refusal` and `transparent_redirection`. So this calibration answers one specific question: is the judge too lenient on cases that already look fine? It isn't. Two harder questions stay open. Would the judge catch a real failure if one showed up? Would it ever punish a good answer unfairly? No `fail` verdict has been checked against a human read yet, so neither one is answered here.
+I compared 33 judge verdicts with human labels and found zero disagreements. All sampled outcomes were passes. This audit does not establish how reliably the judge recognizes failures or rejects correct answers.
 
 ## Repeated Runs
 
-Model-backed categories don't give the same answer twice, since the model itself isn't deterministic. Running a category more than once is how I find out whether a passing result holds up, or whether it just got lucky that time.
+I repeated model-backed experiments to assess consistency across attempts. Each report states its run count.
 
 `sql` and `sql_semantic` each ran 3 times in their own calibration, then 3 more times inside the ablation study, the experiment that compares different versions of the system side by side. `permission`, `prompt_injection`, `request_faithfulness`, `mixed`, `resilience`, `sql`, and `sql_semantic` each ran 3 times per model in the Sonnet-versus-Haiku comparison.
 
@@ -29,7 +29,7 @@ These are portfolio-scale sets, 2 to 12 cases per category, small on purpose. Th
 
 ## Reproduction Command
 
-Full suite, live model calls, the way it was run for this page:
+Run the supported categories with live model calls:
 
 ```
 cd apps/api

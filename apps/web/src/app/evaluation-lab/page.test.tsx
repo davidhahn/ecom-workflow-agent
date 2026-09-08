@@ -4,6 +4,15 @@ import { getEvalResults, getExperimentMetadata } from "@/lib/evals";
 import EvaluationLabPage from "./page";
 
 describe("Evaluation Lab page", () => {
+  it("separates comparison results from the dated snapshot", () => {
+    render(<EvaluationLabPage />);
+    const comparison = screen.getByRole("heading", { name: "Before-and-after results" });
+    const snapshot = screen.getByRole("heading", { name: "Saved run: August 22, 2026" });
+    expect(comparison.compareDocumentPosition(snapshot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Read the comparison and its sources/ })).toHaveAttribute("href", "#primary_results");
+    expect(document.getElementById("primary_results")).toBeInTheDocument();
+  });
+
   it("shows the real overall pass rate from the committed results.json, not a typed-in number", () => {
     const results = getEvalResults();
     render(<EvaluationLabPage />);
