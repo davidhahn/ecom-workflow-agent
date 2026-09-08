@@ -332,9 +332,8 @@ export default function HomePage() {
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
             The seam is what the README calls &quot;LLM proposes, Python enforces&quot;: Claude
             keeps the parts that call for judgment, and ordinary code keeps everything that
-            can&apos;t be left to a guess. The Architecture page maps out{" "}
-            {RESPONSIBILITY_ROWS.length} of these pairs, one by one, each one a place the split
-            could have gone the other way.
+            can&apos;t be left to a guess. The Architecture page follows a request through the controls and explains what happens
+            when it fails.
           </p>
         </div>
 

@@ -1,173 +1,160 @@
 import { ExpandableImage } from "@/components/ExpandableImage";
 import { NextSteps } from "@/components/NextSteps";
-import { RESPONSIBILITY_ROWS } from "@/lib/architecture";
+import { GITHUB_REPO_URL } from "@/lib/site";
 
-const NOT_BUILT: { title: string; body: string }[] = [
+const CONTROLS = [
+  ["Tool access", "Role checks apply to the SQL, policy retrieval, ticket, and invoice endpoints through a shared permission dependency. Analyze and refund operations are read-only and available to every demo role."],
+  ["SQL execution", "Generated queries pass validation and an estimated-cost check, then run through a restricted database role. Postgres enforces that role’s grants independently of application validation."],
+  ["Refund evaluation", "Application code resolves the customer and order, then applies fixed policy rules to return a decision."],
+  ["After answer generation", "Citation matching checks policy names and numbers against retrieved passages. Topic coverage checks for claims about unsupported subjects. These checks can flag an answer; they do not establish that it applied a policy correctly."],
+  ["Request completion", "Logs record outcomes and timing, with token usage and estimated cost where available. Analyze requests also record an ordered tool-call trace."],
+];
+
+const FAILURES = [
+  ["A query fails validation or exceeds the cost limit", "The query is rejected before execution."],
+  ["A covered model call encounters a transient failure", "SQL proposal and analyze calls allow one retry, with a timeout and fixed delay. Other model-call sites remain outside this wrapper."],
+  ["Both attempts fail", "The path returns its structured error or incomplete response."],
+  ["The tool loop reaches its limit", "Analyze returns an explicit incomplete response."],
+  ["A refund request cannot be matched to a customer or product", "The evaluator returns could_not_process."],
+  ["Retrieval finds no qualifying passages", "The tool returns no supporting policy evidence."],
+  ["An answer cites a policy rule that was not retrieved", "The grounding check flags the answer. The generated answer remains visible."],
+];
+
+const LIMITS = [
   {
-    title: "Multi-agent decomposition",
-    body: "A Planner and a Data Analyst module already exist, tested and working. No endpoint routes a live request through them, because the measured workflow never turned up a problem only a third agent could fix. Every additional agent is more latency, and one more thing that can break.",
+    title: "Identity and data access",
+    body: "Demo roles come from a caller-set header. Real customer use requires verified identity and tenant isolation. Sensitive-column handling currently centers on customers.email; a broader classification policy is still needed.",
   },
   {
-    title: "A workflow framework (LangGraph or similar)",
-    body: "The orchestration today is one direct call to the Anthropic SDK, with a single bounded retry. It's small enough to read start to finish in one sitting. A framework migration would change the plumbing, and leave every failure the evals have found exactly where it is.",
+    title: "Retrieval and answer checks",
+    body: "Retrieval thresholds are calibrated separately for local and production embedding models. One known phrasing still ranks the wrong policy passage first in production. Citation matching checks whether a source was retrieved, but an answer can still misinterpret that source. The checks can also produce false warnings.",
   },
   {
-    title: "A vector database migration, or a reranker",
-    body: "The policy corpus holds 21 chunks in Postgres, through pgvector. That's the whole search space. One real retrieval problem turned up during evals, and calibrating the relevance threshold per embedding provider traced it and mostly fixed it.",
-  },
-  {
-    title: "Production OAuth or a full identity system",
-    body: "Every request carries a demo role through a header. The docs call it that, plainly, right on the page. Real authentication would prove a skill this project already shows somewhere else.",
-  },
-  {
-    title: "A second agentic investigation workflow",
-    body: "The error analysis after the first eval run pointed somewhere else: a write-refusal bug, and eval categories too small to trust yet. Those won, so the Report Writer stage never got built, the piece that would have turned the Planner and Data Analyst's findings into a real answer. Both modules still only run from tests.",
-  },
-  {
-    title: "More UI surface",
-    body: "The interface has one job: put real evidence in front of a reader. An admin dashboard or a settings page would turn it into something else, a full operations product, which was never the goal here.",
+    title: "Investigation workflow",
+    body: "A Planner and Data Analyst gather evidence for open-ended questions such as why revenue dropped. They are tested directly, but have no endpoint or final answer-writing stage. I deferred that work while addressing failures in the existing workflows.",
   },
 ];
 
-const DECISION_LINKS: { title: string; body: string; entry: string }[] = [
-  {
-    title: "Why SQL safety runs on four separate layers",
-    body: "A mistake that slips past one check has three more chances to get caught.",
-    entry: "#5",
-  },
-  {
-    title: "Where the groundedness check still lets a lie through",
-    body: "It checks whether a rule number showed up in what got retrieved, and stops there, so a wrong claim attached to a real number slips past clean.",
-    entry: "#32",
-  },
-  {
-    title: "A judge grading itself, caught before it ran",
-    body: "The judge and the app under test read the same model env var, so swapping the model under test would have swapped the judge too.",
-    entry: "#41",
-  },
-  {
-    title: "Haiku was cheaper, and it stayed on the bench",
-    body: "It matched Sonnet almost everywhere, and lost the cases that carry the real cost: refund totals, compliance verdicts.",
-    entry: "#44",
-  },
-  {
-    title: "The pipeline that works and has nowhere to run",
-    body: "Error analysis pointed at bugs in the measured core first, and a third agent lost to that ranking.",
-    entry: "#45",
-  },
+const DECISIONS = [
+  { title: "SQL access controls", anchor: "5-sql-query-path-four-independent-differently-shaped-safety-layers", body: "Query validation and database permissions constrain execution. Audit logging records the attempt." },
+  { title: "Citation-check limitations", anchor: "32-groundedness-heuristic-four-ways-it-gets-fooled", body: "Calibration exposed unsupported claims that passed citation matching and correct answers that triggered warnings." },
+  { title: "Model selection", anchor: "44-staying-on-sonnet-and-turning-down-a-workload-split", body: "I retained Sonnet after comparing quality by category and deferred routing selected requests to Haiku." },
+  { title: "Investigation workflow deferral", anchor: "45-closing-the-investigation-pipeline-as-a-formal-scope-deferral", body: "Completing the workflow would require a final answer stage and end-to-end evaluation." },
 ];
 
-const DECISIONS_URL = "https://github.com/davidhahn/ecom-workflow-agent/blob/main/DECISIONS.md";
+const COPY = "max-w-prose text-base text-gray-600 dark:text-gray-300";
 
 export default function ArchitecturePage() {
   return (
-    <div className="flex flex-col gap-14">
-      <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-12">
+      <header className="flex flex-col gap-3">
         <h1 className="text-3xl font-semibold">Architecture</h1>
-        <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          How decisions split between the model and the code, and why.
+        <p className={COPY}>
+          I designed the system to let Claude interpret requests and choose tools while application
+          code controls execution. This page follows a request through those controls and shows
+          what happens when something fails.
         </p>
-      </div>
+      </header>
 
-      <section>
+      <section aria-label="Architecture diagram">
         <ExpandableImage
           src="/architecture-diagram.svg"
-          alt="Request flow: user request through the agent/orchestrator loop, into the SQL tool or the Policy/RAG tool, through a deterministic enforcement seam, to a final response, with a trace log recording every stage."
+          alt="Architecture diagram showing the agent loop, SQL and policy tools, execution controls, and request logging."
           className="mx-auto w-full max-w-4xl rounded-md border border-black/10 dark:border-white/10"
         />
-        <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-          Click to enlarge.
+        <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">Click to enlarge.</p>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold">How a request moves through the system</h2>
+        <ol className={`${COPY} list-decimal space-y-2 pl-5`}>
+          <li>Claude chooses SQL or policy retrieval to gather evidence for the request.</li>
+          <li>Application code validates generated SQL before execution.</li>
+          <li>Tool results return to Claude, which can request more evidence within a four-round loop.</li>
+          <li>The generated answer passes through policy citation and topic-coverage checks.</li>
+          <li>The request log records the outcome and execution details.</li>
+        </ol>
+        <h3 className="text-lg font-medium">Refund requests</h3>
+        <p className={COPY}>
+          Refund requests follow a separate path. Claude extracts the relevant fields. Application
+          code resolves the order and applies the policy rules to return a decision. The evaluator
+          does not update the refund record.
         </p>
       </section>
 
-      <section>
-        <h2 className="mb-4 text-xl font-semibold">Responsibility split</h2>
-        <p className="mb-5 max-w-prose text-base text-gray-600 dark:text-gray-300">
-          One question: what decisions does this system delegate to probabilistic behavior? The
-          model handles the parts that need flexibility, like reading free text, writing SQL, and
-          interpreting policy language. Every row on the right is a real constraint. It runs
-          independently of the model, and it guards one consequential action.
-        </p>
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold">Where the controls run</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-black/10 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                <th className="py-3 pr-4 font-medium">LLM proposes / interprets</th>
-                <th className="py-3 pr-4 font-medium">Deterministic systems enforce</th>
+            <caption className="sr-only">Controls by request stage</caption>
+            <thead><tr className="border-b border-black/10 dark:border-white/10"><th scope="col" className="py-3 pr-4">Stage</th><th scope="col" className="py-3">Control</th></tr></thead>
+            <tbody>{CONTROLS.map(([stage, control]) => (
+              <tr key={stage} className="border-b border-black/5 align-top dark:border-white/5">
+                <th scope="row" className="py-3 pr-4 font-medium">{stage}</th>
+                <td className="py-3 text-gray-600 dark:text-gray-300">{control}</td>
               </tr>
-            </thead>
-            <tbody>
-              {RESPONSIBILITY_ROWS.map((row, i) => (
-                <tr key={i} className="border-b border-black/5 align-top dark:border-white/5">
-                  <td className="py-3 pr-4">{row.llm}</td>
-                  <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">{row.enforced}</td>
-                </tr>
-              ))}
-            </tbody>
+            ))}</tbody>
           </table>
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-4 text-xl font-semibold">Deliberately not built</h2>
-        <p className="mb-5 max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Every one of these is a tool I know how to use. Each one stayed out for a specific
-          reason.
-        </p>
-        <div className="flex flex-col gap-3">
-          {NOT_BUILT.map((item) => (
-            <details
-              key={item.title}
-              className="rounded-md border border-black/10 dark:border-white/10"
-            >
-              <summary className="cursor-pointer select-none px-5 py-3.5 text-sm font-medium">
-                {item.title}
-              </summary>
-              <p className="max-w-prose border-t border-black/10 px-5 py-4 text-sm text-gray-600 dark:border-white/10 dark:text-gray-300">
-                {item.body}
-              </p>
-            </details>
-          ))}
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold">What happens when a request fails</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <caption className="sr-only">Failure conditions and responses</caption>
+            <thead><tr className="border-b border-black/10 dark:border-white/10"><th scope="col" className="py-3 pr-4">Condition</th><th scope="col" className="py-3">Response</th></tr></thead>
+            <tbody>{FAILURES.map(([condition, response]) => (
+              <tr key={condition} className="border-b border-black/5 align-top dark:border-white/5">
+                <th scope="row" className="py-3 pr-4 font-medium">{condition}</th>
+                <td className="py-3 text-gray-600 dark:text-gray-300">{response}</td>
+              </tr>
+            ))}</tbody>
+          </table>
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-4 text-xl font-semibold">Decision links</h2>
-        <p className="mb-5 max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Five entries from <code>DECISIONS.md</code>, picked for what each one reveals about how
-          a call got made.
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold">Deployment and current limits</h2>
+        <p className={COPY}>
+          Vercel hosts the frontend. Render hosts the API and database, along with the daily reseed
+          job. The frontend proxy adds a shared secret that the backend checks. CORS separately
+          restricts browser access by origin.
+        </p>
+        <p className={COPY}>
+          Local development uses BAAI/bge-m3 for policy embeddings. Production uses Voyage because
+          the local model exceeded the deployment memory budget. That difference affects retrieval
+          behavior and needs its own evaluation.
+        </p>
+        {LIMITS.map(({ title, body }) => (
+          <details key={title} className="rounded-md border border-black/10 dark:border-white/10">
+            <summary className="cursor-pointer px-5 py-3.5 text-sm font-medium">{title}</summary>
+            <p className="max-w-prose border-t border-black/10 px-5 py-4 text-sm text-gray-600 dark:border-white/10 dark:text-gray-300">{body}</p>
+          </details>
+        ))}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold">Implementation and decisions</h2>
+        <p className={COPY}>
+          The <a className="underline underline-offset-2" href={`${GITHUB_REPO_URL}/blob/main/ARCHITECTURE.md`}>architecture document</a> includes source-file links and further implementation detail.
+          These decisions explain the choices behind the controls.
         </p>
         <dl className="flex flex-col gap-5">
-          {DECISION_LINKS.map((item) => (
-            <div key={item.entry}>
-              <dt className="font-medium">
-                <a href={DECISIONS_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-                  {item.title}
-                </a>{" "}
-                <span className="font-mono text-xs text-gray-400 dark:text-gray-500">
-                  DECISIONS.md {item.entry}
-                </span>
-              </dt>
-              <dd className="text-sm text-gray-600 dark:text-gray-300">{item.body}</dd>
+          {DECISIONS.map(({ title, anchor, body }) => (
+            <div key={anchor}>
+              <dt className="font-medium"><a href={`${GITHUB_REPO_URL}/blob/main/DECISIONS.md#${anchor}`} className="underline underline-offset-2">{title}</a></dt>
+              <dd className="mt-1 max-w-prose text-sm text-gray-600 dark:text-gray-300">{body}</dd>
             </div>
           ))}
         </dl>
       </section>
 
-      <NextSteps
-        links={[
-          {
-            href: "/scenarios",
-            label: "Scenarios",
-            note: "Watch this split play out on a real request.",
-          },
-          {
-            href: DECISIONS_URL,
-            label: "DECISIONS.md",
-            note: "Read the full log behind every call made here.",
-          },
-        ]}
-      />
+      <NextSteps links={[
+        { href: "/scenarios", label: "Scenarios", note: "Follow a request and inspect its result." },
+        { href: "/evaluation-lab", label: "Evaluation Lab", note: "See the measurements and recorded failures." },
+        { href: `${GITHUB_REPO_URL}/blob/main/ARCHITECTURE.md`, label: "Architecture document", note: "Read the implementation details and source references." },
+      ]} />
     </div>
   );
 }

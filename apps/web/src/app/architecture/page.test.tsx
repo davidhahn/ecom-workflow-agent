@@ -1,45 +1,42 @@
+import fs from "node:fs";
+import path from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import ArchitecturePage from "./page";
 
 describe("Architecture page", () => {
-  it("renders the diagram", () => {
+  it("renders the expandable diagram", () => {
     render(<ArchitecturePage />);
-
-    const img = screen.getByRole("img");
-    expect(img).toHaveAttribute("src", "/architecture-diagram.svg");
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/architecture-diagram.svg");
   });
 
-  it("renders the responsibility split table", () => {
+  it("distinguishes post-generation warnings from execution controls", () => {
     render(<ArchitecturePage />);
-
-    expect(screen.getByText("LLM proposes / interprets")).toBeInTheDocument();
-    expect(screen.getByText("Deterministic systems enforce")).toBeInTheDocument();
-    expect(screen.getByText("tool selection")).toBeInTheDocument();
+    const controls = screen.getByRole("table", { name: "Controls by request stage" });
+    expect(within(controls).getByText("SQL execution")).toBeInTheDocument();
+    const citations = within(controls).getByText("After answer generation").closest("tr")!;
+    expect(citations).toHaveTextContent("do not establish that it applied a policy correctly");
+    const failures = screen.getByRole("table", { name: "Failure conditions and responses" });
+    expect(failures).toHaveTextContent("The generated answer remains visible");
+    expect(failures).toHaveTextContent("Other model-call sites remain outside this wrapper");
   });
 
-  it("renders all six deliberately-not-built entries", () => {
+  it("keeps current limits available as expandable details", () => {
     render(<ArchitecturePage />);
-
-    expect(screen.getByText("Multi-agent decomposition")).toBeInTheDocument();
-    expect(screen.getByText("A workflow framework (LangGraph or similar)")).toBeInTheDocument();
-    expect(screen.getByText("A vector database migration, or a reranker")).toBeInTheDocument();
-    expect(screen.getByText("Production OAuth or a full identity system")).toBeInTheDocument();
-    expect(screen.getByText("A second agentic investigation workflow")).toBeInTheDocument();
-    expect(screen.getByText("More UI surface")).toBeInTheDocument();
-  });
-
-  it("links all five decisions to the real, public DECISIONS.md", () => {
-    render(<ArchitecturePage />);
-
-    const section = screen.getByRole("heading", { name: "Decision links" }).closest("section")!;
-    const links = within(section).getAllByRole("link");
-    expect(links).toHaveLength(5);
-    for (const link of links) {
-      expect(link).toHaveAttribute(
-        "href",
-        "https://github.com/davidhahn/ecom-workflow-agent/blob/main/DECISIONS.md"
-      );
+    for (const title of ["Identity and data access", "Retrieval and answer checks", "Investigation workflow"]) {
+      expect(screen.getByText(title).closest("details")).toBeInTheDocument();
     }
+  });
+
+  it("links decisions to distinct headings that exist in the decision log", () => {
+    render(<ArchitecturePage />);
+    const section = screen.getByRole("heading", { name: "Implementation and decisions" }).closest("section")!;
+    const decisions = fs.readFileSync(path.resolve(process.cwd(), "../../DECISIONS.md"), "utf8");
+    const anchors = [...decisions.matchAll(/^### (.+)$/gm)].map(([, title]) =>
+      title.toLowerCase().replace(/[^\w\s-]/g, "").replace(/ /g, "-")
+    );
+    const links = within(section).getAllByRole("link").filter(link => link.getAttribute("href")?.includes("DECISIONS.md#"));
+    expect(links).toHaveLength(4);
+    for (const link of links) expect(anchors).toContain(link.getAttribute("href")!.split("#")[1]);
   });
 });
