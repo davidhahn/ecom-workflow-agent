@@ -12,19 +12,21 @@ That prompted a broader question: which failures could the suite detect, and whi
 
 ## 2. The system, briefly
 
-The agent answers questions about e-commerce data and policy. Claude chooses between SQL and policy retrieval inside a bounded tool loop. Refund requests use a separate path, where application code applies the policy rules.
+I chose e-commerce because an order or refund gives the reader a familiar starting point. The questions still depend on business definitions and policy rules: what counts toward a refund rate, or which purchases qualify for a return? I could build and test those workflows with seeded records.
+
+The agent answers questions about that data and policy. Claude chooses between SQL and policy retrieval inside a bounded tool loop. Refund requests use a separate path, where application code applies the policy rules.
 
 Generated SQL passes validation and runs through a restricted database role. After answer generation, a grounding check compares cited policy names and numbers with retrieved passages. Request logs record the outcome and, for the combined workflow, the tool calls.
 
 ![Architecture diagram showing the agent loop, tools, execution controls, and request logging.](docs/img/architecture-diagram.svg)
 
-The [architecture document](ARCHITECTURE.md) explains where each control runs.
+To follow a request from tool selection through the checks, see [Architecture](ARCHITECTURE.md).
 
 ## 3. Establishing a baseline
 
 I first repaired fixtures whose time-sensitive cases had drifted. Then I built the runner, connected the scoring functions, and recorded request costs and latency.
 
-I committed the baseline before changing the application.
+I committed the baseline before changing the application. I wanted a recorded starting point for asking whether a change helped, with the cases and scoring available to inspect.
 
 | Capability | Cases run | Passed |
 |---|---:|---:|
@@ -42,7 +44,7 @@ Repeated runs exposed instability in the SQL category. I needed to inspect indiv
 
 ## 4. What the original checks missed
 
-### The `sql-05` evaluation bug
+### Was `sql-05` testing the write boundary?
 
 The refund-approval case mixed two questions: how Claude interpreted an unsupported request, and whether the SQL validator blocked writes.
 
@@ -55,7 +57,7 @@ I moved the write-blocking assertion into a direct validator test and removed th
 
 The misleading response still deserved evaluation. It needed its own expectation about what the agent should tell the user.
 
-### Structurally valid SQL returned incorrect answers
+### Did the query calculate the right answer?
 
 The SQL scorer checked access restrictions and query structure. It did not compare the returned values with independently calculated answers.
 
@@ -85,13 +87,15 @@ The [error-analysis report](evals/error_analysis_report.md) records that change 
 
 ## 6. Checking the measurement tools
 
-### Judge calibration
+The results depended on the tools doing the grading. I needed to check where those tools could give me confidence the evidence did not support.
+
+### Could the judge recognize a failure?
 
 Some answers require judgment about whether the response addressed the request. I used an LLM judge for those cases and checked 33 verdicts against human labels.
 
 There were zero disagreements in that sample. All sampled outcomes were passes, so the audit provided limited evidence: it did not establish how reliably the judge would recognize a failure.
 
-### Grounding calibration
+### Did a matching citation support the claim?
 
 I also compared the citation checker with 20 labeled examples. Here, a positive means the checker flags an answer as ungrounded.
 
@@ -108,7 +112,7 @@ One answer claimed that a retrieved rule had been “waived.” The citation mat
 
 The [calibration records](evals/groundedness_calibration_raw.json) preserve the examples.
 
-### Cache contamination
+### Was each experiment getting a fresh response?
 
 I checked request logs for response reuse before relying on the model comparison. That audit found no reuse across the 2,235 rows inspected.
 
@@ -132,7 +136,7 @@ Sonnet cost roughly three times as much across these categories. Its advantage c
 
 Across 45 paired case-runs in the categories above, nine passed with Sonnet and failed with Haiku. Three went the other way. All three were `mixed-08`: Haiku declined the unsupported action, while Sonnet returned a status update.
 
-I kept Sonnet. I also deferred routing selected requests to Haiku because that would require a reliable way to classify requests before execution. The available cases gave me too little evidence to justify that additional component.
+I kept Sonnet because the observed errors affected financial calculations and policy answers. The lower cost of Haiku was appealing, but I needed evidence that a request could safely use it. Routing selected requests would require a reliable way to classify them before execution. The available cases gave me too little evidence to justify that additional component.
 
 ## 8. Changes that earned their place
 
@@ -208,4 +212,4 @@ I would expand the semantic SQL and combined-workflow cases, add extraction exam
 
 The judge still needs examples with known failures. Real customer use also requires verified identity and appropriate data isolation.
 
-The [roadmap](LATER.md) records those priorities and the larger work I deferred. The [README](README.md) links to the demo and summarizes the current results.
+For the measured comparisons, [open the Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab). You can also [run a demo scenario](https://ecom-workflow-agent-web.vercel.app/scenarios) and inspect its response. The [roadmap](LATER.md) records further work, and the [README](README.md) gives the project overview.

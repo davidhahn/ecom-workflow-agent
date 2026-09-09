@@ -2,9 +2,9 @@
 
 I designed the system to let Claude interpret requests and choose tools while application code controls execution. Data questions can use SQL and policy retrieval together. Refund requests follow a separate path, where code applies the policy rules.
 
-This document follows those requests through the system and explains where the controls run. The [decision log](DECISIONS.md) records the reasoning behind individual changes.
+A useful answer needs the right evidence and permission to use it. This document follows a request through the system, including what happens when either is missing. The [decision log](DECISIONS.md) records the reasoning behind individual changes.
 
-## How a request moves through the system
+## What happens when someone asks a question?
 
 ![Architecture diagram showing the agent loop, SQL and policy tools, execution controls, and request logging.](docs/img/architecture-diagram.svg)
 
@@ -20,9 +20,9 @@ The orchestrator calls the same query and retrieval services used by the direct 
 
 If Claude keeps requesting tools after the loop limit, the API returns an explicit incomplete response.
 
-### Refund requests
+### Who decides whether a refund qualifies?
 
-For refunds, I kept the policy decision in application code.
+A refund decision depends on policy rules and the order itself. I kept that decision in application code so I could trace each outcome to a specific rule and test it against known orders.
 
 Claude extracts fields from the request, including the requester, product, and reason. The application resolves the order, then applies the refund rules in order. The first matching rule determines the outcome.
 
@@ -30,9 +30,9 @@ Depending on the policy, the result can approve or deny the request, require man
 
 The evaluator reads order data and returns a decision. It does not update the refund record.
 
-## Where the controls run
+## What can the model execute?
 
-### Before tool access
+### Which tools can the caller use?
 
 A shared tool registry defines the permission each tool requires. The permission dependency looks up that requirement by tool name and checks it against the caller’s role.
 
@@ -40,7 +40,7 @@ This check covers the SQL, policy retrieval, ticket, and invoice endpoints. Draf
 
 The analyze and refund endpoints currently use read-only operations and are available to every demo role. Roles come from a caller-set header, so this setup demonstrates permission behavior without establishing the caller’s identity.
 
-### Before SQL execution
+### What keeps a query within its allowed access?
 
 Generated SQL passes through validation that restricts statements and database access. The checks reject prohibited queries, including attempts to select `customers.email`.
 
@@ -48,29 +48,31 @@ A cost check uses Postgres’s `EXPLAIN` estimate to reject expensive queries. E
 
 I added database permissions as an independent control. If application validation misses a prohibited operation, Postgres still enforces the role’s grants.
 
+Those grants need verification too. My first attempt granted access to the customers table, then revoked access to email. A direct query under the restricted role still returned email because the table-wide grant remained in effect. I switched to explicit allowed-column grants and checked the read again. [Decision 6](DECISIONS.md#6-layer-3-column-restriction-allowlist-grant-not-table-grant-then-revoke) records the investigation.
+
 The refund evaluator uses its own role, `refund_evaluator_readonly`, limited to the tables it needs. It can read customer email to resolve a request. That field is excluded from the evaluator’s response.
 
-### During policy retrieval
+### What if the documents cannot answer the question?
 
-Policy documents are split into passages with source metadata. Retrieval compares their embeddings with the question and filters candidates using a calibrated distance threshold.
+Retrieval needs a way to return no evidence when a question falls outside the corpus. Policy documents are split into passages with source metadata. Retrieval compares their embeddings with the question and filters candidates using a calibrated distance threshold.
 
 When no passage qualifies, retrieval returns no supporting evidence. The answer path can then report that the available documents do not support an answer.
 
 The threshold depends on the embedding provider. Local development and production use different models, each with its own calibration.
 
-### After answer generation
+### How do we check a policy answer?
 
-The grounding check looks for cited policy numbers and titles in the generated answer. It checks whether those rules appeared in the retrieved passages.
+A policy citation gives the reader something to inspect. I added a grounding check that compares cited rule names and numbers with the passages retrieved for that request.
 
-This establishes whether the cited source was retrieved. An answer can still misinterpret that source or apply its rule incorrectly.
+A matching citation still leaves a question open: did the answer apply the rule correctly? In calibration, an answer claimed a retrieved rule had been “waived.” The citation matched, so the check passed it. The [case study](CASE_STUDY.md#6-checking-the-measurement-tools) explains what that test revealed.
 
 Topic coverage checks for claims about subjects the available tools cannot support. Both checks can produce warnings for the user. The generated answer remains visible.
 
 These checks have false positives. For example, mentioning a rule while explaining that it does not apply can still trigger a warning. Calibration findings and coverage gaps are documented in [EVALS.md](EVALS.md).
 
-## What happens when a request fails
+## What happens when a request fails?
 
-I made failures visible in the API response and request logs.
+Someone using the assistant needs to know whether a request completed. I made failures visible in the API response and request logs so a rejected query or exhausted tool loop has an explicit outcome.
 
 | Condition | System behavior |
 |---|---|
@@ -86,7 +88,7 @@ Retry handling currently covers the SQL proposal and analyze calls. Other model-
 
 Request logs capture outcomes and latency. Token usage and estimated cost are populated where model calls occur. Analyze requests also carry an ordered tool-call trace.
 
-The Activity page exposes these records for inspection. Failure tests exercise the retry behavior and incomplete responses; [EVALS.md](EVALS.md) explains how those checks fit into the suite.
+[Inspect a request in System Traces](https://ecom-workflow-agent-web.vercel.app/activity) to see the recorded outcome and available execution details. Failure tests exercise the retry behavior and incomplete responses; [EVALS.md](EVALS.md) explains how those checks fit into the suite.
 
 ## Data and deployment
 
