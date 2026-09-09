@@ -1,82 +1,106 @@
-# apps/api
+# API
 
-FastAPI backend for the Ops Intelligence Agent. See the root [README](../../README.md) for monorepo-wide setup.
+FastAPI backend for the e-commerce operations assistant. It handles data and policy questions, evaluates refund requests, and supports ticket and invoice draft/confirm flows.
 
-Run locally:
+This guide covers running the API, using its endpoints, and inspecting failures. The [project overview](../../README.md) introduces the assistant; [Architecture](../../ARCHITECTURE.md) explains its request flow and execution controls.
+
+## Run locally
+
+Use Python 3.14 and Poetry, with Postgres running through the repository's Docker Compose configuration. Configure `apps/api/.env` from [.env.example](.env.example) before starting. Migrations need the database role passwords, and the API requires `INTERNAL_PROXY_SECRET` at startup. Model-backed requests need an Anthropic key.
+
+Run these commands from `apps/api` against your local development database:
 
 ```bash
 poetry install
+poetry run alembic upgrade head
+poetry run python -m app.db.seed
+poetry run python -m app.rag.ingest
 poetry run uvicorn app.main:app --reload --port 8000
 ```
 
-## Database
+Seeding replaces the business fixtures, including orders, shipments, and campaign data. Ingestion replaces the policy passages. Both commands reset their respective datasets when rerun.
 
-Schema is managed with SQLAlchemy models (`app/db/models.py`) + Alembic migrations (`alembic/versions/`), not hand-written SQL. With Postgres running (`docker compose up -d` from repo root) and `DATABASE_URL` set in `.env`:
+`GET /health` checks that the API is reachable. Every other path requires an `X-Internal-Proxy-Secret` header matching the configured secret, including `/docs` and `/openapi.json`. The frontend proxy supplies this header; direct API clients must supply it themselves.
 
-```bash
-poetry run alembic upgrade head    # apply migrations
-poetry run python -m app.db.seed   # (re-)seed fixture data
-```
+See [Setup and deployment](../../docs/DEPLOY.md) for the shared environment configuration and hosting instructions.
 
-`app/db/seed.py` is re-runnable — it truncates the six Part 1 tables and reinserts deterministic fixture data each time, so it's safe to run again after a schema change or reset.
+## Endpoints
 
-The role/grant migration requires `OPS_AGENT_DB_PASSWORD` to be set in `.env` before running `alembic upgrade head` — it becomes the password for the restricted `ops_agent_readonly` Postgres role used by the SQL query path (see below). Generate one with `python3 -c "import secrets; print(secrets.token_urlsafe(24))"`.
+The table describes changes to business records. Read paths also write audit or request logs.
 
-## SQL query path
+| Endpoint | Purpose | Business data and permissions |
+|---|---|---|
+| `POST /query/analyze` | Answer a question using SQL and policy retrieval | Reads data; available to every demo role |
+| `POST /query/sql` | Generate and execute a restricted SQL query | Requires read permission |
+| `POST /query/rag` | Return relevant policy passages | Requires read permission |
+| `POST /refund/evaluate` | Resolve a request and apply refund rules | Returns a decision without updating refunds; available to every demo role |
+| `POST /tickets/draft` | Prepare a support ticket | Requires read permission; keeps an in-memory draft |
+| `POST /tickets/confirm` | Confirm a ticket draft | Requires write permission; inserts the ticket |
+| `POST /invoices/draft` | Prepare a vendor invoice | Requires read permission; keeps an in-memory draft |
+| `POST /invoices/confirm` | Confirm an invoice draft | Requires write permission; validates before insertion |
+| `GET /observability/requests` | List and filter request logs | No demo-role check |
+| `GET /observability/requests/{request_id}` | Inspect one request | No demo-role check |
 
-`POST /query/sql` (`{"question": "..."}`) turns a natural-language question into a SQL query via Claude tool-calling, then runs it through four independent safety layers before executing — see `app/query/`:
+Permissions come from `X-Demo-Role`. The `read_only_viewer` and `support_agent` roles can read and draft. `manager` and `admin` can also confirm writes. Missing or invalid roles default to `read_only_viewer`.
 
-1. **AST validation** (`app/query/validation.py`) — parses with `sqlglot`, rejects multi-statement input, non-SELECT statements, tables outside `ALLOWED_TABLES` (`app/query/constants.py`; the original 6 Part 1 tables plus `web_analytics`/`campaigns`), bare `SELECT *`, `customers.email`, and a function denylist (`pg_sleep`, `dblink`, `lo_import`/`lo_export`, `pg_read_file`, etc).
-2. **Cost gate** (same file) — runs `EXPLAIN` and rejects if the estimated cost exceeds `QUERY_COST_THRESHOLD` (env var, default 10000); auto-appends `LIMIT 500` if the query has none.
-3. **Database enforcement** (`alembic/versions/e226476acfd7_*.py`) — the app executes through a dedicated `ops_agent_readonly` role with column-level grants (not table-grant-then-revoke — see `DECISIONS.md` #6 for why that doesn't work), a 5s `statement_timeout`, and `default_transaction_read_only`.
-4. **Audit log** (`app/query/audit.py` → `query_audit_log` table) — every attempt is logged regardless of outcome: the question, generated SQL, stated intent, and per-layer pass/fail.
+These roles demonstrate permission behavior. They do not verify identity or isolate tenants. The proxy secret also does not establish who the end user is.
 
-Known gap, intentionally not built here: no row-level security or multi-tenant isolation — every caller sees the same rows subject to the column restrictions above.
+Use the OpenAPI schema for request and response fields. The [tool registry](app/tools/registry.py) and [permission dependency](app/permissions.py) define the tool permissions.
 
-## RAG query path
+## How requests behave
 
-`POST /query/rag` (`{"question": "...", "k": 3}`) does top-k cosine similarity search over `docs/**/*.md` (policy docs plus `docs/notes/`) and returns raw chunks — no LLM-generated answer, no groundedness check, no orchestrator yet. See `app/rag/`:
+### Combined questions
 
-- **Chunking** (`app/rag/chunking.py`) — one chunk per H2 section (one numbered rule for `refund_policy.md`, one heading for every other doc, including `docs/notes/campaign-launch-notes.md`), not fixed-size or semantic chunking. `source_doc` and `rule_number` are preserved as metadata.
-- **Embeddings** (`app/rag/embeddings.py`) — provider selected by `EMBEDDING_PROVIDER` (`local` | `voyage`, default `local`); see `DECISIONS.md` #8. `local` uses `sentence-transformers` (`BAAI/bge-m3`), no external API, no key needed — the dev default. `voyage` calls the hosted Voyage AI API directly over HTTP (`voyage-3.5-lite`, `output_dimension=1024` pinned explicitly to match the column below) and requires `VOYAGE_API_KEY` — used in deploy, where `sentence-transformers`' `torch` dependency is a memory cost the environment can't absorb. Deliberately not the `voyageai` SDK: that package's own import graph pulls in `sentence-transformers`/`torch` whenever both are installed in the same environment (as they are here), which would defeat the point.
-- **Storage** — `policy_chunks` table (`content`, `embedding vector(1024)`, `source_doc`, `rule_number`), no ANN index at this corpus size (~21 rows) — see `DECISIONS.md` #8.
+Send `{"question": "..."}` to `/query/analyze`. Claude chooses between SQL and policy retrieval inside a loop capped at four rounds, then writes an answer from the results.
 
-Ingest (re-runnable — truncates and reinserts every time):
+The orchestrator reuses the query and retrieval services. After generation, grounding checks compare cited policy names and numbers with retrieved passages. Topic coverage checks can also flag unsupported subjects. Warnings leave the answer visible; a matching citation does not prove the policy was interpreted correctly.
 
-```bash
-poetry run python -m app.rag.ingest
-```
+### Direct SQL and retrieval
 
-**Verification test (yours to run, not automated here):** query `"what's our policy on damaged shipments?"` and confirm rule 4 (damaged in shipping) ranks above rule 3 (changed mind) despite both mentioning timeframes; separately, query something that should surface rule 9 (clearance items) and confirm rules 2 and/or 5 appear somewhere in the top-3 — that's the actual test of whether `k=3` does the cross-reference job the policy doc's own text claims it does.
+`/query/sql` accepts `{"question": "..."}`. Generated SQL passes statement and access checks, receives a row limit if needed, and undergoes an estimated-cost check. Execution uses the restricted `ops_agent_readonly` database role. SQL audit records capture attempts and their outcomes.
 
-## Orchestrator: /query/analyze and /refund/evaluate
+`/query/rag` accepts `{"question": "...", "k": 3}` and returns passages with source metadata. A relevance threshold filters the candidates. This endpoint returns evidence without generating an answer.
 
-See `app/orchestrator/`. Both flows reuse the SQL and RAG paths' actual code, not simplified copies — `analyze_service.py` calls `execute_proposed_query` (the layers 1-4 pipeline `app/query/service.py` was split to expose, so a query Claude already proposed here doesn't need a second Claude call to re-derive it) and `app/rag/service.query_rag` directly.
+Ingestion reads the four documents listed in [ingest.py](app/rag/ingest.py), covering policy and campaign context. Local embeddings use `BAAI/bge-m3`; production uses Voyage AI. Thresholds differ by provider, and a known production ranking failure remains open. Use the [evaluation methodology](../../evals/methodology.md) when comparing retrieval changes.
 
-**`POST /query/analyze`** (`{"question": "..."}`) — Claude picks `run_sql_query`, `search_policy`, both, or neither, across a bounded tool-use loop (max 4 iterations, parallel tool calls in one turn supported), then synthesizes an answer. The `tools=[...]` payload sent to Claude is built from `app/tools/registry.py` (`anthropic_tool_defs()`), not hand-written inline — see that module for the full registry entry per tool (input/output schema, permission level, error behavior), which exists so later tool-call tracing and multi-agent work can enumerate `TOOLS` generically instead of hardcoding tool names. `permission_required`/`requires_confirmation` are declared there but not yet enforced against anything. A structural groundedness check (`app/orchestrator/groundedness.py`) — regex + rule-title matching, not an LLM judge — parses the answer for rule citations (numeric, `"rule 9"`, or named, `"the final-sale exclusion"`) and cross-checks each against the `rule_number`s actually retrieved via `search_policy` in that request. An uncited-but-retrieved chunk is fine; a cited-but-not-retrieved rule sets `"grounded": false` and adds to `"ungrounded_claims"` — flagged, not blocked, since there's no remediation flow yet.
+### Refunds and confirmed writes
 
-**`POST /refund/evaluate`** (`{"request_text": "..."}`, natural language) — two steps:
-1. Claude (forced tool call, `app/orchestrator/refund_extraction.py`) extracts `product_identifier`, `customer_identifier`, `reason` (one of the 4 enum values), a `reason_confident` flag, and `evidence_submitted`. If `reason_confident` is false, or the product/customer can't be resolved to a real `order_item` (`resolve_order_item` in `refund_evaluator.py`), the response is `"status": "could_not_process"` — not one of the task's four decision statuses, added because "reject/flag rather than guess" needs *some* representation the schema didn't otherwise have.
-2. `evaluate_refund()` (`app/orchestrator/refund_evaluator.py`) — zero LLM calls, checks real DB rows in a fixed order (first match wins): category exclusion (rule 9) → time window (rule 2/3, reason-specific) → evidence check (rule 4) → repeat-refund flag (rule 7) → approval threshold (rule 6) → otherwise approved (reason-specific rule). Returns a decision only; **never writes to `refunds`** — executing the decision is a real feature deliberately not built in Part 1.
+`/refund/evaluate` accepts `{"request_text": "..."}`. Claude extracts the request details. Code resolves the order and applies refund rules in order, using the first matching rule. An unresolved request returns `could_not_process`.
 
-Verified against both seeded edge cases: a Cotton Bath Towel Set `damaged_shipping` request with no evidence comes back **`denied`** (rule 4), and a Last-Season Winter Jacket `changed_mind` request comes back **`denied`** (rule 9). The evidence-check branch originally returned `pending` per the initial rule spec, but that implied a resolvable-later state Part 1 has no mechanism for (no evidence-upload or re-evaluation flow) — corrected to `denied`, since a one-shot decision with no persisted state can only accurately say the refund can't be processed *now*.
+The evaluator uses its own restricted database role and returns a decision. Ticket and invoice workflows use separate draft and confirm endpoints. Their drafts live in memory for ten minutes, so expiry or a process restart can require a new draft.
 
-## Observability: request_log
+## Inspect a failure
 
-See `app/observability/` and `app/db/observability_models.py`. Every call to all four endpoints above (`/query/sql`, `/query/rag`, `/query/analyze`, `/refund/evaluate`) writes exactly one `request_log` row — success or failure — via `request_log_span()`, a context manager that times the request and writes the row on exit regardless of how the block exits (normal return or unhandled exception; exceptions still re-raise after logging, never swallowed).
+Start with the response status and request log. `GET /observability/requests` supports filtering by request type and date, with limit/offset pagination. Fetch a request by ID for its details, or inspect it through the frontend's Activity page.
 
-Per-type field population is intentionally uneven, not a bug: `input_tokens`/`output_tokens`/`estimated_cost_usd` are only set where an actual Claude call happened (none for `/query/rag`, which is local-embeddings-only); `grounded` is only meaningful for `analyze`; `sql_query_audit_id` (FK into `query_audit_log`) is only set when the request's own SQL path ran — including from inside `/query/analyze`, which reuses `execute_proposed_query()` directly rather than logging its own separate row (would violate "exactly one row per request"); `rag_chunks_retrieved` likewise only for `rag`/`analyze`.
+Analyze requests include tool-call traces. SQL audit records provide query validation details. Token usage and estimated cost are populated where supported model calls occur; empty fields on other paths do not indicate missing execution.
 
-Pricing (`app/observability/pricing.py`) is hardcoded per-token rates for the pinned model (`claude-sonnet-4-6`) with a comment flagging manual updates if the model changes — there's no live pricing API.
+A rejected query never reaches execution. Loop exhaustion returns an incomplete response. Grounding warnings happen after generation, so inspect the cited passages when reviewing a flagged answer.
 
-Read path — `GET /observability/requests` (`request_type`, `since`, `until`, `limit` [default 50, max 500], `offset`) — is filtering and pagination only, ordered by `created_at DESC`. Deliberately no aggregation/stats/grouping endpoint; that's Part 4 eval-harness work. `grounded` and `rag_chunks_retrieved` are kept as separate typed columns rather than folded into `output` specifically so Part 4 can query them directly instead of parsing them back out of an opaque blob.
+Live request logs do not yet record model and prompt versions. Keep that limitation in mind when reproducing behavior across deployments.
 
-**One real bug caught during verification:** `rag_chunks_retrieved` (a nullable JSONB column) initially stored the JSON literal `null` instead of true SQL `NULL` for every non-RAG request — SQLAlchemy's `JSON`/`JSONB` type defaults `none_as_null=False`, so a Python `None` serializes to JSON `null` rather than mapping to SQL `NULL` unless told otherwise. Fixed with `JSONB(none_as_null=True)`; re-verified with a raw `IS NULL` check, not just the ORM round-trip.
+## Tests and evaluations
 
-## Tests
-
-`tests/test_tool_registry.py` is the first (only, so far) automated suite — it needs a live Postgres (seeded) and a working embedding model, since it deliberately exercises the real SQL and RAG pipelines rather than mocking them, to catch drift between a registry entry's `input_schema`/`output_schema` and what the tool actually accepts/returns:
+From `apps/api`, run:
 
 ```bash
 poetry run pytest
+poetry run python ../../evals/run.py --subset deterministic
 ```
+
+Prepare the database and ingested corpus first. Some pytest tests call live model endpoints and need a working API key. The 18-case deterministic evaluation subset makes no live model calls.
+
+Model-dependent evaluations run separately. See [Evaluation methodology](../../evals/methodology.md) for scoring and experiment setup, and [EVALS.md](../../EVALS.md) for category definitions and coverage gaps.
+
+## Source map
+
+| Area | Source |
+|---|---|
+| SQL generation and validation | [app/query](app/query/) |
+| Policy retrieval and ingestion | [app/rag](app/rag/) |
+| Analyze loop and refund rules | [app/orchestrator](app/orchestrator/) |
+| Ticket and invoice flows | [app/tickets](app/tickets/), [app/invoices](app/invoices/) |
+| Request logging | [app/observability](app/observability/) |
+| Database schema and migrations | [app/db](app/db/), [alembic/versions](alembic/versions/) |
+
+The [decision log](../../DECISIONS.md) records implementation choices and earlier investigations.
