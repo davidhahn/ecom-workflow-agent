@@ -1,336 +1,979 @@
-# Decisions
-
-Append-only log of non-trivial engineering decisions: what was believed, what evidence changed it, what happened next. See `ARCHITECTURE.md` for how the system works today, and `EVALS.md` for how the eval suite works.
-
-## Index
-
-1. packages/shared: generated-only, nothing hand-written (2026-07-06)
-2. docker-compose scope: database-only, no app services yet (2026-07-06)
-3. SQLAlchemy + Alembic vs. raw SQL migrations (2026-07-06)
-4. Seed strategy: deterministic truncate-and-reinsert vs. randomized/faker-generated per run (2026-07-06)
-5. SQL query path: four independent, differently-shaped safety layers (2026-07-07)
-6. Layer 3 column restriction: allowlist grant, not table-grant-then-revoke (2026-07-07)
-7. RAG chunking: structural (per H2 / per rule), not fixed-size or semantic (2026-07-08)
-8. Local BAAI/bge-m3 embeddings over a hosted embedding API (2026-07-08)
-9. Groundedness check catches named citations, not just numeric ones (2026-07-09)
-10. Refund evaluator: sequential first-match-wins, not "repeat-flag overrides everything" (2026-07-09)
-11. `/refund/evaluate` extraction resolves order_item_id via DB lookup, not an LLM guess (2026-07-09)
-12. Evidence-check outcome corrected from `pending` to `denied` (2026-07-09)
-13. `rag_chunks_retrieved` needed `JSONB(none_as_null=True)`, not the plain type (2026-07-10)
-14. Seed Data Uses Fixed Historical Dates, Not Time-Relative Offsets (2026-07-13)
-15. Groundedness Eval Cases: Reconciling JSON Fixtures with Typed Function Input (2026-07-14)
-16. Refund resolution requires a customer identifier, or it refuses outright (2026-07-14)
-17. Tool-loop exhaustion returns an explicit incomplete state, not a silently empty answer (2026-07-14)
-18. Groundedness warning made visually prominent, not gating (2026-07-14)
-19. Test isolation requires explicitly importing every model module, not just the one under test (2026-07-18)
-20. Permission enforcement v1: one dependency, keyed by tool_name against the registry, not by endpoint (2026-07-18)
-21. Vendor invoice draft/confirm: a confirm-time duplicate refuses the write, it doesn't insert a 'duplicate' row (2026-07-19)
-22. Tool-call tracing: `tool_calls` is NULL for every request type except 'analyze', and never NULL for that one (2026-07-19)
-23. Deployed perimeter: shared-secret header (Render↔Vercel) plus CORS as an independent second layer, not one mechanism doing both jobs (2026-07-22)
-24. Frontend test framework: Vitest + React Testing Library, added when the first real test was needed (2026-07-23)
-25. `web_analytics`/`campaigns` schema + revenue-drop seed story (Part 3 demo query: "why did revenue drop last week?") (2026-07-24)
-26. Investigation pipeline, Planner + Data Analyst only: reuse run_sql_query/query_rag as-is, per-signal error isolation, no Report Writer yet (2026-07-25)
-27. RAG ingestion added to `render.yaml`'s `preDeployCommand`, not left as a manual step (2026-07-29)
-28. Next 15 days: eval depth over feature breadth (2026-07-30)
-29. Refund evaluator: its own restricted DB role (2026-08-06)
-30. New eval category (`request_faithfulness`) needed two app changes, not just test cases (2026-08-07)
-31. `request_faithfulness`'s first 6 cases are all bulk/abstract requests, not `mixed-08`'s shape (2026-08-07)
-32. Groundedness heuristic: four ways it gets fooled (2026-08-07)
-33. `sql` eval cases now check the actual number, not just the query shape (2026-08-08)
-34. New `sql_semantic` category: four traps that make a wrong query look right (2026-08-08)
-35. SQL result failures get a specific reason, not one generic message (2026-08-08)
-36. SQL semantic accuracy measured for real: 4 of 7 cases wrong, 3 times in a row (2026-08-09)
-37. Prompt v2: one targeted addition fixed both confirmed SQL bugs, first try (2026-08-10)
-38. One bounded retry for Anthropic calls, on the SQL and analyze paths only (2026-08-11)
-39. Retrieval threshold: picking 0.46 from labeled calibration data (2026-08-12)
-40. What justified the SQL fix, the threshold, and the retry work, without an incident behind any of them (2026-08-12)
-41. A model comparison would have quietly graded itself (2026-08-13)
-42. *(number skipped, no entry was ever recorded under it)*
-43. Rebuilt the ablation table on a frozen harness, and found a second cache bug doing it (2026-08-14)
-44. Staying on Sonnet, and turning down a workload split (2026-08-17)
-45. Closing the investigation pipeline as a formal scope deferral (2026-08-16)
-46. Closed the mixed-08 write-refusal gap with a one-sentence prompt fix (2026-08-16)
-47. First CI workflow, and the deterministic eval subset (2026-08-16)
-48. pytest still needs a real Anthropic key (2026-08-16)
-49. Verified the CI gate catches a regression, twice (2026-08-16)
-50. Verified the live deployment directly, found two real gaps the evals never would have caught (2026-08-17)
-51. Fixed the refund extraction bug: stop folding quantity into the product name (2026-08-17)
-52. Recalibrated the RAG relevance threshold for the embedding provider production runs (2026-08-17)
-53. Closing the "damaged shipments" retrieval gap as a known limitation (2026-08-18)
-54. Exposing `request_log_id` on `AnalyzeResponse`/`RefundEvaluateResponse` so the UI can link straight to a trace (2026-08-18)
-55. Cache hits keep the original request's trace, reversing #54's own choice (2026-08-22)
-56. Measuring LLM call time separately from tool time and total latency (2026-08-22)
-57. Moved the proxy middleware into src/ so next dev runs it (2026-08-23)
-58. A landing page, separate from the Scenario Demo (2026-08-27)
-59. A visual pass, real pre-run snapshots, and a wider landing story (2026-08-30)
-60. Sourcing the UI from real component libraries, not hand-rolling it (2026-08-30)
-
-### 1. packages/shared: generated-only, nothing hand-written
-- The Win: Makes drift structurally impossible. There's no hand-written type for the API contract to fall out of sync with, because there's no hand-written type at all. This is what makes the monorepo decision in ARCHITECTURE.md pay off in practice.
-- The Tradeoff Accepted: Every backend schema change requires re-running codegen before the frontend will type-check against it. It's an extra step in the loop that a hand-written type wouldn't need, and one that's easy to forget mid-session, producing a confusing stale-type error.
-
-### 2. docker-compose scope: database-only, no app services yet
-- The Win: Keeps the compose file honest about what's verified: Postgres + pgvector boots and CREATE EXTENSION vector succeeds, full stop. Adding unverified app-service entries now would create a false impression of an integrated stack before the apps can talk to the DB.
-- The Tradeoff Accepted: Local dev means running three things by hand: docker compose up, apps/api, apps/web. There are more manual steps every session until app services get added, in exchange for not lying to yourself about what's wired up.
-
-### 3. SQLAlchemy + Alembic vs. raw SQL migrations
-- The Win: Schema changes are versioned, reversible, and diffable in git. Autogenerate produces a migration file you can read and review. That matters for a portfolio project, where the git history itself is part of what gets evaluated.
-- The Tradeoff Accepted: Alembic's autogenerate doesn't always produce exactly the migration you'd hand-write (index ordering, constraint naming). This means migrations need a manual read-through before applying, and that review step is easy to skip under time pressure.
-
-### 4. Seed strategy: deterministic truncate-and-reinsert vs. randomized/faker-generated per run
-- The Win: Idempotent and reproducible. The "60-day-late refund" and "80%-refund-rate product" edge cases are guaranteed to exist every time you run seed.py. Eval cases written against specific rows won't silently break because a random seed generated different data on the next run.
-- The Tradeoff Accepted: The dataset stays small and hand-curated. That trades the realism of a bigger, noisier dataset, closer to what a real ops team would query against. In exchange, specific edge cases are always present and discoverable.
-
-### 5. SQL query path: four independent, differently-shaped safety layers
-- The Win: Four layers, each catching a different failure class. The AST check (layer 1) catches malicious or malformed queries before any database round trip. The cost gate (layer 2) catches expensive but syntactically valid queries. The Postgres role (layer 3) is a backstop that holds even if layers 1 and 2 have a bug. The audit log (layer 4) makes every attempt, not just successes, inspectable after the fact. None of the four substitutes for another.
-- The Tradeoff Accepted: more moving parts to reason about per request. A Claude call, an AST parse, an EXPLAIN round trip, execution, an audit write, all before a slower response than a single-layer check would give. Worth it, because layer 3 exists on the assumption that layers 1 and 2 aren't infallible. Collapsing them for speed would defeat the design.
-
-### 6. Layer 3 column restriction: allowlist grant, not table-grant-then-revoke
-- The Win: Verified directly that `GRANT SELECT ON customers` followed by `REVOKE SELECT (email) ON customers` is a silent no-op in Postgres. Table-level and column-level SELECT are independent ACL entries, and a role with table-wide SELECT can still read a column whose column-level grant was revoked. Confirmed with `docker exec ... psql -U ops_agent_readonly`: the role selected `email` successfully despite the revoke running without error. Fixed by granting SELECT only on the explicit non-email column list for `customers`, and table-wide SELECT for the other five tables, which have no columns to exclude. Re-verified: `SELECT email FROM customers` now fails with `permission denied`, every other column and table still works.
-- The Tradeoff Accepted: the customers table's grant statement has to be kept in sync by hand with `Customer`'s columns in `app/db/models.py`. A new column added there needs a matching update to the migration's `CUSTOMER_VISIBLE_COLUMNS` tuple, or it silently won't be selectable through the readonly role. A hand-maintained list is safer here than the cleaner-looking "grant broadly, revoke narrowly" approach. That approach fails silently, the exact failure mode this project's Fail Loudly principle warns against.
-
-### 7. RAG chunking: structural (per H2 / per rule), not fixed-size or semantic
-- The Win: Each policy doc is hand-authored so one H2 section equals one self-contained rule, with no cross-section pronoun references. Chunking on that existing structure means chunk boundaries always land exactly on rule boundaries. No rule ever gets split across two chunks, and no two rules get merged into one, a risk a fixed-size or sliding-window chunker would carry. Rule number and source doc are preserved as chunk metadata, so the retrieval endpoint can point a caller back at "refund policy, rule 4."
-- The Tradeoff Accepted: this chunker is coupled to the specific H2-per-rule structure of these three docs. It will silently produce wrong or missing chunks, or a `rule_number` that doesn't match the rule's real identity. That happens if a future policy doc uses a different structure, like H3 subsections or multiple rules under one H2. That coupling is fine for a small, fixed, hand-authored corpus. It would be a real problem for a corpus with mixed document structure.
-
-### 8. Local BAAI/bge-m3 embeddings over a hosted embedding API
-- The Win: local embedding with `BAAI/bge-m3` (`sentence-transformers`) means no external API dependency, no per-call cost, and no network latency for a corpus this small, around 17 chunks. The comment above the model init in `app/rag/embeddings.py` flags this as scope-specific, not a default to leave unexamined.
-- The Tradeoff Accepted: `sentence-transformers` pulls in `torch` and a multi-hundred-MB download on first run, heavy for what's mechanically a small lookup table. There's also no ANN index on `policy_chunks.embedding`. An exact sequential scan is correct and fast at 17 rows, but it would need revisiting if the corpus grew into the thousands. The trigger that forced a change wasn't corpus growth, it was the deploy environment's memory limit: `torch`'s own import and allocation footprint didn't fit. `app/rag/embeddings.py` now dispatches on `EMBEDDING_PROVIDER` (`local` | `voyage`, default `local`). Local dev keeps the free BAAI/bge-m3 path. Deploy sets `EMBEDDING_PROVIDER=voyage` and calls the hosted Voyage AI API instead, at a per-call cost that's negligible at this corpus size. The model is `voyage-3.5-lite` at `output_dimension=1024`, pinned explicitly so the output matches `policy_chunks.embedding`'s existing `vector(1024)` column with no schema migration needed.
-
-### 9. Groundedness check catches named citations, not just numeric ones
-- The Win: a citation doesn't have to spell out a number, "rule 9" and "per the final-sale exclusion" both count. `groundedness.py` builds a title-to-rule_number map from the same chunker RAG ingestion uses, not a hand-duplicated list. It normalizes hyphens and spaces, then checks the answer text against both forms. This caught a real case in testing. A `/query/analyze` answer accurately described "Wrong Item Shipped," rule 5's exact title, using knowledge implicit in the rule 9 chunk's own text. But the actual top-3 retrieval for that request surfaced rules 9, 1, and 2, not 5. Numeric-only citation parsing would have missed this and reported false groundedness.
-- The Tradeoff Accepted: it's a substring heuristic, not comprehension. A title phrase used generically could rarely false-positive. A paraphrased rule description with neither the number nor the exact title gets missed too, a silent false negative. That's accepted because the task asked for structural checking, not an LLM judge. A second model call to verify citations would reintroduce the non-determinism this check exists to avoid. The check is calibrated to prefer false positives over false negatives on purpose. An answer that uses "changed mind" to describe sentiment, without citing rule 3 at all, still gets flagged as though it had. That costs a reviewed-and-cleared flag. A hallucinated citation marked grounded would silently undermine the one signal this endpoint gives a caller, a materially worse failure. A second instance surfaced during prompt-injection testing, case 06, a fabricated-rule-number attack. The model correctly refused to affirm a nonexistent rule 15, but the check flagged the refusal itself as ungrounded. Its literal-match logic can't tell a citation from a mention inside a denial. Same tradeoff, not a new gap.
-
-### 10. Refund evaluator: sequential first-match-wins, not "repeat-flag overrides everything"
-- The Win: rule 7's text, "regardless of the individual refund's reason code or amount," reads like it could override every earlier check. Read literally, it's scoped to reason and amount specifically, not to a category exclusion or an expired time window, which are about the refund itself being invalid. Implemented as a strict ordered waterfall: category, time window, evidence, repeat-flag, threshold, approved, where the first rule that decisively applies wins. Repeat-flag still honors "regardless of reason or amount" in that it isn't skipped just because the reason carries an unlimited window or the amount is small. It just doesn't get a chance to fire if an earlier rule already denied the request.
-- The Tradeoff Accepted: the task didn't fully disambiguate this judgment call. A customer already flagged for repeat refunds who submits a final-sale-excluded request gets `denied` under rule 9, not `flagged_for_review` under rule 7. The more specific defect in this particular refund wins over the customer-level behavioral flag. If the repeat-flag was meant as a hard override regardless of outcome, this needs revisiting.
-
-### 11. `/refund/evaluate` extraction resolves order_item_id via DB lookup, not an LLM guess
-- The Win: Claude extracts `product_identifier` and `customer_identifier` as free text, plus a `reason` and a self-reported `reason_confident` flag. A plain SQL `ILIKE` lookup, `resolve_order_item`, does the actual resolution to a real `order_item_id`. Verified end-to-end against both seeded edge cases, Cotton Bath Towel Set and Last-Season Winter Jacket. Also verified against an unresolvable product name and an ambiguous reason. Both correctly returned `could_not_process`, with no guess offered. `could_not_process` isn't one of the task's four listed decision statuses. It was added because the schema had no way to represent a rejection or a flag, only a guess.
-- The Tradeoff Accepted: the `ILIKE` lookup takes the most recent matching order item with no disambiguation when a product name matches several. For the two specified test products this doesn't matter, one is unique in the catalog, the other's outcome doesn't depend on which matching row gets picked. A general-purpose version would need the extraction step to also disambiguate by order ID or date, for something like "the one I ordered last week."
-
-### 12. Evidence-check outcome corrected from `pending` to `denied`
-- The Win: the initial rule spec said a damaged-shipping request with no evidence should return `pending`. That value was never one of the task's four listed decision statuses: approved, denied, requires_manager_approval, flagged_for_review. It also implied a workflow Part 1 has no mechanism for: evidence arriving later and the request getting re-evaluated. There's no evidence-upload endpoint, no persisted evaluation state, no trigger to re-run `evaluate_refund()`. It's a one-shot, stateless decision, so the only accurate answer when evidence is missing is that the refund can't be processed now, `denied`. Re-verified against both seeded edge cases; the with-evidence case still approves correctly.
-- The Tradeoff Accepted: the `refunds.status` column's CHECK constraint still allows `'pending'` as a stored value. That's correct and unchanged, since a human or a future workflow step could still set a real refund row to pending. Only the evaluator's returned decision stopped using it. The seeded fixture row for this edge case, the Cotton Bath Towel Set refund in `seed.py`, was separately updated to `status='denied'` to match. That was a direct edit to `seed.py`, since the evaluator never reads that row when scoring a new request.
-
-### 13. `rag_chunks_retrieved` needed `JSONB(none_as_null=True)`, not the plain type
-- The Win: SQLAlchemy's `JSON`/`JSONB` column type defaults `none_as_null=False`. Assigning a Python `None` to a nullable JSONB column serializes it as the JSON literal `null`, a real, non-NULL JSONB value. It never maps to SQL `NULL`. Caught by checking `IS NOT NULL` directly in psql across all four request types. Every `sql` and `refund_evaluate` row, neither of which touches RAG, showed `rag_chunks_retrieved` as non-NULL, holding the literal string `null`. Fixed by declaring the column `JSONB(none_as_null=True)`. Re-verified the same way: `sql`/`refund_evaluate` rows now show genuine SQL `NULL`, `rag`/`analyze` rows show the actual chunk array.
-- The Tradeoff Accepted: none. This is a pure correctness fix, not a design tradeoff. Worth recording anyway, since it's a non-obvious SQLAlchemy default that will bite again on any future nullable JSON/JSONB column in this codebase unless `none_as_null=True` gets set explicitly each time. Nothing defaults it project-wide.
-
-### 14. Seed Data Uses Fixed Historical Dates, Not Time-Relative Offsets
-- The Win: seed data stays deterministic and reproducible, building on decision #4. The same rows exist every time `seed.py` runs, so hand-verified edge cases stay findable and eval expected values stay stable across reseeds.
-- The Tradeoff Accepted: every rule with a time-relative window, rules 2 and 3, and especially rule 7's 90-day check, decays against fixed calendar dates as real time passes. Rule 7 was fully unreachable when this was first written. Fixed by switching rules 2, 3, and 7's rows from `ANCHOR`-relative to `datetime.now()`-relative. A later change consolidated those three separate `datetime.now()` calls into one shared `NOW` variable, matching the revenue-dip block's existing pattern. That consolidation was a cleanup, with reachability verified identical before and after, directly in the database, across two reseeds. The bulk dataset stays `ANCHOR`-relative on purpose. Rule 6's $200 threshold remains separately unreachable, since no seeded order exceeds it.
-
-### 15. Groundedness Eval Cases: Reconciling JSON Fixtures with Typed Function Input
-- The Win: `evals/cases.json` stores `retrieved_chunks` as plain JSON dicts, since JSON can't represent internal dataclass or Pydantic types. But `check_groundedness()` expects attribute access, `chunk.rule_number`, because it's typed as `list[RagChunkResult]`. Running eval cases against the live function, not just schema-validating them, surfaced a real `AttributeError: 'dict' object has no attribute 'rule_number'`. Fixed by adding `chunk_from_dict()` next to `RagChunkResult` in `app/rag/schemas.py`, a single documented conversion path other eval-loading code can reuse. A `SimpleNamespace(**c)` shim doing the same job untracked was already sitting in `apps/api/tests/`, invented independently for the same problem.
-- The Tradeoff Accepted: `check_groundedness()` itself was deliberately left untouched. Loosening it to accept dicts through `getattr`/`.get()` fallbacks would blur an already-correct type contract, and duck-typing appears nowhere else in this codebase. This is a small instance of a pattern worth watching as the eval runner grows. Any eval case whose expected input is a typed object, not a primitive or dict, needs the same reconciliation. Worth revisiting whether eval fixtures should carry a schema hint, or whether internal functions consuming eval-fixture data should accept dict-like input by convention.
-
-### 16. Refund resolution requires a customer identifier, or it refuses outright
-- The Win: `resolve_order_item()` now refuses, returning `None` and `could_not_process`, when no customer identifier was extracted. It no longer falls back to a product-only `ILIKE` match across the entire customer base. Caught during an independent architecture critique, `ARCHITECTURE_CRITIQUE.md` finding #2. Since there's no session or identity concept, "no customer named" is a common case, not an edge case. The old fallback could render a real approve or deny decision against a completely different customer's order history. Verified end-to-end: a refund request naming no customer now returns `could_not_process` with "Could not identify which customer is making this request." The same request naming a real customer still resolves and evaluates correctly.
-- The Tradeoff Accepted: this is a strict refusal, not a request for clarification, since there's no follow-up-question mechanism. A request referencing a product only one customer has ever ordered, with no real ambiguity behind it, still gets refused if the customer wasn't named. `resolve_order_item` has no way to know in advance the product identifier alone would have been unique. That trades a handful of under-specified-but-legitimate requests for eliminating the wrong-customer-match risk entirely. It's the right call: a wrong decision against the wrong customer is worse than an honest refusal.
-
-### 17. Tool-loop exhaustion returns an explicit incomplete state, not a silently empty answer
-- The Win: `analyze()`'s tool-call loop used to fall through to `answer = ""` when Claude was still requesting tools on the final allowed iteration. `check_groundedness("", [])` trivially returns `grounded=True` on empty input, so the failure rendered as a blank answer with a green "Grounded" badge and a 200 OK. Caught during the same independent critique (finding #5) as a direct violation of this project's Fail Loudly rule. Fixed with Python's `for`/`else`. The `else` clause fires only when the loop completes every iteration without hitting `break`, an unambiguous signal distinct from Claude deciding it was done. That branch skips `check_groundedness()` entirely and returns a new `incomplete: bool` field with an explanatory answer.
-- The Tradeoff Accepted: `AnalyzeResponse.incomplete` is a new field older callers don't know to check. It defaults to `False` to keep existing JSON consumers working, but a caller that only reads `answer`/`grounded` and ignores `incomplete` is back to the same misleading-badge problem. The incomplete-state message is also a fixed generic string, not a diagnostic of which tool call Claude was still attempting or how many rounds ran. Enough to stop the silent failure. Not enough to debug why it happened without checking `request_log` directly.
-
-### 18. Groundedness warning made visually prominent, not gating
-- The Win: the frontend used to render a full answer with the same visual weight as a small badge when `grounded: false`. That was easy to miss under time pressure, undercutting the point of having a groundedness signal at all. Caught during the same critique, finding #1: "the groundedness check doesn't gate anything." Fixed on the display side only: a prominent bordered warning banner now renders above the answer whenever `grounded` is false, with `ungrounded_claims` listed explicitly above the answer.
-- The Tradeoff Accepted: this is a visibility fix, not a gating fix. The answer still shows in full, since Part 1 has no remediation flow: no re-generation, no escalation, nothing else to do with a flagged answer yet. Hiding it outright was out of scope. A user can still read past the banner and act on a flagged answer anyway. This makes that a harder mistake to make by accident, not an impossible one. The groundedness heuristic's own known limitations (#9, it can false-positive on a title phrase used generically) are unchanged. A more prominent banner around an already-imperfect signal is still built on that same imperfect signal.
-
-### 19. Test isolation requires explicitly importing every model module, not just the one under test
-- The Win: `tests/test_tickets.py` failed with `sqlalchemy.exc.NoReferencedTableError` on `RequestLog.sql_query_audit_id -> query_audit_log.id` when run in isolation, despite passing inside the full suite. SQLAlchemy resolves a string-based `ForeignKey(...)` lazily, against whatever tables have been imported into `Base.metadata` when any ORM write triggers mapper configuration. That configuration step covers every pending mapper at once, not just the table being written to. `audit_models.py`, `observability_models.py`, and `rag_models.py` each register their table only as a side effect of being imported somewhere. Nothing in `test_tickets.py`'s own import chain pulled in `audit_models`. So `query_audit_log` was never registered, and configuring any mapper, here inserting a `SupportTicket`, failed on a wholly unrelated table's dangling FK. `alembic/env.py` already imports those three modules explicitly with `# noqa: F401` for this exact reason. It just wasn't applied to the test suite. Fixed by adding the same three imports to `tests/__init__.py`.
-- The Tradeoff Accepted: this is a real, generalizable gap. Any new model module added later needs the same import added to `tests/__init__.py`. Otherwise, isolated runs of unrelated test files can fail again with the same confusing error, pointing at a table the failing test never touches. There's no compile-time or lint-time guard against forgetting this. It will only surface again as a runtime failure in whichever test happens to run first in isolation. Worth revisiting if the project adds a lint rule, or a single shared import module both `alembic/env.py` and `tests/__init__.py` pull from.
-
-### 20. Permission enforcement v1: one dependency, keyed by tool_name against the registry, not by endpoint
-- The Win: `require_permission(tool_name, request_type)` is a single FastAPI dependency factory, reused on every gated route. It looks up `TOOLS[tool_name].permission_required` from the tool registry and checks it against a demo role read from the `X-Demo-Role` header. A missing or invalid header fails closed to `read_only_viewer`, never to open access. The check is keyed by `tool_name` against the registry. That's what lets `support_agent` call `draft_support_ticket` but not `confirm_support_ticket`, even though both feel like "the ticket workflow" from outside. A naive per-route or per-workflow check would have conflated them. This is the actual payoff of the tool registry existing at all: permissions read the same single source of truth the Claude-facing tool list already reads. No second system maintains its own parallel notion of what a tool is allowed to do. Denials still write a `request_log` row, role, required permission, raw request body. That happens even though they short-circuit before the route handler's own logging ever opens, logged directly from inside the dependency instead.
-- The Tradeoff Accepted: `X-Demo-Role` is a client-supplied, unauthenticated header. Any caller can claim `admin` by setting it themselves. That's explicitly fine for this pass, real auth is a separate, later step. But it means permission enforcement v1 enforces a role the caller asserts about themselves, not one the system verifies. `/refund/evaluate` and `/query/analyze` are both unprotected by this dependency. `/refund/evaluate` was never registered in the tool registry, so there's no `permission_required` to look up. `/query/analyze` is unprotected by explicit scope, since it doesn't currently call any write-tier tool. Both are real, open gaps, not oversights, and they're the next things to close.
-
-### 21. Vendor invoice draft/confirm: a confirm-time duplicate refuses the write, it doesn't insert a 'duplicate' row
-- The Win: The task spec asked for a `status='duplicate'` value on `vendor_invoices`, but also put a real unique index on `(vendor_name, invoice_number)`. Taken literally, those collide: inserting a row with `status='duplicate'` for a pair already in the table raises `IntegrityError`, caught in testing before it ever reached a real deployment. Resolved by treating "do not let a duplicate slip through even if every other check passes" as the controlling rule. A confirm-time duplicate now short-circuits before any insert. It returns a structured `status: "error"` with `validation_status: "duplicate"`, the same shape a missing or expired draft returns. `draft_vendor_invoice`/`confirm_vendor_invoice` otherwise reuse the ticket flow's mechanism verbatim: same draft store, same TTL, same confirmation and permission gates.
-- The Tradeoff Accepted: `status='duplicate'` is a value the schema's CHECK constraint allows but no code path ever inserts, since the unique index makes a persisted duplicate row a contradiction in terms. That's correct, not a bug, but it would read as strange to someone auditing the schema without this entry. Only the duplicate check gets re-run at confirm-time, not the full arithmetic and date validation. Those are computed against fields that can't change between draft and confirm, so this would need revisiting if a future field became time-dependent.
-- Follow-up, closed: `request_log` was the only audit trail for a rejected duplicate, and it turned out too thin to investigate one, missing vendor name, invoice number, and every dollar amount. A successful confirm's logged output was equally thin. Fixed by logging the full extracted fields on every branch, success, idempotent retry, and duplicate rejection alike, so all three are logged at the same level of detail.
-- Verified by: `test_duplicate_confirm_rejection_is_logged_with_full_invoice_detail`, which queries `request_log` directly and asserts on the field values.
-
-### 22. Tool-call tracing: `tool_calls` is NULL for every request type except 'analyze', and never NULL for that one
-- The Win: `request_log.tool_calls` exists because `/query/analyze`'s tool-call loop is the one path that can make an unbounded, ordered sequence of sub-calls within a single request. Every other request type makes at most one LLM call, so the concept of a trace doesn't apply to them at all. `analyze()` sets `tool_calls` on every return path, always a real, possibly empty, list, never left unset. Every other request type's logger never touches the field, so it stays `NULL` by default. The two states mean different things: `NULL` means this request type has no notion of a trace, `[]` means it was traced and zero tools got called. Collapsing those into one would make a no-tools analyze row indistinguishable from a `sql` row where the column isn't meaningful at all.
-- The Tradeoff Accepted: `sequence` is a strictly increasing counter across the whole loop, not reset per turn. That's correct for today's sequential dispatch, but would need revisiting if tool calls within a turn were ever dispatched concurrently. `latency_ms` per call covers only that tool's own dispatch function, not JSON encoding or Claude's per-turn processing time, both of which land inside the frontend's derived "thinking time" figure. That figure is an upper bound, not a precise measurement. The detail endpoint's response model is a subclass of the list endpoint's, chosen so the list response structurally cannot serialize `tool_calls` no matter what the underlying row carries.
-- Verified by: a real `/query/analyze` call using both tools, confirming the persisted array held two entries in call order, each with real input, output, and per-call latency, appended immediately after each tool call completes.
-
-### 23. Deployed perimeter: shared-secret header (Render↔Vercel) plus CORS as an independent second layer, not one mechanism doing both jobs
-- The Win: Once the API is deployed, its URL is public, with no authentication in front of it beyond the permission gate's role-tier check (#20), which assumes the caller already reached the app. Two independent layers close that gap. `app/proxy_secret.py` is blanket ASGI middleware that rejects any request lacking a matching `X-Internal-Proxy-Secret` header with a 403, exempting only `/health`. `apps/web/src/middleware.ts` is the only legitimate source of that header, injected server-side on every proxied request, read from a non-public env var so it never reaches client JS. `CORSMiddleware`, pinned to the single production domain, is a second, independent layer. It stops a browser from letting cross-origin JS call the API even if that JS had the secret, something the secret check alone can't do for a browser. The secret check, in turn, stops everything CORS can't: any non-browser caller. Neither substitutes for the other. Both secrets are read once at import time, with no fallback default. So a deploy that forgets to set one fails loudly: the app refuses to boot, or the middleware throws on first request.
-- The Tradeoff Accepted: this is a shared secret copy-pasted manually into two dashboards, with no automated drift detection. A rotation means updating both. A mismatch fails closed as a 403 on every request. Injecting the header required replacing a static Next.js rewrite config with a per-request middleware function, more moving parts, accepted because injecting the header is the entire point. This split isn't just defense-in-depth in the abstract: CVE-2025-29927 showed Next.js middleware execution itself can be bypassed via a spoofed header, for self-hosted deployments running `next start`. This deployment is Vercel-hosted, not in the affected configuration. But the CVE is the concrete reason the backend's independent check is the real security boundary, not the middleware's header injection.
-- Correction, found while adding the first real CORS-specific test: the original middleware ordering was backwards. FastAPI's `add_middleware()` prepends, so the last-added middleware ends up outermost, the opposite of what the first version assumed. With CORS added first, it ended up innermost, so `ProxySecretMiddleware` saw every request, including browser preflights, before CORS did. A preflight never carries the proxy secret. So every preflight got an unconditional 403 before CORS' own allow-list logic ever ran, making the origin allowlist unreachable and inert until this was caught. Fixed by reordering so CORS is added last.
-- Verified by: `tests/test_cors.py`, asserting the actual behavior a config-presence check can't: a preflight from the real production origin gets 200 with the right header, one from an arbitrary origin gets 400 with none.
-
-### 24. Frontend test framework: Vitest + React Testing Library, added when the first real test was needed
-- The Win: `apps/web` had zero automated tests before the example-chips and intro-banner work. Manual verification, a build plus clicking around a running dev server, was enough while the frontend stayed thin. Testing "clicking an example populates a field without submitting" and "the banner renders across routes" as real assertions needed an actual runner, so Vitest, `@testing-library/react`, and `@testing-library/jest-dom` were added at that point, not before. Chosen over Jest because setup is a few lines, with no separate Babel or SWC transform config beyond `@vitejs/plugin-react`. Its `vi.mock`/`vi.fn` API is what every test file here exercises to stub `@/lib/api`'s network calls, not a compatibility shim over a different runner. Chosen over Playwright or another E2E tool because what's being tested, a click, a controlled input's value, whether a function ran, is component-level behavior, not a real-browser concern. Standing up both apps to prove a `useState` setter ran would be the wrong tool for the question. And per #23, `next dev` in this sandbox doesn't even run the proxy middleware an E2E test would need.
-- The Tradeoff Accepted: `@testing-library/react`'s auto-cleanup depends on detecting a global `afterEach`, which Vitest doesn't register unless `test.globals: true` is set. It isn't set here, so `apps/web/src/test/setup.ts` explicitly imports and wires `afterEach`/`cleanup` itself. Without that block, a second `render()` in the same test file leaves the first render's DOM mounted. A `getByRole` query that matched one element then matches two and throws, caught immediately the first time this file was written without it. `IntroBanner`'s two-routes test doesn't render the real `RootLayout`, since its root JSX is `<html>`/`<body>`, awkward for RTL to mount inside a test DOM that already has those. It instead renders `<IntroBanner />` next to `<AskPage />`, and separately next to `<RefundsPage />`. That reproduces the same composition `layout.tsx` performs around `{children}` at the test level, without importing the real file. That's a faithful proxy for "app-level, not page-local," but it doesn't execute `layout.tsx`'s own code. If that file were ever refactored to stop rendering `IntroBanner` directly, this test would keep passing while the real app silently stopped showing the banner.
-
-### 25. `web_analytics`/`campaigns` schema + revenue-drop seed story (Part 3 demo query: "why did revenue drop last week?")
-- The Win: `web_analytics` stores no revenue-shaped column; revenue for any window is always computed by joining through `orders`, never a second, driftable copy of the same fact. The seed data tells one coherent, traceable story across three tables. Sessions and conversion rate drop about 26% starting the day after a real, sizeable campaign ends. Orders and revenue in the same trailing 7 days show a corresponding 28% revenue drop, driven by 44% fewer orders, not by discounted prices. Refunds in the same window stay flat, the deliberate red herring a correct investigation has to check and rule out. A markdown note carries the narrative context, why the campaign ran, what it was expected to do, that the structured rows alone can't. Every date in this block is computed from one timestamp captured locally at seed time, not the file's older `ANCHOR` pattern (#14). So the story stays in the trailing 14 days across every reseed.
-- The Tradeoff Accepted: the first version of this seed data was wrong and would have told the opposite story, caught only by querying it after seeding, not by trusting the numbers on paper. Several pre-existing rows, pinned to fixed day-offsets for unrelated shipment-status testing, land unevenly across the same two 7-day windows this story uses. A first pass at the story's own rows produced a combined recent-week total higher than the prior week, once queried directly. Fixed by treating that skew as a fixed offset to net out against. The pre-existing rows aren't this story's to rewrite.
-- Verified by: the corrected counts checked against the actual combined result a real query against `orders`, `order_items`, and `refunds` returns, not the story's own rows in isolation.
-
-### 26. Investigation pipeline, Planner + Data Analyst only: reuse run_sql_query/query_rag as-is, per-signal error isolation, no Report Writer yet
-- The Win: `investigation_planner.py` and `data_analyst.py` are the first two steps of a three-step pipeline: Planner, then Data Analyst, then a Report Writer that isn't built yet. It's deliberately stopped short of synthesis or a new endpoint this pass. The Planner is a single, non-looping Claude tool call, the same shape as `propose_sql()`, that proposes a list of `{name, method: "sql"|"rag", intent}` signals. It never touches the database or the RAG index itself. The Data Analyst executes that plan by calling `run_sql_query`/`query_rag` directly, the same functions every other caller in this codebase already uses, no second SQL-generation or retrieval implementation. Each signal is wrapped independently (`_gather_sql_evidence`/`_gather_rag_evidence`), so one signal's failure can't take down the loop gathering the others. Verified with a test that mocks `run_sql_query` to raise for one of four signals, while the remaining three still complete and return `status: "success"`. `investigate_gather_evidence(question) -> EvidenceBundle{plan, evidence}` is the one function this pass exposes, for testing the pipeline in isolation. No route, no Report Writer, no groundedness check, per the task's explicit scope.
-- The Tradeoff Accepted: building this surfaced that `web_analytics`/`campaigns` (added in #25) were schema-only. They were present in `app/db/models.py` and migrated, but absent from `ALLOWED_TABLES` and never granted `SELECT` to the `ops_agent_readonly` role. Confirmed by running a `web_analytics` question through `run_sql_query()` before the fix and getting exactly the permission-denied failure that gap predicts. Fixed with the smallest necessary changes. Both tables got added to `ALLOWED_TABLES`, which also feeds `build_schema_context()` for Claude's SQL-proposal prompt. A new migration (`c8f07f0cb8f0`) grants table-wide `SELECT` on both, following the same plain-grant pattern the `shipments` grant (`966f00ae6319`) already established. This is enabling plumbing for the traffic and conversion signal the task specified, not scope creep. Signal names in the Planner's output are Claude's own free choice, not a fixed vocabulary the code enforces. So `test_investigation_planner.py` matches loosely, on method plus a keyword in the name or intent, not on Claude's exact phrasing. Evidence status is a strict three-way success, failed, or empty, deliberately collapsing `SqlQueryResponse`'s own success/rejected/error into just failed for anything non-success. A caller gathering evidence doesn't need to distinguish why a signal is unusable yet, only that it is; that detail stays recoverable later from `sql_result.status`.
-
-### 27. RAG ingestion added to `render.yaml`'s `preDeployCommand`, not left as a manual step
-- The Win: discovered in production, not in review: `/query/analyze` was answering every policy question with "my policy document search returned no results," honestly reporting an empty result. It never fabricated a citation, the groundedness design working as intended with nothing to cite. Root cause: `alembic upgrade head` creates the `policy_chunks` table, but nothing ever populated it. `app.rag.ingest` was documented as a manual, local-only step, and the reseed cron job only runs `app.db.seed`, which never touches `policy_chunks`. `query_rag()` orders by cosine distance with no similarity threshold, so an empty table can only return zero chunks. Every request failed the same consistent way. Fixed by chaining ingestion onto the same pre-deploy step: `alembic upgrade head && python -m app.rag.ingest`. Safe on every deploy because `ingest.py` already truncates and reloads `policy_chunks` from the docs directory on every run.
-- The Tradeoff Accepted: this is deliberately different from why `app.db.seed` stays off the deploy path. Seed data is user-facing demo state someone could be mid-interaction with, so it reseeds on its own daily schedule instead. `policy_chunks` is derived, non-interactive content with no in-progress state to protect, so coupling it to every deploy costs nothing equivalent. The real cost is a second failure mode. A deploy now fails if the Voyage embedding call fails partway through the pre-deploy step. Before this, a misconfigured `VOYAGE_API_KEY` would have deployed successfully, only surfacing as silently empty RAG results at request time. Failing loudly here is the intended tradeoff, but it does mean a `VOYAGE_API_KEY` problem now blocks an otherwise unrelated deploy.
-
-### 28. Next 15 days: eval depth over feature breadth
-- The Win: The thing I want this project to prove is that I can measure how well an LLM system works, and make model decisions based on evidence. So the next 15 days build three things and nothing else. A way to swap models through config. A better eval setup: running flaky categories several times per check, and checking the judge against my own hand-graded answers before trusting it. Then the actual result: running the whole suite on an expensive model and a cheap one, and seeing where the cheap one holds up and where it falls apart. That result is the whole point. Everything else is just what makes it possible.
-- The Tradeoff Accepted: Five things I'm deliberately not building. The Report Writer agent, since it adds demo material, not proof, and honestly it's the one I most want to build, which is probably the tell. A reranker, since the doc corpus is 21 chunks and there's nothing to rerank. Real auth, since nobody looking at my resume doubts I can build login. The ticket and invoice UI, since the API already proves that flow works and there's no user who needs the screens. Partial-quantity refunds, since it's a gap in the rules engine and fixing it says nothing about how I work with AI. One real risk: if both models score the same everywhere, the result is boring. But that would mean my eval suite is too easy, and I'd rather find that out myself than have an interviewer find it for me.
-
-### 29. Refund evaluator: its own restricted DB role
-- The Win: the refund evaluator used to connect with the same full-access DB user as migrations and seeding, more access than it needs since it never writes. It now uses a new role, read-only, limited to the five tables it touches. A bug here can no longer write anywhere or read anything else. A new test checks that the evaluator uses this role, so it fails loudly if that ever regresses.
-- The Tradeoff Accepted: this is a second read-only role, separate from the one the SQL path uses. That one blocks customer email, since it can end up in an LLM answer. The evaluator needs email too, customers often identify themselves that way, but only to look someone up. It never shows up in the response, so blocking it there would have broken real requests for no safety benefit. That means two roles to maintain, but each matches what it's guarding against.
-
-### 30. New eval category (`request_faithfulness`) needed two app changes, not just test cases
-- The Win: adding cases that ask for writes the app can't do, delete orders, email a customer, change an address, meant running the same question through `/query/analyze` many times in one process. That's three times per case for the calibration run. That exposed two things the eval suite had been getting away with by luck. The app cache would have served a stale answer on repeat calls, the same problem `evals/cache_contamination_audit.md` already found. And `/query/analyze`'s 10-per-hour rate limit, sized for a real user's call volume, was already at its ceiling from `mixed` and `prompt_injection`. Fixed both the same way: an opt-in flag, `bypass_cache` on the request and an `EVAL_RATE_LIMIT_BYPASS` env var, that only the eval scripts ever set, leaving real traffic untouched.
-- The Tradeoff Accepted: the rate-limit bypass is coarser than the cache one. It's a full skip through `exempt_when`, not a per-request field, since slowapi's limiter runs before the request body is parsed and can't see it. Any request in an eval process is unmetered, not just the ones that need to be. Acceptable because the bypass only ever activates from an env var the eval scripts set themselves, never from anything a real caller can trigger.
-
-### 31. `request_faithfulness`'s first 6 cases are all bulk/abstract requests, not `mixed-08`'s shape
-- The Win: the calibration run, three times per case, 18 calls, cache bypassed, came back clean: 18 of 18 passed, zero `silent_substitution`, zero `false_success_claim`. Every transcript got checked by hand as well, confirming the judge's verdicts held up.
-- The Tradeoff Accepted: all 18 calls made zero tool calls, every case got a flat text refusal before attempting a lookup. `mixed-08`, the case that originally found this failure mode, is shaped differently. It's one specific, already-resolved order, where a plausible substitute answer exists to stand in for the declined write. These six cases are bulk requests, "cancel every order," "approve whatever looks reasonable," with no single resolved record to substitute. Refusing outright is close to the only coherent response. A clean 18 of 18 shows these six phrasings don't trigger substitution. It doesn't show the risk `mixed-08` found is fixed. The category's next case should be shaped like `mixed-08`, not like these six.
-
-### 32. Groundedness heuristic: four ways it gets fooled
-- The Win: `check_groundedness()` only checks whether a rule number shows up in what was retrieved, never whether the claim about that rule is true. Four patterns, recorded in `evals/groundedness_calibration_raw.json`:
-  - **Right number, wrong claim** (missed): `edge-06` says a rule was "waived." The number matches, but nothing retrieved says anything about a waiver.
-  - **Naming a rule to deny it** (over-flagged): `edge-03` and `real-08` correctly say a rule doesn't apply, and get flagged anyway just for naming the number.
-  - **Correct answer, no rule number** (missed): `edge-02` restates a rule correctly without naming it, nothing to catch.
-  - **Rule title used as plain words** (over-flagged): `edge-01`, `real-05`, `real-06` use a rule's title as ordinary language, not a citation, and get flagged anyway.
-
-  All four happen for the same reason: the check matches text, it doesn't read meaning.
-- The Tradeoff Accepted: this only proves a number was retrieved, never that the claim is true, which is exactly what `edge-06` shows. Over-flagging happens more than missing things, 5 versus 2 out of 20 examples, though that set is too small to trust the exact split beyond the direction it points. Checking real content would need another model call, which is what this check exists to avoid, so it stays as-is for now. Two of the four patterns aren't in the real eval suite yet, only in this calibration set.
-
-### 33. `sql` eval cases now check the actual number, not just the query shape
-- The Win: the 3 `sql` cases used to only check the query's shape, never whether the number was right. Added a hand-derived expected value for each, checked independently in `psql`. That immediately found a real bug. The Electronics refund-rate question returns 50% today by counting order lines. The real rate, refunded units over units sold, is 43%, since some lines sell more than one unit. Left it failing. The fix belongs in SQL generation, not the test.
-- The Tradeoff Accepted: only cases that run a real query get an expected value - a rejected write or blocked column has no number to check, so those stay scored by status alone. Comparing against the actual returned rows, not the written-up answer, avoids rounding and phrasing noise, but only answers one question: did the SQL compute the right number. Whether the final answer states it correctly is a separate, later check.
-
-### 34. New `sql_semantic` category: four traps that make a wrong query look right
-- The Win: 4 cases, each built so a wrong-but-valid query returns a different, real number, not just a shape violation `sql` already catches. 1. A denominator trap, 2. A join that duplicates rows before summing, 3. A missing status filter, and 4. A missing customer filter. Found a real bug right away: Home's refund rate comes back 13% where it should be 8%, the same units-vs-row-count mistake `sql-01` found, on a different category, plus counting non-approved refunds too.
-- The Tradeoff Accepted: the filter-trap case found something bigger by accident: any query using `COUNT(*)` gets rejected as a bare `SELECT *`. `_check_no_select_star()` in `app/query/validation.py` searches the whole expression for a `*`. So it can't tell a wildcard column from the ordinary `*` inside a count. `COUNT(*)` is one of the most common things to write in SQL, so this matters more than the filter trap itself. But fixing the validator is considered app behavior, so out of scope here. Documented, not fixed. That case will look randomly flaky until it is fixed.
-
-### 35. SQL result failures get a specific reason, not one generic message
-- The Win: a failing `sql`/`sql_semantic` case used to just say "no returned value within X of Y." Now it says exactly what went wrong - query rejected, query failed, no rows back, a non-numeric value, wrong value (expected vs. actual shown side by side), wrong row count, a missing row, or an unexpected one. The generated SQL and every returned row are now saved in the failure record too. Checked against real output, not assumed: re-ran the two already-failing cases (`sql-01`, `sql-semantic-01`) and confirmed the new messages.
-- The Tradeoff Accepted: it still never explains *why* a value is wrong - that takes reading the SQL, which isn't reliable to automate. A "why" line only appears when a case already carries a `review_note` written by hand after looking at it (`sql-01`, `sql-semantic-01` have one; every other failing case just shows the numbers). Separately, picking which value to show as "actual result" has no column names to go on: on `sql-semantic-01` it can show an unrelated count where the real, wrong rate belongs. The right number is still saved in full in the failure record either way.
-
-### 36. SQL semantic accuracy measured for real: 4 of 7 cases wrong, 3 times in a row
-- The Win: ran all 7 `sql`/`sql_semantic` cases 3 times with the cache bypassed (`evals/run_sql_semantic_calibration.py`). `sql-01` and `sql-semantic-01` computed the same wrong rate every run. This is the perviously identified row-vs-unit-quantity bug. Kept structural safety, rejection correctness (0 rejection cases exist today), and semantic accuracy as three separate numbers.
-- The Tradeoff Accepted: not fixing the 2 confirmed bugs today. Each failure is documented instead (query, result, wrong assumption, whether the expected value was double checked, whether it held across runs). Also caught the known `COUNT(*)` validator bug. `sql-semantic-03` got rejected once, passed clean twice, same correct logic every time.
-
-### 37. Prompt v2: one targeted addition fixed both confirmed SQL bugs, first try
-- The Win: added one short paragraph and a worked example to the SQL prompt - a rate over order lines must use `SUM(quantity)`, not a row count, and count only `approved` refunds. Nothing else changed. Semantic accuracy went from 66.7% (14/21) to 100% (21/21) on the same 3-run calibration. `sql-01` and `sql-semantic-01`, which failed every run before, now generate exactly the prompt's example SQL and match the real answer. Checked against the actual generated SQL, not just pass/fail. No structural regressions. One iteration was enough.
-- The Tradeoff Accepted: latency and cost both rose a little (2.83s → 3.26s, $0.0060 → $0.0068/call) - a longer prompt costs more, forever, to fix 2 cases. Also found and fixed a real regression before keeping this. The new wording made the model use `COUNT(*)` more, tripping an already-known, unrelated validator bug and breaking a previously-passing test outside this suite. One more line fixed it. The prompt is now versioned end to end. A version string flows from `claude_client.py` through the response into a new `query_audit_log` column, so this comparison came from real recorded data, not memory.
-
-### 38. One bounded retry for Anthropic calls, on the SQL and analyze paths only
-- The Win: built `app/llm_retry.py`, a small wrapper around `client.messages.create()`. It sets a 30s timeout, turns off the SDK's own retries (`max_retries=0`, so they don't stack), and retries once on a flat 2s delay. Only for timeouts, connection drops, rate limits, and 5xx - anything else fails right away. Wired into `query/claude_client.py` (SQL generation) and `orchestrator/analyze_service.py` (the tool loop), the two paths that already have a `request_log` row and eval coverage. A new `retry_count` column on `request_log` shows what happened: 0 on a clean first try, 1 when the retry ran. When both attempts fail, neither path raises: `SqlQueryResponse(status="error", ...)` for SQL, `AnalyzeResponse(incomplete=True, ...)` for analyze. Tested by failing a mocked call twice on purpose: `test_llm_retry.py` covers the retry contract itself, `test_analyze_service.py` and `test_query_service.py` check the full path against the real `request_log` row. Two new eval cases mock the same failure end to end and check status, retry_count, and that nothing got invented.
-- The Tradeoff Accepted: only 2 of the 9 places that call Anthropic got this. The other 5 (ticket/invoice/refund extraction, the eval-only judge client) still call the SDK with no timeout or retry - an unhandled exception there still becomes a raw 500. Scoped to the two paths with existing `request_log`/eval infrastructure, to keep this change traceable and small. The other 5 are a known gap, not a judgment that they don't need it. The retry delay is a flat 2s, not exponential - fine for one retry, but not a policy worth reusing if a second retry gets added later.
-
-### 39. Retrieval threshold: picking 0.46 from labeled calibration data
-- The Win: `RELEVANCE_THRESHOLD = 0.46` in `app/rag/service.py` came from labeled calibration data. 54 retrieved chunks across 18 questions got labeled by hand as relevant, irrelevant, or unclear (`evals/rag_retrieval_calibration.md`). The cutoff is the tightest value that still kept every clearly-relevant example in that set. Below it, a question gets treated as unsupported by the policy corpus.
-- The Tradeoff Accepted: `rag-13`, a genuine off-topic question, still slips past this threshold. Relevant and irrelevant labels overlap in that range: relevant examples go up to 0.455, irrelevant ones start at 0.288. A tighter cutoff would start rejecting real answers, so the gap stays open on purpose, and it's recorded here for whoever runs into it next. The calibration set itself is small: 54 labels, one labeler, no real `/query/analyze` traffic yet. Treat 0.46 as a starting point that still needs tuning.
-
-### 40. What justified the SQL fix, the threshold, and the retry work, without an incident behind any of them
-- The Win: three separate changes landed close together (#36-#37, #39, #38), and each rested on its own kind of evidence. The SQL prompt fix followed a measured, repeatable failure. `sql-01` and `sql-semantic-01` computed the same wrong rate three runs straight, checked against `psql` (#36). Then it was tested the same way after the fix (#37). The retrieval threshold followed labeled calibration data (#39). The retry work followed neither. Nothing in this project has ever hung or timed out. It got built anyway, because one bounded, tested retry costs little to add once, and an unhandled exception turning into a raw 500 mid-demo costs a lot to explain later.
-- The Tradeoff Accepted: none of these three is fully proven. Prompt v2's 100% comes from 21 calls across 3 runs on one model. That result supports the fix. It says nothing about rarer failures the same 7 cases were never built to catch. The threshold's tradeoff and small sample are already recorded in #39. The retry work only covers 2 of 9 Anthropic call sites (#38). Building ahead of an incident is a bet that cheap prevention beats an expensive explanation later. It isn't evidence that the incident was ever likely.
+# Engineering decisions
+
+I kept this log to record choices that shaped the project, including the evidence behind them and the costs I accepted.
+
+[Architecture](ARCHITECTURE.md) describes the current system. This log preserves how it developed; later entries sometimes update earlier decisions. Dates are carried over from the previous index, and decision numbers stay fixed even where date order differs.
+
+The [full earlier record](https://github.com/davidhahn/ecom-workflow-agent/blob/9562c8114d1a9e77e5db4737f2f3d9083542d4f6/DECISIONS.md) preserves longer investigation notes, migration identifiers, and test details omitted from this shorter edition.
+
+## Start here
+
+- [6. Restrict access to customer columns](#decision-6): A database grant behaved differently from what I expected.
+- [33. Check SQL results against known answers](#decision-33): Structural checks missed incorrect calculations.
+- [44. Keep Sonnet for the current workflows](#decision-44): Model comparisons exposed differences in financial and policy answers.
+- [45. Defer the investigation pipeline](#decision-45): Existing failures took priority over another answer-producing workflow.
+- [52–53. Calibrate production retrieval](#decision-52): Changing providers exposed a ranking problem.
 
-### 41. A model comparison would have quietly graded itself
-- The Win: tracing the model config caught a real bug before it could corrupt a result. `judge_client.py` read the same `ANTHROPIC_MODEL` env var as the app under test. Swapping the app to a cheap model would have swapped the judge too, and grading a cheap model with a cheap judge makes the comparison meaningless. Split into its own `JUDGE_MODEL` env var, fixed independently. Verified directly: setting `ANTHROPIC_MODEL` to a different model left `JUDGE_MODEL` unchanged. `evals/run.py` had no `--model` flag either, and most categories never bypassed the cache. Nothing recorded which model produced a result, anywhere. That's fixed now. A `--model` flag now turns on `--bypass-cache` automatically. An `experiment.json` gets written next to every report: the application model, the judge model, both prompt versions (`analyze` had none before this, now `SYSTEM_PROMPT_VERSION = "v1"`), a hash of `evals/cases.json`, the git commit, and whether cache was bypassed. Verified end to end too: a full 62-case run with `--bypass-cache` passed 61/62, the same failure as before, and wrote a correct `experiment.json`.
-- The Tradeoff Accepted: the model still isn't recorded in `request_log` or any DB table, only in the eval run's own `experiment.json`. That's enough to compare two eval runs. It can't say which model answered one specific production request later. `eval_dataset_version` is a hash of `cases.json`'s bytes, with no real semantic versioning behind it, so it changes on a typo the same way it changes on a new case. No two-model run has happened yet. This entry proves the plumbing is trustworthy. Whether a cheap model holds up is a separate, still-open question.
+## Browse by topic
 
-### 42. *(number skipped, no entry was ever recorded under it)*
+### Data and API contracts
 
-### 43. Rebuilt the ablation table on a frozen harness, and found a second cache bug doing it
-- The Win: the old ablation table compared rows measured in different ways. The off-topic case count grew row to row. Latency got averaged over different case sets. "Unchanged" stood in for a number nobody had re-checked. `evals/run_ablation.py` fixes that with one frozen 27-case set and one harness. Each old system state gets rebuilt as a temporary patch in the current process: the real v1 SQL prompt pulled from git history, `RELEVANCE_THRESHOLD` disabled, the retry wrapper bypassed. Every variant ran three times, and each cell shows the mean and the range. The first run found a real bug along the way. `/query/rag`'s router caches every answer, with no `bypass_cache` field to skip it. Off-topic refusal came back 0 of 15 for every variant, including the one with the threshold on. The baseline ran first, cached its no-threshold answer, and every later variant quietly reused it. Fixed by adding `bypass_cache` to `RagQueryRequest` and the router. Confirmed directly: 0.46 now returns 0 chunks even for a question already cached under no threshold. Then re-ran just the 12 `rag` case ids. Final numbers: semantic SQL 14/21 to 21/21, off-topic refusal 0/15 to 12/15, on-topic RAG 36/36 throughout, resilience 0/6 to 6/6.
-- The Tradeoff Accepted: removing the `sql-05` issue and adding semantic assertions still sit outside the table, since they changed what the harness could measure. The app underneath held still across both, and a frozen harness has nothing to compare them against. `evals/run.py`'s own `rag` category carried the identical cache bug, separate from this table entirely, and got fixed there too. A real answer quietly swapped for a stale one is a correctness bug wherever it shows up. `mixed`'s RAG lookups go through `query_rag()` directly and skip the cached router, which is why only the standalone `rag` case ids needed a re-run.
+- [1. Generate frontend types from the API schema](#decision-1)
+- [2. Run only the database in Docker Compose](#decision-2)
+- [3. Manage schema changes with SQLAlchemy and Alembic](#decision-3)
+- [4. Seed reproducible business scenarios](#decision-4)
+- [13. Store absent retrieval data as SQL NULL](#decision-13)
+- [14. Keep time-sensitive fixtures reachable](#decision-14)
+- [15. Convert JSON fixtures to typed grounding inputs](#decision-15)
+- [19. Register all database models in test setup](#decision-19)
+- [25. Seed a traceable revenue-drop scenario](#decision-25)
 
-### 44. Staying on Sonnet, and turning down a workload split
-- The Win: `evals/model_comparison_raw.json` recorded only pass or fail per run, so the 9 instances where Sonnet passed and Haiku failed couldn't be inspected. The 4 case ids behind them got re-run with full detail captured: answer text, generated SQL, retrieval query, tool trace, judge reasoning. Four distinct failure modes came out of it. Skipping a required tool call when the question already sounds answerable without one (`mixed-02`). A retrieval query missing the one word that surfaces the governing rule (`mixed-07`). A date-math pattern that truncates the interval to whole days (`sql-03`). A dropped currency conversion (`sql-semantic-03`). All four sit on paths that produce a refund total, a refund rate, or a compliance verdict. `rag`, `permission`, `prompt_injection`, `request_faithfulness`, and `resilience` showed no gap across all 3 runs. The reverse direction exists too, on one case: `mixed-08` failed on Sonnet all 3 runs and passed on Haiku all 3. Sonnet investigates the refund and reports its status. Haiku declines the write action outright and states its actual tool list, a prompting gap on Sonnet's side. Weighing 9 Sonnet-pass/Haiku-fail instances concentrated on financial totals and compliance verdicts against 3 in the reverse direction on this one case, Sonnet wins the comparisons that carry real consequences. A workload split was considered and turned down. `sql`/`sql_semantic` have their own endpoint, but `mixed`, `prompt_injection`, and `request_faithfulness` all share `/query/analyze`. `mixed` is exactly the category that needs the stronger model. Splitting them apart would mean classifying a question as needing SQL-plus-RAG synthesis before the tool loop starts, new infrastructure this project hasn't built, for a category with 8 cases.
-- The Tradeoff Accepted: the model stays pinned to `claude-sonnet-4-6` everywhere. The 3x cost and 1.5-2x latency drop measured on `sql`, `sql_semantic`, and `mixed` isn't captured anywhere it would apply. The 4 gap cases were re-run once each on Sonnet, or three times each on Haiku, outside the original 3-run comparison. So the specific failure captured may not match the original run, only the case and the overall pass rate. The `mixed-07` gap looks like a prompting problem more than a hard capability ceiling, and hasn't been tested as one. Same for `mixed-08`: a direct fix to the analyze system prompt is the obvious next test, and hadn't been tried yet at this point.
+### SQL access and execution
 
-### 45. Closing the investigation pipeline as a formal scope deferral
-- What exists: `investigation_planner.py` and `data_analyst.py` (#26), a Planner then Data Analyst pipeline. The Planner makes one non-looping Claude tool call and proposes a list of `{name, method, intent}` signals. The Data Analyst executes that plan by calling the existing `run_sql_query`/`query_rag` functions directly, with per-signal error isolation so one failing signal doesn't take down the others. Four tests cover it: `test_canonical_revenue_drop_question_produces_a_plan_with_all_four_signals` for the Planner, and three Data Analyst tests covering real seeded data, an isolated SQL failure, and a RAG-empty-not-failed case. The revenue-drop scenario itself is real seed data (#25). A roughly 26% session drop ties to a real campaign's end date, with a corresponding 28% revenue drop. A flat refund rate sits alongside it as the deliberate red herring a correct investigation has to rule out.
+- [5. Validate SQL and restrict database access](#decision-5)
+- [6. Grant access to explicit customer columns](#decision-6)
+- [29. Give refund evaluation its own database role](#decision-29)
 
-- What is missing: a Report Writer stage that turns gathered evidence into a synthesized answer. No endpoint routes a request through Planner, Data Analyst, and Report Writer end to end. `investigate_gather_evidence()` is callable only directly, in tests. No eval cases exercise the full workflow, so there's no groundedness check on a Report Writer's synthesis and no measured pass rate for this path. No UI surfaces it.
+### Refunds and permissions
 
-- Why it's being deferred: #28 already made this call, one of five things deliberately left unbuilt in the next-15-days plan, since building the Report Writer would add demo material without adding proof. The week-two priority list that followed the first error analysis left it out too. It favored fixing the measured `mixed-08` failure, growing small eval categories past 8 cases, saving every full-suite run, and the model-swap comparison that became #41 through #44. Finishing this pipeline means more than writing a Report Writer. It means new eval cases, a groundedness check on that stage's own output, and a place in the demo, exactly the kind of new surface area #28's scope boundary exists to keep out.
+- [10. Apply refund rules in a fixed order](#decision-10)
+- [11. Resolve extracted refund details against orders](#decision-11)
+- [12. Deny refund requests with missing evidence](#decision-12)
+- [16. Require a customer identifier for refund resolution](#decision-16)
+- [20. Read tool permissions from the registry](#decision-20)
+- [21. Reject duplicate invoices before insertion](#decision-21)
+- [51. Extract product names without quantity](#decision-51)
 
-- What it would take to finish:
-  1. Add the Report Writer: one more non-looping Claude call that takes the `EvidenceBundle` and produces a synthesized answer, citing the evidence it used.
-  2. Route Planner, Data Analyst, and Report Writer behind a real endpoint.
-  3. Add end-to-end eval cases for the revenue-drop scenario, and whatever else exercises the full path.
-  4. Verify the Report Writer's claims are grounded in the gathered evidence, the same groundedness discipline the RAG path already has.
-  5. Add the revenue-drop scenario, already seeded and ready, as one curated demo case.
+### Retrieval and answer checks
 
-- When to reopen: once the measured core, SQL correctness, RAG groundedness, the model-selection question from #44, is stable and the presentation layer is otherwise done. Sooner, if the investigation workflow becomes the primary scenario for demonstrating multi-step analysis.
+- [7. Split policy documents at rule boundaries](#decision-7)
+- [8. Use local embeddings during development](#decision-8)
+- [9. Check named policy citations as well as numbers](#decision-9)
+- [17. Return an explicit incomplete state at the loop limit](#decision-17)
+- [18. Make grounding warnings visible](#decision-18)
+- [27. Ingest policy passages during deployment](#decision-27)
+- [32. Keep citation matching scoped to source checks](#decision-32)
+- [39. Calibrate a local retrieval threshold](#decision-39)
+- [52. Calibrate retrieval for the production provider](#decision-52)
+- [53. Keep the production ranking failure visible](#decision-53)
 
-### 46. Closed the mixed-08 write-refusal gap with a one-sentence prompt fix
-- The Win: `SYSTEM_PROMPT` (`analyze_service.py`) listed both tools and what each does, but never stated a write boundary anywhere. Sonnet filled that gap by investigating. It called both tools, found the refund already `approved` in the seed data, and reported "no further action needed" without ever declining the request outright. Haiku filled the same gap differently, by declining on sight. Added one sentence mirroring the prompt's existing shipment-tracking pattern, stating the write boundary explicitly, and bumped `SYSTEM_PROMPT_VERSION` to `v2`. Verified directly: `mixed-08` went 3 of 3 on Sonnet, calling zero tools each time and stating the boundary as the answer's first line, the same shape as Haiku's passing answers. Checked for regressions across every other case sharing this prompt, `mixed`, `request_faithfulness`, and the `prompt_injection` cases hitting `/query/analyze`: 19 of 19 passed, including `mixed-02` and `mixed-07`.
-- The Tradeoff Accepted: this confirms what #44 already guessed, that the reverse-direction gap was a prompting problem all along, closable without touching which model runs it. `evals/model_comparison.md`, `evals/model_recommendation.md`, and the ablation table's Haiku-swap row now describe a `mixed-08` gap that no longer exists in the code. Their historical numbers stay accurate for what was true under `v1`, just stale on this one point. Not yet re-run: the full 3-run comparison against `v2`. This fix was verified once, on Sonnet only, at 3 runs, and whether it holds under repeated runs the way the rest of #44's findings were checked is still unconfirmed.
+### Evaluations and model choices
 
-### 47. First CI workflow, and the deterministic eval subset
-- The Win: `.github/workflows/ci.yml` runs on every push to main and every pull request. It starts a Postgres container, runs migrations, seeds the database, ingests the policy corpus, runs `pytest`, then runs `evals/run.py --subset deterministic`. That subset covers only `refund_evaluator`, `groundedness`, `topic_coverage`, and `resilience`, each checked by reading its actual code before it made the list. `permission` looked like an easy fit at first. But 5 of its 6 cases call `/query/sql` or `/tickets/draft` to prove a role is allowed through, and both endpoints call Claude for real when a role is allowed. Only its 403 cases skip the model. `resilience` earned its spot differently. Nothing about the name suggests it belongs, but it already mocks the Anthropic client and never makes a live call. Confirmed directly by running it with a broken API key in a fresh container: 18 of 18 clean. The same broken key made `pytest` fail two tests with a real authentication error. Also added `test_sql_safety.py`: six tests feeding fixed SQL strings straight into the validator. A write query, a blocked column, a disallowed table, valid SQL, and both sides of the cost limit. No model involved anywhere in that file.
-- The Tradeoff Accepted: `sql` and `sql_semantic` stay out of CI on purpose. Their scorer is deterministic, but the SQL they score comes from the model, so a pass there only proves the scorer works. Whether the guardrails hold on a fixed input is answered directly by `test_sql_safety.py` instead. The remaining categories, `permission`, `rag`, `mixed`, `prompt_injection`, `request_faithfulness`, plus `ticket_evaluator` and `invoice_evaluator`, which have no harness yet, stay in the offline eval suite and get run by hand.
+- [26. Build the investigation evidence stages first](#decision-26)
+- [28. Prioritize evaluations before more features](#decision-28)
+- [30. Bypass cache and rate limits during evaluations](#decision-30)
+- [31. Record the limits of bulk refusal cases](#decision-31)
+- [33. Check SQL results against known answers](#decision-33)
+- [34. Test plausible SQL calculation errors](#decision-34)
+- [35. Report why a SQL result failed](#decision-35)
+- [36. Measure SQL correctness across repeated runs](#decision-36)
+- [37. Clarify refund-rate calculations in the SQL prompt](#decision-37)
+- [40. Distinguish measured fixes from preventive work](#decision-40)
+- [41. Keep the judge fixed during model comparisons](#decision-41)
+- [43. Compare experiments on a frozen harness](#decision-43)
+- [44. Keep Sonnet for the current workflows](#decision-44)
+- [45. Defer the investigation pipeline](#decision-45)
+- [46. State the write boundary in the analyze prompt](#decision-46)
+- [47. Run a deterministic evaluation subset in CI](#decision-47)
+- [48. Record live model calls remaining in pytest](#decision-48)
+- [49. Verify both CI checks with an injected regression](#decision-49)
+- [50. Exercise the deployed request paths](#decision-50)
 
-### 48. pytest still needs a real Anthropic key
-- The Win: this gap existed before the CI workflow. It gets its own entry here, easier to find than a paragraph buried inside the one above. Several existing tests, `test_permissions.py` most of all, call `/query/sql` and `/tickets/draft` for real to confirm an allowed role can complete the request. That calls Claude live. The CI workflow keeps this contained: `ANTHROPIC_API_KEY` is scoped to only the `pytest` step. The deterministic step's environment stays provably free of it.
-- The Tradeoff Accepted: `pytest` still needs a working key in repo secrets to pass. Every CI run pays for real API calls and carries real flakiness risk. Fixing this means mocking the Anthropic client in those specific tests. Not done here.
+### Deployment and request tracing
 
-### 49. Verified the CI gate catches a regression, twice
-- The Win: a green pipeline only proves today's code passes. It doesn't prove the gate can catch the failure it claims to guard against, so this got tested directly, twice. First pass: on a throwaway branch, changed `APPROVAL_THRESHOLD_CENTS` from `20_000` to `200_000`, pushed it, and opened a real PR to trigger the actual workflow. The run failed: `test_refund_policy_drift.py::test_approval_threshold_matches_policy` caught it, comparing directly against the $200 written in `refund_policy.md` and naming the exact broken number. But `pytest` runs before the eval subset, and a step failure stops the job there by default. So the run never reached `refund-11-over-threshold-needs-manager`, the eval case built for this, confirmed only locally until now. Fixed by adding `if: ${{ !cancelled() }}` to the eval subset step, so it runs even after `pytest` fails and only skips if the job itself is cancelled. Second pass: re-ran the same break on a new branch and PR. This time both steps failed. `pytest` failed the same way, and the eval subset step ran this time and failed on `refund-11-over-threshold-needs-manager`: expected `requires_manager_approval`, got `approved`. Both PRs closed without merge, `main` untouched either time.
-- The Tradeoff Accepted: the job's overall result was already red before this fix, since a failed step fails the job regardless of what runs after it. The fix doesn't change whether CI catches this specific regression. It changes whether a different regression, one only the eval subset would catch, still gets caught when an unrelated `pytest` test happens to fail first. That gap was real and invisible until checked directly. The same question applies one level up: is there a third check neither `pytest` nor the deterministic subset would catch, only visible once both pass clean? Not tested. The pattern applies recursively, and closing this gap doesn't guarantee the next one is already closed.
+- [22. Distinguish absent traces from zero tool calls](#decision-22)
+- [23. Check the proxy secret in the backend](#decision-23)
+- [38. Retry covered model calls once](#decision-38)
+- [54. Return request IDs for direct trace links](#decision-54)
+- [55. Link cached answers to their original trace](#decision-55)
+- [56. Measure model-call time directly](#decision-56)
 
-### 50. Verified the live deployment directly, found two real gaps the evals never would have caught
-- The Win: a passing eval suite and a green CI job both prove something about the code. Neither proves the deployed app behaves that way, so the live site got tested directly through the real UI. Confirmed first that it's running current code: the `mixed-08` write-refusal fix declined a live "process this refund" request immediately, with zero tool calls, the same shape verified locally. `refund-01` returned `approved`/rule 4 live, matching the eval exactly, and an off-topic policy question got a grounded, honest "I can't confirm that." Two real gaps came out of running more than the happy path.
-  - `refund-11` (expects `requires_manager_approval`) returned `could_not_process`, twice in a row. The live extraction step read the quantity into the product name, "2 Ergonomic Desk Chairs." `resolve_order_item()`'s `ILIKE` lookup doesn't match the real product name, "Ergonomic Desk Chair." `evals/run.py`'s `refund_evaluator` category can't catch this by construction. It injects pre-extracted fixture fields and never calls the live extraction model.
-  - The app's own suggested prompt, "What's our policy on damaged shipments?", got a false "no relevant policy" refusal live. The eval suite's tested wording for the same section retrieved cleanly and cited rules 4 and 10. Likely cause: `RELEVANCE_THRESHOLD = 0.46` (#39) was calibrated against the local embedding provider. Production runs Voyage, a different model entirely, and the threshold had never been checked against the space it runs in.
-- The Tradeoff Accepted: both gaps are the kind a rule-based eval suite structurally cannot see. One needs the live extraction model exercised, which the local fixture skips entirely. The other needs the live embedding provider exercised, and every eval run defaults to the local one. Neither is a coverage-percentage problem. More `refund_evaluator` or `rag` cases under the current harness wouldn't have caught either one, since both harnesses are built to skip exactly the component that broke. The Activity page trace view doesn't surface model name or prompt version either, though the backend does capture retry count. Model and prompt version aren't recorded in `request_log` at all, an older gap (#41) this just reconfirmed live.
+### Frontend
 
-### 51. Fixed the refund extraction bug: stop folding quantity into the product name
-- The Win: `refund_extraction.py`'s tool schema told the model to extract `product_identifier` "as close to verbatim as possible." For "2 Ergonomic Desk Chairs," it did exactly that, quantity included. `resolve_order_item()`'s `ILIKE '%2 Ergonomic Desk Chairs%'` then never matches the real product name, `"Ergonomic Desk Chair"`. Fixed the schema description directly: extract the product name only, with a concrete example matching the exact bug found ("'2 Ergonomic Desk Chairs' becomes 'Ergonomic Desk Chair'"). Verified against the live `/refund/evaluate` endpoint locally, twice: `product_identifier` now comes back clean, and the case resolves to `requires_manager_approval`/rule 6, matching the eval's expected result exactly. `refund-01`, unaffected by the bug to begin with, still passes. Added `test_refund_extraction.py`, a live test asserting the quantity never lands in the extracted name, since this exact function had zero test coverage before now.
-- The Tradeoff Accepted: this runs a live model call. `evals/run.py`'s `refund_evaluator` category tests a fixed fixture path instead, so this fix isn't guaranteed to hold on every future phrasing the way a deterministic check would be. The new test covers this one reproduced case. Some other way of stating a quantity could still slip through uncaught.
+- [24. Test frontend interactions with Vitest](#decision-24)
+- [57. Keep proxy middleware under src](#decision-57)
+- [58. Give the project a homepage before the scenarios](#decision-58)
+- [59. Show captured results before a live run](#decision-59)
+- [60. Use established UI components](#decision-60)
 
-### 52. Recalibrated the RAG relevance threshold for the embedding provider production runs
-- The Win: `RELEVANCE_THRESHOLD = 0.46` (#39) was calibrated entirely under the local embedding provider, the eval default, and never redone against `EMBEDDING_PROVIDER=voyage`, what production runs. Reran the same 18-question methodology under voyage, reusing the exact question text and the exact recorded `search_policy` queries so only the provider changed. `rag-03`, a clearly relevant case, landed at distance 0.4779 under voyage, past the 0.46 cutoff. That's the same class of failure already caught live on `mixed-06`'s question, this time surfaced through the calibration data itself. 0.48 is the tightest voyage value with zero missed relevant examples, the same bar 0.46 already met for local. `RELEVANCE_THRESHOLD` is now `RELEVANCE_THRESHOLD_BY_PROVIDER = {"local": 0.46, "voyage": 0.48}`, looked up once at import time through a newly public `embedding_provider()`. `run_ablation.py`'s threshold patch still works unchanged, since it overrides the computed value regardless of how it was computed. Full `pytest` suite still green, 120 of 120.
-- The Tradeoff Accepted: 0.48 costs precision. 8 of 18 irrelevant candidates now fall under the cutoff under voyage, versus 3 of 18 for local at 0.46. That's the same tradeoff #39 already accepted: rejecting a real answer costs more than tolerating a few more false positives. The live case that started this investigation, "What's our policy on damaged shipments?", is still not fixed. The correct chunk, rule 4 at distance 0.4306, sits at rank 4 under voyage, one past `DEFAULT_K=3`, already inside the new threshold. Raising `k` to reach it was tested and rejected. `rag-13`, a clearly off-topic case, already leaks all 3 of its top candidates under 0.48. A wider `k` would let it leak 5 of 5, with nothing gained to offset that. The real cause looks like corpus overlap: two different policy documents rank close together under voyage for this exact short phrasing, and the wrong one wins. Both threshold and `k` were checked directly as candidate fixes. Neither is the right lever for this gap, which stays open.
+## Decision record
 
-### 53. Closing the "damaged shipments" retrieval gap as a known limitation
-- The Win: #52 used the raw question text as a stand-in for what happened live. This entry uses the real query, pulled straight from the Activity trace: the model rephrased the question to "damaged shipments policy" before searching. Under production's Voyage provider, that exact query puts the correct chunk, rule 4, at rank 4, distance 0.6101. Under the local provider, the same exact query puts it at rank 2, distance 0.4191, well inside the original 0.46 threshold. Same string, same corpus, opposite outcome. The chunk that outranks it is a real, on-topic cross-reference from a different policy document, stating outright that a damaged-in-transit order is handled under the refund policy's damaged-shipping rule. It just doesn't carry a `rule_number`, so even when it wins the retrieval race, there's no rule to cite.
-- The Tradeoff Accepted: 0.6101 is well past any threshold that would still make sense, since off-topic questions land as low as 0.36 under Voyage. A cutoff loose enough to admit it would gut the off-topic refusal #52's threshold exists to protect. Raising `k` doesn't help either, since the correct chunk sits outside any reasonable cutoff regardless of `k`. This reads as a genuine ranking difference between two embedding models on a short, keyword-style query. Threshold tuning and chunk wording were both checked and ruled out. This stays open. A fix that only looks like one isn't worth shipping. Swapped the "What's our policy on damaged shipments?" example card for the exact phrasing already verified working live in production. Same rule, same topic, already confirmed to retrieve rules 4 and 10 correctly.
+<a id="1-packagesshared-generated-only-nothing-hand-written"></a>
+<a id="decision-1"></a>
 
-### 54. Exposing `request_log_id` on `AnalyzeResponse`/`RefundEvaluateResponse` so the UI can link straight to a trace
-- The Win: the new Scenario Demo landing page needs a "View execution trace" link on every result. It has to point at the exact `request_log` row that request wrote, not just the Activity list in general. Neither response schema previously returned an id; `request_log_span`'s `log_request()` generated its `RequestLog.id` internally and never handed it back. Fixed by generating that UUID up front in `LogFields`, when the log entry is constructed. Route-level code can then read `log.request_id` during the logging block and attach it to the response about to return. Both schemas gained a required `request_log_id` field, set at every construction site from `log.request_id`. The one non-mechanical case: `analyze()`'s cache-hit branch returns a copy of a previously cached response. That copy already carries a different `request_log_id`, from whichever request first populated the cache. That id gets explicitly overridden to the current request's own. The trace link must point at the row this request just wrote, with an empty `tool_calls`, not at the original request that happened to populate the cache.
-- The Tradeoff Accepted: this exposes an internal observability primary key in a public API response. A client could iterate or guess adjacent UUIDs, a small surface-area increase, though UUID4 makes that impractical. Traded for the direct traceability the demo's "scenario, expected, actual, evidence" narrative depends on. `packages/shared/src/generated.ts` needed a codegen re-run against the running local API. Done by fetching `/openapi.json` with the proxy secret header directly, since the codegen script itself has no way to inject that header, then pointing `openapi-typescript` at that saved file.
+### 1. Generate frontend types from the API schema
 
-### 55. Cache hits keep the original request's trace, reversing #54's own choice
-- The Win: #54 pointed a cached response's trace link at the cache hit's own row. A reviewer found the cost: re-running a Scenario Demo card hits the cache, and its trace shows zero tool calls and near-zero latency, since nothing ran again. Fixed by leaving `request_log_id` alone on the cache-hit path in `analyze_service.py`. The cached response already carries the original run's id from before #54 started overwriting it. The trace page also shows a "Served from cache" banner now, so this is stated, not silently swapped. Verified live: the same question asked twice returns the same `request_log_id`, and that row carries real tool calls, tokens, and latency.
-- The Tradeoff Accepted: the cache-hit request still writes its own empty `request_log` row. Nothing links to it anymore, but it's still inspectable by id. `/refund/evaluate` is never cached, so this only touched `analyze`-type traces. #54's "show what this request did" was more correct. This is more useful. Worth remembering that those two goals can point different directions.
+*2026-07-06*
 
-### 56. Measuring LLM call time separately from tool time and total latency
-- The Win: a reviewer traced a 13-second request and found only 23ms attributed to tools, with the rest labeled one undifferentiated "LLM thinking / orchestration" bucket computed as `total - tools`. `call_with_retry()` had zero timing instrumentation. That bucket was a subtraction, not a measurement, and it absorbed the real Claude call time along with everything else. Added `request_log.llm_latency_ms` (migration `873e07c9f3aa`), summed across every `call_with_retry()` call in the analyze loop and the extraction call in `refund_service.py`, retry sleep included. Verified live on the same request: `llm_latency_ms: 12245` of `latency_ms: 12329`, 84ms left for tools and everything else.
-- The Tradeoff Accepted: rows logged before this migration have `llm_latency_ms: NULL`. `ToolCallTrace` and `deriveLatencyBreakdown()` both keep a fallback path for that case. Retry sleep time stays bundled into `llm_latency_ms`, since it's still wall-clock time the LLM path caused.
+I chose to generate shared TypeScript types from FastAPI's OpenAPI schema. This gives the frontend and backend one contract to work from.
 
-## Frontend
+Backend schema changes require rerunning code generation. Until that happens, generated types can be stale.
 
-### 57. Moved the proxy middleware into src/ so next dev runs it
-- The Win: the Activity page showed a 404 for every `/api/*` request in local dev, while the deployed app served the same routes fine. The cause: this app keeps its code in `src/`, and in that layout Turbopack's `next dev` only discovers `middleware.ts` inside `src/`. `next build` also accepts the app root, which is why production stayed healthy. Diagnosis first cleared the backend: 200 when called directly with the secret header. Then a stale `.next` cache: a cacheless server failed the same way. Then dev-server crowding: a lone fresh server still failed. One `git mv apps/web/middleware.ts apps/web/src/middleware.ts` fixed dev, the build still registers the proxy, and the same change updates every doc and comment that named the old path.
-- The Tradeoff Accepted: dev servers started before the move keep working until they restart, and one long-running server did exactly that for a month, hiding the bug from everyone. Fresh starts were the only place it showed. Next 16 also renamed middleware to `proxy.ts`. The file keeps its `middleware.ts` name for now, since both names still work, and the rename can ride along with the next real change to the file.
+**Evidence:** [Generated types](packages/shared/README.md).
 
-### 58. A landing page, separate from the Scenario Demo
-- The Win: `/` used to open straight into the Scenario Demo, five cards with nothing above them, so a first-time visitor had no way to know what they were looking at. The demo now lives at `/scenarios`, unchanged except the old "Already run" proof block is gone. `apps/web/src/app/page.tsx` is the new front door, opening with a short pitch: Claude proposes, code decides, everything gets logged. Right under that sits the same injection-attempt result as proof, pulled into its own `InjectionSnapshot.tsx` component so it can show up in more than one place. Below that: a three-step walkthrough with the architecture diagram, a handful of real eval numbers, and links to every other page. Every number on the page comes straight from `getEvalResults()` and `RESPONSIBILITY_ROWS.length`, nothing typed in by hand. `NavHeader`'s wordmark links home now, and its Scenarios tab points at `/scenarios`. `IntroBanner` hides itself on `/`, since the landing page already covers the same ground at more length.
-- The Tradeoff Accepted: the landing page's "how it works" section covers the same ground as the Architecture page's responsibility table, just smaller and looser. The four eval categories on the highlight cards, `sql_semantic`, `rag`, `refund_evaluator`, `permission`, are a hand-picked subset. The committed run has eleven categories total, and anyone who wants the full table clicks through to Evaluation Lab. This is also the first component in the app that hides itself based on route. `NavHeader` already used `usePathname()`, untested, so there was no existing pattern to follow when `IntroBanner.test.tsx` needed one. The mock it landed on, a mutable `mockPathname` variable closed over by `vi.mock`, is new to this codebase and worth reusing if a third component needs the same trick.
 
-### 59. A visual pass, real pre-run snapshots, and a wider landing story
-- The Win: the app felt barebones before this round, every page the same gray box stack, the strongest evidence sitting behind a click and a wait. `globals.css` now carries a teal accent, `--accent` and `--accent-foreground`, wired the same way `--background` and `--foreground` already were. It marks primary buttons, active nav state, and a handful of key stat numbers. `NavHeader` sticks to the top of the viewport now with a blurred background, and `SiteFooter` is new, the app's first real footer. Page content runs wider: `max-w-4xl` became `max-w-5xl`. Scenario cards changed the most: the old empty-until-clicked card is gone, and every card now shows a real result the moment it loads. A new script, `evals/capture_scenario_snapshots.py`, makes that possible. It posts each curated scenario's input to `/query/analyze` or `/refund/evaluate` live and commits the response as a fixture file. Nobody types those numbers in by hand. A captured snapshot never links to its own trace, though. The demo database resets daily, and a `request_log_id` captured yesterday might point at a row that's gone by morning. `AnalyzeResult` and `RefundResult` both took a new `traceHref` prop. A `null` hides the link. Clicking "Run it fresh" gets a working trace link, since that request just wrote its own row. The landing page's snapshot changed shape too. `InjectionSnapshot.tsx` is gone, replaced by `SnapshotTabs` with three tabs, injection attempt, data analysis, refund decision, all reading from the same captured fixtures. Two finding cards under the eval stat cards point at real bugs the evals caught and fixed, and a small `NextSteps` block landed at the bottom of five pages.
-- The Tradeoff Accepted: the capture script repeats a small pattern already in `evals/run.py`, an in-process test client with the proxy secret header preset, roughly ten lines, not worth extracting for two callers. A snapshot stays fresh only as long as someone remembers to rerun the script. The injection-attempt scenario caught this in the act. Its old hand-written snapshot said 30 days had passed. The fresh capture, taken two days later, said 31, since the seeded order date never changes while today's date does, every day. That gap keeps growing until someone recaptures it. The accent touched buttons, links, the nav bar, and stat numbers all in one pass. Changing the hue later is one CSS variable, one file. Finding every place the accent shows up later takes a manual search across the whole tree.
+<a id="2-docker-compose-scope-database-only-no-app-services-yet"></a>
+<a id="decision-2"></a>
 
-### 60. Sourcing the UI from real component libraries, not hand-rolling it
-- The Win: every hand-rolled UI component from the last two rounds got replaced with real, sourced code. Button, Badge, and Card come from shadcn/ui. Tabs comes from beUI instead, a spring layoutId indicator built on Framer Motion. Each file's own top comment says what changed from the real source. Three new color tokens got added so the real components render in this app's colors. Fixing that mapping caught a real gap: shadcn's components expect a global border-color rule that real shadcn setups always ship. That rule was missing here until this round, which would have made Card's border and Button's outline variant silently fall back to the wrong color. Two deliberate departures from the literal source are named in this entry. Card's larger radius and shadow got dropped, since this app has no shadows and one consistent radius already. `NavHeader`'s active-link underline now uses the same spring indicator technique as Tabs, applying the same layoutId trick even though beUI has no separate nav component to copy from directly.
-- The Tradeoff Accepted: five new runtime dependencies landed in one pass, though only two components use the heaviest of them, `motion`, so far; most of that package's weight sits unused today, paid for once. Two of the three component sources checked this round didn't end up contributing anything. Nothing in Rare UI's real catalog matched what this app needed. transitions.dev's closest match sat behind a preview switcher this session's fetch tool couldn't reach. beautifui.dev never resolved at all, a DNS failure on the first fetch. None of the three are ruled out for a future round; they just weren't the right fit, or weren't reachable, this time.
+### 2. Run only the database in Docker Compose
 
----
+*2026-07-06*
 
-**Note:** Decision #2 (docker-compose scope) is a direct consequence of the Part 1 scope boundary already recorded in `ARCHITECTURE.md`. It's logged here separately because it's concrete enough to defend on its own. If that upstream scope boundary changes, revisit this entry too.
+I kept Compose limited to Postgres and pgvector while verifying the application paths separately.
+
+Local development requires starting the API and frontend separately. The original choice reflected the project's Part 1 scope.
+
+<a id="3-sqlalchemy--alembic-vs-raw-sql-migrations"></a>
+<a id="decision-3"></a>
+
+### 3. Manage schema changes with SQLAlchemy and Alembic
+
+*2026-07-06*
+
+I chose SQLAlchemy models and Alembic migrations so schema changes have a reviewable history.
+
+Autogenerated migrations still need manual review, including constraint names and index changes, before they are applied.
+
+<a id="4-seed-strategy-deterministic-truncate-and-reinsert-vs-randomizedfaker-generated-per-run"></a>
+<a id="decision-4"></a>
+
+### 4. Seed reproducible business scenarios
+
+*2026-07-06*
+
+I used a fixed set of fixtures and a truncate-and-reinsert script so specific refund cases could be found after each reset.
+
+The small dataset offers limited realism, and reseeding replaces demo records. Time-sensitive fixtures needed the later adjustment in [14](#decision-14).
+
+<a id="5-sql-query-path-four-independent-differently-shaped-safety-layers"></a>
+<a id="decision-5"></a>
+
+### 5. Validate SQL and restrict database access
+
+*2026-07-07*
+
+**Decision:** I combined SQL validation, an estimated-cost limit, and a restricted database role. Audit logs record attempts and their outcomes.
+
+**Why:** These controls address different risks. Validation rejects prohibited statements; cost checks limit expensive queries; database grants restrict access even when validation misses an operation. Logging supports inspection after the attempt.
+
+**Tradeoff:** Each request adds parsing, an EXPLAIN round trip, and logging. None of these controls establishes that an allowed query calculates the correct answer; [33](#decision-33) added that evaluation.
+
+**Evidence:** [SQL service](apps/api/app/query/service.py).
+
+
+<a id="6-layer-3-column-restriction-allowlist-grant-not-table-grant-then-revoke"></a>
+<a id="decision-6"></a>
+
+### 6. Grant access to explicit customer columns
+
+*2026-07-07*
+
+**Decision:** I granted the SQL role access to an explicit list of customer columns, excluding email.
+
+**Why:** My first migration granted table-wide access, then revoked access to email. A direct query under the restricted role still returned email because the table grant remained in effect.
+
+**Tradeoff:** New customer columns require a deliberate grant update. After the fix, selecting email failed with permission denied while allowed reads still succeeded.
+
+**Evidence:** [SQL role migration](apps/api/alembic/versions/e226476acfd7_create_ops_agent_readonly_role_with_.py).
+
+
+<a id="7-rag-chunking-structural-per-h2--per-rule-not-fixed-size-or-semantic"></a>
+<a id="decision-7"></a>
+
+### 7. Split policy documents at rule boundaries
+
+*2026-07-08*
+
+**Decision:** I used H2 sections as chunk boundaries and preserved the source document and rule number as metadata.
+
+**Why:** The authored policies already gave each rule its own section. Keeping that structure avoids splitting a rule across arbitrary text windows.
+
+**Tradeoff:** This assumes the documents follow the expected heading structure. Mixed formats or several rules under one heading would need a different ingestion strategy.
+
+<a id="8-local-baaibge-m3-embeddings-over-a-hosted-embedding-api"></a>
+<a id="decision-8"></a>
+
+### 8. Use local embeddings during development
+
+*2026-07-08*
+
+**Decision:** I initially chose BAAI/bge-m3 for a small corpus to avoid a hosted embedding dependency and per-call charges.
+
+**Why:** The model's download and memory footprint later exceeded the deployment environment. Production switched to Voyage through `EMBEDDING_PROVIDER`, with 1024-dimensional output matching the existing vector column.
+
+**Tradeoff:** Local development retained BAAI/bge-m3. Provider changes also change retrieval behavior; [52](#decision-52) and [53](#decision-53) record the production calibration and remaining gap.
+
+<a id="9-groundedness-check-catches-named-citations-not-just-numeric-ones"></a>
+<a id="decision-9"></a>
+
+### 9. Check named policy citations as well as numbers
+
+*2026-07-09*
+
+**Decision:** I extended grounding checks to recognize policy titles using a map built from the ingestion chunker.
+
+**Why:** An answer mentioned “Wrong Item Shipped” even though rule 5 had not been retrieved. Numeric-only matching would have missed the citation.
+
+**Tradeoff:** Literal matching can flag a title used as ordinary language or a rule mentioned in a refusal. It can also miss paraphrases. [32](#decision-32) records calibration examples; the check does not establish meaning.
+
+**Evidence:** [Citation checker](apps/api/app/orchestrator/groundedness.py).
+
+
+<a id="10-refund-evaluator-sequential-first-match-wins-not-repeat-flag-overrides-everything"></a>
+<a id="decision-10"></a>
+
+### 10. Apply refund rules in a fixed order
+
+*2026-07-09*
+
+**Decision:** I ordered the evaluator's rules by category exclusion, time window, evidence, repeat-refund flag, and approval threshold. The first decisive rule wins.
+
+**Why:** I interpreted rule 7's “regardless of reason or amount” as applying after validity checks. A final-sale exclusion therefore denies a request before the customer-level repeat flag is considered.
+
+**Tradeoff:** The original wording left room for interpretation. If the policy owner intends the repeat flag to override all outcomes, this ordering needs revision.
+
+**Evidence:** [Refund evaluator](apps/api/app/orchestrator/refund_evaluator.py).
+
+
+<a id="11-refundevaluate-extraction-resolves-order_item_id-via-db-lookup-not-an-llm-guess"></a>
+<a id="decision-11"></a>
+
+### 11. Resolve extracted refund details against orders
+
+*2026-07-09*
+
+**Decision:** Claude extracts customer and product identifiers, reason, and confidence. Code resolves an `order_item_id` through a database lookup.
+
+**Why:** The model should not invent record IDs. Unresolved products or uncertain reasons returned `could_not_process` in the seeded checks.
+
+**Tradeoff:** The lookup selected the most recent matching order item. Requests with several plausible matches need stronger disambiguation. [16](#decision-16) later removed the product-only fallback when no customer was named.
+
+<a id="12-evidence-check-outcome-corrected-from-pending-to-denied"></a>
+<a id="decision-12"></a>
+
+### 12. Deny refund requests with missing evidence
+
+*2026-07-09*
+
+**Decision:** I changed the evaluator's missing-evidence outcome from `pending` to `denied`.
+
+**Why:** The evaluator had no persisted waiting state, evidence-upload endpoint, or follow-up flow. Returning pending implied work the system could not resume.
+
+**Tradeoff:** Stored refund rows can still use pending for other workflows. The affected fixture was updated separately, and the with-evidence scenario continued to approve.
+
+<a id="13-rag_chunks_retrieved-needed-jsonbnone_as_nulltrue-not-the-plain-type"></a>
+<a id="decision-13"></a>
+
+### 13. Store absent retrieval data as SQL NULL
+
+*2026-07-10*
+
+I set `JSONB(none_as_null=True)` for nullable retrieval data. A raw database check had shown that Python `None` was stored as JSON null, which still satisfied `IS NOT NULL`.
+
+After the change, SQL and refund requests stored SQL NULL while retrieval paths stored chunk arrays. Future nullable JSON columns need the same explicit choice.
+
+<a id="14-seed-data-uses-fixed-historical-dates-not-time-relative-offsets"></a>
+<a id="decision-14"></a>
+
+### 14. Keep time-sensitive fixtures reachable
+
+*2026-07-13*
+
+**Decision:** The original fixture strategy used fixed historical dates. As time passed, refund-window and repeat-refund cases stopped exercising their intended branches.
+
+**Why:** I changed the affected rules 2, 3, and 7 fixtures to offsets from a shared `NOW`, while leaving the bulk historical data anchored. Database checks across two reseeds confirmed those branches remained reachable.
+
+**Tradeoff:** Time-sensitive records now vary by seed date. The approval-threshold fixture was still a separate gap at this stage; later CI verification in [49](#decision-49) exercised that outcome.
+
+<a id="15-groundedness-eval-cases-reconciling-json-fixtures-with-typed-function-input"></a>
+<a id="decision-15"></a>
+
+### 15. Convert JSON fixtures to typed grounding inputs
+
+*2026-07-14*
+
+**Decision:** I added `chunk_from_dict()` beside `RagChunkResult` so stored JSON fixtures could supply the objects expected by `check_groundedness()`.
+
+**Why:** Executing a fixture exposed an attribute-access error that schema validation alone missed. The checker expected `chunk.rule_number`, while JSON supplied dictionaries.
+
+**Tradeoff:** The function kept its typed contract. Future fixtures for typed inputs need an explicit conversion too, rather than ad hoc dict/object fallbacks.
+
+**Evidence:** [Typed chunks](apps/api/app/rag/schemas.py).
+
+
+<a id="16-refund-resolution-requires-a-customer-identifier-or-it-refuses-outright"></a>
+<a id="decision-16"></a>
+
+### 16. Require a customer identifier for refund resolution
+
+*2026-07-14*
+
+**Decision:** I removed the product-only fallback from `resolve_order_item()`. Missing customer details now return `could_not_process`.
+
+**Why:** The fallback searched across customers and could evaluate someone else's order. The architecture critique exposed that risk; a request naming a real customer still resolved after the fix.
+
+**Tradeoff:** The system refuses underspecified requests even when a product happens to be unique. A clarification workflow remains unimplemented.
+
+**Evidence:** [Original critique](ARCHITECTURE_CRITIQUE.md).
+
+
+<a id="17-tool-loop-exhaustion-returns-an-explicit-incomplete-state-not-a-silently-empty-answer"></a>
+<a id="decision-17"></a>
+
+### 17. Return an explicit incomplete state at the loop limit
+
+*2026-07-14*
+
+**Decision:** I added `AnalyzeResponse.incomplete` when Claude exhausted the allowed tool rounds.
+
+**Why:** The old path returned an empty answer that passed grounding checks. The new branch skips that check and explains that the request did not complete.
+
+**Tradeoff:** Clients must inspect the new field. The response explains the outcome, while diagnosing the unfinished work still requires the request log.
+
+**Evidence:** [Analyze service](apps/api/app/orchestrator/analyze_service.py).
+
+
+<a id="18-groundedness-warning-made-visually-prominent-not-gating"></a>
+<a id="decision-18"></a>
+
+### 18. Make grounding warnings visible
+
+*2026-07-14*
+
+**Decision:** I placed a prominent warning and the flagged claims above answers whose grounding check failed.
+
+**Why:** The previous small badge was easy to overlook beside a full answer.
+
+**Tradeoff:** The answer remains visible because no regeneration or escalation flow was added. Users can still act on it, and the heuristic's false positives remain. See [32](#decision-32).
+
+<a id="19-test-isolation-requires-explicitly-importing-every-model-module-not-just-the-one-under-test"></a>
+<a id="decision-19"></a>
+
+### 19. Register all database models in test setup
+
+*2026-07-18*
+
+**Decision:** I added explicit imports for the model modules in `tests/__init__.py`, following Alembic's existing setup.
+
+**Why:** A ticket test passed in the full suite but failed alone because SQLAlchemy had not registered the table referenced by a request-log foreign key.
+
+**Tradeoff:** New model modules need to join that import list. Isolated test runs help expose missing registration that a full suite can conceal.
+
+<a id="20-permission-enforcement-v1-one-dependency-keyed-by-tool_name-against-the-registry-not-by-endpoint"></a>
+<a id="decision-20"></a>
+
+### 20. Read tool permissions from the registry
+
+*2026-07-18*
+
+**Decision:** I used one `require_permission(tool_name, request_type)` dependency to check the registry's required permission against the demo role.
+
+**Why:** Drafting and confirming need different access even within one workflow. Missing or invalid roles fall back to `read_only_viewer`, and denials are logged.
+
+**Tradeoff:** The role comes from a caller-set header, so it does not verify identity. Analyze and refund evaluation were left outside this dependency because their paths were read-only.
+
+**Evidence:** [Permission checks](apps/api/app/permissions.py).
+
+
+<a id="21-vendor-invoice-draftconfirm-a-confirm-time-duplicate-refuses-the-write-it-doesnt-insert-a-duplicate-row"></a>
+<a id="decision-21"></a>
+
+### 21. Reject duplicate invoices before insertion
+
+*2026-07-19*
+
+**Decision:** I rechecked invoice duplicates at confirmation and returned a structured error before inserting a duplicate vendor/invoice-number pair.
+
+**Why:** The database's unique index made a persisted duplicate row incompatible with the proposed duplicate status. Confirmation reuses the draft store, expiry, and permission checks.
+
+**Tradeoff:** Arithmetic and date checks were not rerun because draft fields could not change. A follow-up expanded logs for success, idempotent retries, and duplicate rejection; a database assertion verified the full invoice details were recorded.
+
+**Evidence:** [Invoice tests](apps/api/tests/test_invoices.py).
+
+
+<a id="22-tool-call-tracing-tool_calls-is-null-for-every-request-type-except-analyze-and-never-null-for-that-one"></a>
+<a id="decision-22"></a>
+
+### 22. Distinguish absent traces from zero tool calls
+
+*2026-07-19*
+
+**Decision:** I stored `tool_calls` as a list for analyze requests and NULL for other request types.
+
+**Why:** An empty list means the analyze path ran without tools. NULL means that request type has no tool-call trace. The detail endpoint includes the trace; the list response omits it.
+
+**Tradeoff:** Sequence numbers follow dispatch order. Tool timing excludes model processing, so the original derived remainder was imprecise. [56](#decision-56) added measured model-call time.
+
+<a id="23-deployed-perimeter-shared-secret-header-rendervercel-plus-cors-as-an-independent-second-layer-not-one-mechanism-doing-both-jobs"></a>
+<a id="decision-23"></a>
+
+### 23. Check the proxy secret in the backend
+
+*2026-07-22*
+
+**Decision:** I added a backend secret check for requests other than health, alongside a browser-origin allowlist. The frontend proxy injects the secret server-side.
+
+**Why:** The backend needs to enforce the header itself. CORS separately controls browser origins and does not authenticate server-to-server calls.
+
+**Tradeoff:** The secret must match in two hosting environments. CORS was also reordered to run outside the secret check, so browser preflights could reach the allowlist. Tests verified allowed-origin 200 and rejected-origin 400 responses.
+
+**Evidence:** [CORS tests](apps/api/tests/test_cors.py).
+
+
+<a id="24-frontend-test-framework-vitest--react-testing-library-added-when-the-first-real-test-was-needed"></a>
+<a id="decision-24"></a>
+
+### 24. Test frontend interactions with Vitest
+
+*2026-07-23*
+
+**Decision:** I added Vitest and React Testing Library when example chips and the shared banner needed interaction tests.
+
+**Why:** Those checks exercised component behavior, such as filling a field without submitting it. They did not require a full browser and two running services.
+
+**Tradeoff:** Cleanup is wired explicitly. The banner tests reproduce layout composition without executing the real layout, so layout integration still needs verification. The development proxy issue mentioned during this work was later fixed in [57](#decision-57).
+
+<a id="25-web_analyticscampaigns-schema--revenue-drop-seed-story-part-3-demo-query-why-did-revenue-drop-last-week"></a>
+<a id="decision-25"></a>
+
+### 25. Seed a traceable revenue-drop scenario
+
+*2026-07-24*
+
+**Decision:** I added campaign and web-analytics data while calculating revenue from orders, avoiding a second stored revenue total.
+
+**Why:** The fixtures linked a campaign ending to about 26% fewer sessions and a 28% revenue drop, with 44% fewer orders and flat refunds. A campaign note supplied context beyond the rows.
+
+**Tradeoff:** Existing fixtures initially reversed the intended trend. I corrected the new rows against combined database totals and used a shared seed-time timestamp to keep the scenario recent.
+
+<a id="26-investigation-pipeline-planner--data-analyst-only-reuse-run_sql_queryquery_rag-as-is-per-signal-error-isolation-no-report-writer-yet"></a>
+<a id="decision-26"></a>
+
+### 26. Build the investigation evidence stages first
+
+*2026-07-25*
+
+**Decision:** I implemented a Planner and Data Analyst, exposing `investigate_gather_evidence()` for direct testing. The Planner proposes signals; the analyst reuses SQL and retrieval services.
+
+**Why:** Per-signal handling lets other evidence complete when one call fails. A test injected one failure among four signals and checked that the other three succeeded.
+
+**Tradeoff:** The work also required analytics tables in the SQL allowlist and database grants. No endpoint or final answer stage was added. [45](#decision-45) records what completing the pipeline would require.
+
+**Evidence:** [Evidence gathering](apps/api/app/orchestrator/data_analyst.py).
+
+
+<a id="27-rag-ingestion-added-to-renderyamls-predeploycommand-not-left-as-a-manual-step"></a>
+<a id="decision-27"></a>
+
+### 27. Ingest policy passages during deployment
+
+*2026-07-29*
+
+**Decision:** I added policy ingestion after migrations in the pre-deploy command.
+
+**Why:** The deployed app returned empty policy results because migrations created `policy_chunks` without populating it. The business-data reseed job did not ingest documents.
+
+**Tradeoff:** An embedding-provider failure can now block deployment. Business fixtures remain on a separate daily reset; policy passages are regenerated during deploys.
+
+**Evidence:** [Deployment configuration](render.yaml).
+
+
+<a id="28-next-15-days-eval-depth-over-feature-breadth"></a>
+<a id="decision-28"></a>
+
+### 28. Prioritize evaluations before more features
+
+*2026-07-30*
+
+**Decision:** I set aside the next development period for model configuration, repeated evaluations, judge review, and a model comparison.
+
+**Why:** I wanted evidence about where the cheaper model worked and where it failed. Existing gaps needed inspection before adding another answer-producing workflow.
+
+**Tradeoff:** The Report Writer, reranker, real authentication, ticket/invoice UI, and partial-quantity refunds were deferred. These were portfolio scope choices, not claims of customer readiness. Later retrieval findings in [52–53](#decision-52) changed the evidence behind further search work.
+
+<a id="29-refund-evaluator-its-own-restricted-db-role"></a>
+<a id="decision-29"></a>
+
+### 29. Give refund evaluation its own database role
+
+*2026-08-06*
+
+**Decision:** I replaced the evaluator's full-access database connection with `refund_evaluator_readonly`, limited to the five tables it needed.
+
+**Why:** The evaluator reads records and returns a decision without writing a refund. A test checks that it uses the restricted role.
+
+**Tradeoff:** This role can read email to resolve a customer, while the generated-SQL role excludes it. Email stays out of the evaluator response, but the two permission sets need separate maintenance.
+
+<a id="30-new-eval-category-request_faithfulness-needed-two-app-changes-not-just-test-cases"></a>
+<a id="decision-30"></a>
+
+### 30. Bypass cache and rate limits during evaluations
+
+*2026-08-07*
+
+**Decision:** I added request-level cache bypass and an `EVAL_RATE_LIMIT_BYPASS` setting for repeated evaluation calls.
+
+**Why:** Cached answers could hide model variance, and the analyze endpoint's rate limit prevented the planned repeated runs.
+
+**Tradeoff:** Rate-limit bypass applies to the whole evaluation process because the limiter runs before request-body parsing. It must remain an evaluation environment setting.
+
+<a id="31-request_faithfulnesss-first-6-cases-are-all-bulkabstract-requests-not-mixed-08s-shape"></a>
+<a id="decision-31"></a>
+
+### 31. Record the limits of bulk refusal cases
+
+*2026-08-07*
+
+**Decision:** I kept the six request-faithfulness cases while documenting what their 18 passing calls established.
+
+**Why:** All responses refused before using tools. The original `mixed-08` failure involved a specific resolved refund whose status could substitute for the requested action.
+
+**Tradeoff:** Bulk refusals did not reproduce that situation. The original case needed direct follow-up, which arrived in [46](#decision-46).
+
+**Evidence:** [Refusal calibration](evals/request_faithfulness_calibration.md).
+
+
+<a id="32-groundedness-heuristic-four-ways-it-gets-fooled"></a>
+<a id="decision-32"></a>
+
+### 32. Keep citation matching scoped to source checks
+
+*2026-08-07*
+
+**Decision:** I retained the structural checker while recording its calibration failures. It matches rule text and identifiers, without reading the meaning of a claim.
+
+**Why:** The 20 examples included a waived-rule claim that passed, correct denials that were flagged, uncited text outside its matching scope, and titles used as ordinary words. Five examples were over-flagged and two problems were missed.
+
+**Tradeoff:** The sample is small, and some patterns existed only in calibration records. A matching citation cannot establish that a rule was applied correctly. The answer warning should be interpreted with that limit.
+
+**Evidence:** [Labeled calibration examples](evals/groundedness_calibration_raw.json).
+
+
+<a id="33-sql-eval-cases-now-check-the-actual-number-not-just-the-query-shape"></a>
+<a id="decision-33"></a>
+
+### 33. Check SQL results against known answers
+
+*2026-08-08*
+
+**Decision:** I added independently calculated expected values to the three SQL cases.
+
+**Why:** The Electronics refund-rate query returned 50% by counting order lines. Refunded units divided by units sold gave 43.48%. The new check exposed the error, which I left failing for the application fix.
+
+**Tradeoff:** Comparisons inspect returned rows, so they do not verify how the final answer states the result. Rejected operations still need status assertions. [37](#decision-37) records the generation fix.
+
+**Evidence:** [SQL calibration](evals/sql_semantic_calibration.md).
+
+
+<a id="34-new-sql_semantic-category-four-traps-that-make-a-wrong-query-look-right"></a>
+<a id="decision-34"></a>
+
+### 34. Test plausible SQL calculation errors
+
+*2026-08-08*
+
+**Decision:** I added four semantic cases covering denominator choice, duplicated joins, status filtering, and customer filtering.
+
+**Why:** The Home refund-rate case exposed another units-versus-rows error and inclusion of non-approved refunds. These queries could pass structural checks.
+
+**Tradeoff:** The cases also exposed rejection of valid `COUNT(*)` queries. That validator defect remained open during measurement and was fixed in [37](#decision-37).
+
+**Evidence:** [Semantic cases](evals/cases.json).
+
+
+<a id="35-sql-result-failures-get-a-specific-reason-not-one-generic-message"></a>
+<a id="decision-35"></a>
+
+### 35. Report why a SQL result failed
+
+*2026-08-08*
+
+**Decision:** I expanded failure records to distinguish rejected queries, missing rows, nonnumeric values, and incorrect results. Records retain generated SQL and returned rows.
+
+**Why:** The previous generic mismatch message made diagnosis harder. Rerunning the two known failures confirmed that the new messages exposed their results.
+
+**Tradeoff:** Root cause still requires inspecting SQL. A displayed scalar can select an unrelated numeric field, so the full saved rows remain important. Hand-written review notes supplement the report where available.
+
+**Evidence:** [Evaluation runner](evals/run.py).
+
+
+<a id="36-sql-semantic-accuracy-measured-for-real-4-of-7-cases-wrong-3-times-in-a-row"></a>
+<a id="decision-36"></a>
+
+### 36. Measure SQL correctness across repeated runs
+
+*2026-08-09*
+
+**Decision:** I ran seven SQL cases three times with cache bypass and kept semantic results separate from structural safety.
+
+**Why:** Two cases calculated the same wrong rates repeatedly. A separate valid `COUNT(*)` query was rejected once and passed twice, exposing a validator problem alongside the calculation errors.
+
+**Tradeoff:** I recorded the failures before changing application behavior. The before/after comparison in [37](#decision-37) uses 14/21 correct outcomes as its baseline; this entry's earlier title overstated the number of consistently failing cases.
+
+**Evidence:** [Baseline calibration](evals/sql_semantic_calibration_v1.md).
+
+
+<a id="37-prompt-v2-one-targeted-addition-fixed-both-confirmed-sql-bugs-first-try"></a>
+<a id="decision-37"></a>
+
+### 37. Clarify refund-rate calculations in the SQL prompt
+
+*2026-08-10*
+
+**Decision:** I added a calculation explanation and worked example covering unit quantities and approved refunds, then versioned the SQL prompt through responses and query audit records.
+
+**Why:** Seven cases over three runs improved from 14/21 correct outcomes to 21/21. The new SQL used `COUNT(*)` more often, exposing an existing validator defect that I also fixed.
+
+**Tradeoff:** Measured latency rose from 2.83s to 3.26s and cost from $0.0060 to $0.0068 per call. The small repeated set supports the observed improvement, with limited evidence about unseen questions.
+
+**Evidence:** [Before/after results](evals/primary_results.md).
+
+
+<a id="38-one-bounded-retry-for-anthropic-calls-on-the-sql-and-analyze-paths-only"></a>
+<a id="decision-38"></a>
+
+### 38. Retry covered model calls once
+
+*2026-08-11*
+
+**Decision:** I added a 30-second timeout and one retry after a two-second delay for transient errors in SQL generation and analyze calls. SDK retries were disabled to avoid stacking policies.
+
+**Why:** Mocked failures verified structured error or incomplete responses after both attempts failed, with `retry_count` recorded in request logs.
+
+**Tradeoff:** This was preventive work, scoped to those paths. Other model-call sites were outside the wrapper at the time. The fixed delay was chosen for a single retry.
+
+**Evidence:** [Retry tests](apps/api/tests/test_llm_retry.py).
+
+
+<a id="39-retrieval-threshold-picking-046-from-labeled-calibration-data"></a>
+<a id="decision-39"></a>
+
+### 39. Calibrate a local retrieval threshold
+
+*2026-08-12*
+
+**Decision:** I chose a distance cutoff of 0.46 from 54 hand-labeled candidates across 18 questions.
+
+**Why:** It retained every clearly relevant example in the sample. Relevant and irrelevant distances overlapped, so no cutoff separated them cleanly.
+
+**Tradeoff:** An off-topic case still passed through. The sample had one labeler and limited questions. [52](#decision-52) later established a separate production-provider threshold.
+
+**Evidence:** [Retrieval calibration](evals/rag_retrieval_calibration.md).
+
+
+<a id="40-what-justified-the-sql-fix-the-threshold-and-the-retry-work-without-an-incident-behind-any-of-them"></a>
+<a id="decision-40"></a>
+
+### 40. Distinguish measured fixes from preventive work
+
+*2026-08-12*
+
+**Decision:** I recorded why the SQL, retrieval, and retry changes had different kinds of support.
+
+**Why:** The SQL change followed repeated calculation failures. Retrieval used labeled calibration. Retry behavior was tested with injected failures before any production incident motivated it.
+
+**Tradeoff:** Passing trials did not establish broad reliability. The individual limits remain with [37](#decision-37), [38](#decision-38), and [39](#decision-39), rather than treating all three as equivalent evidence.
+
+<a id="41-a-model-comparison-would-have-quietly-graded-itself"></a>
+<a id="decision-41"></a>
+
+### 41. Keep the judge fixed during model comparisons
+
+*2026-08-13*
+
+**Decision:** I separated `JUDGE_MODEL` from the application model setting and added `--model`, automatic cache bypass, and experiment metadata to the runner.
+
+**Why:** Changing the application model had also changed the judge. The new metadata records both models, prompt versions, dataset hash, commit, and cache setting. A 62-case run verified the recording path.
+
+**Tradeoff:** Live request logs still lacked model versions. The dataset hash changes even for textual edits. The comparison itself followed in [44](#decision-44).
+
+**Evidence:** [Evaluation runner](evals/run.py).
+
+
+<a id="42-number-skipped-no-entry-was-ever-recorded-under-it"></a>
+<a id="decision-42"></a>
+
+### 42. Unused number
+
+No decision was recorded under this number. It is reserved to preserve existing references.
+
+<a id="43-rebuilt-the-ablation-table-on-a-frozen-harness-and-found-a-second-cache-bug-doing-it"></a>
+<a id="decision-43"></a>
+
+### 43. Compare experiments on a frozen harness
+
+*2026-08-14*
+
+**Decision:** I rebuilt the ablation table with one 27-case set, repeated three times per configuration. Earlier rows used changing case sets and measurement methods.
+
+**Why:** The first run exposed cached baseline retrieval reused across variants. Adding RAG cache bypass and rerunning affected cases produced SQL 14/21 → 21/21, off-topic refusal 0/15 → 12/15, and resilience 0/6 → 6/6. On-topic retrieval stayed 36/36.
+
+**Tradeoff:** Scorer changes remained outside this application comparison. Reconstructing older configurations tests them under the frozen harness, rather than reproducing every detail of their original environment.
+
+**Evidence:** [Ablation report](evals/ablation_table.md).
+
+
+<a id="44-staying-on-sonnet-and-turning-down-a-workload-split"></a>
+<a id="decision-44"></a>
+
+### 44. Keep Sonnet for the current workflows
+
+*2026-08-17*
+
+**Decision:** I kept Sonnet and deferred routing selected requests to Haiku.
+
+**Why:** In the compared SQL and mixed categories, nine paired outcomes passed on Sonnet and failed on Haiku; three went the other way, all on `mixed-08`. Inspected failures involved tool use, retrieval wording, date math, and currency conversion.
+
+**Tradeoff:** Haiku offered roughly threefold cost savings and lower latency in those categories. Routing needed a classifier with little evaluation coverage. Some inspected traces came from later reruns. [46](#decision-46) subsequently fixed Sonnet's write-refusal case.
+
+**Evidence:** [Model comparison and recommendation](evals/model_recommendation.md).
+
+
+<a id="45-closing-the-investigation-pipeline-as-a-formal-scope-deferral"></a>
+<a id="decision-45"></a>
+
+### 45. Defer the investigation pipeline
+
+*2026-08-16*
+
+**Decision:** I left the Planner and Data Analyst available for direct tests and deferred the Report Writer, endpoint, and UI.
+
+**Why:** Existing measured failures and model comparison work took priority. The evidence stages already had seeded-data, isolated-failure, and empty-retrieval tests, but no complete answer was evaluated.
+
+**Tradeoff:** Completion requires a Report Writer, an endpoint, end-to-end cases, checks against gathered evidence, and a demo scenario. Reopen when the existing paths are sufficiently tested or investigation becomes the primary workflow. This continues [26](#decision-26) and [28](#decision-28).
+
+<a id="46-closed-the-mixed-08-write-refusal-gap-with-a-one-sentence-prompt-fix"></a>
+<a id="decision-46"></a>
+
+### 46. State the write boundary in the analyze prompt
+
+*2026-08-16*
+
+**Decision:** I added an explicit write-boundary instruction and advanced the analyze prompt to v2.
+
+**Why:** Sonnet had looked up an already-approved refund and answered “no further action needed.” The revised prompt passed `mixed-08` in three runs with no tools called; 19 related cases also passed.
+
+**Tradeoff:** The earlier model-comparison reports remain evidence for v1. This check tested Sonnet's fix; it did not rerun the full Sonnet/Haiku comparison under v2.
+
+**Evidence:** [Case study](CASE_STUDY.md).
+
+
+<a id="47-first-ci-workflow-and-the-deterministic-eval-subset"></a>
+<a id="decision-47"></a>
+
+### 47. Run a deterministic evaluation subset in CI
+
+*2026-08-16*
+
+**Decision:** I added CI preparation for the database and corpus, followed by pytest and an 18-case evaluation subset.
+
+**Why:** Refund rules, grounding, topic coverage, and mocked resilience cases make no live model calls. Permission cases can call Claude when access is allowed, so they were excluded.
+
+**Tradeoff:** The subset cannot measure changing model behavior. Separate fixed-input SQL safety tests cover prohibited statements and cost limits. [48](#decision-48) records live calls still present in pytest.
+
+**Evidence:** [CI workflow](.github/workflows/ci.yml).
+
+
+<a id="48-pytest-still-needs-a-real-anthropic-key"></a>
+<a id="decision-48"></a>
+
+### 48. Record live model calls remaining in pytest
+
+*2026-08-16*
+
+**Decision:** I documented that some permission and endpoint tests still call Claude, and scoped the CI API key to the pytest step.
+
+**Why:** Those tests exercise allowed requests through real endpoints. The deterministic evaluation step does not need the key.
+
+**Tradeoff:** Pytest retains cost and external-service failure risk. Mocking those calls remains separate work.
+
+<a id="49-verified-the-ci-gate-catches-a-regression-twice"></a>
+<a id="decision-49"></a>
+
+### 49. Verify both CI checks with an injected regression
+
+*2026-08-16*
+
+**Decision:** I changed the approval threshold from 20,000 to 200,000 cents on throwaway branches and ran the real PR workflow.
+
+**Why:** The first trial failed the policy-drift test but skipped the later eval step. I added `if: ${{ !cancelled() }}` so the eval subset would also run. The second trial failed both the policy test and the manager-approval case.
+
+**Tradeoff:** Both PRs were closed without merging. The change improved visibility into both checks; CI was already red after the first failure. It does not prove the checks detect every regression.
+
+**Evidence:** [Policy drift test](apps/api/tests/test_refund_policy_drift.py).
+
+
+<a id="50-verified-the-live-deployment-directly-found-two-real-gaps-the-evals-never-would-have-caught"></a>
+<a id="decision-50"></a>
+
+### 50. Exercise the deployed request paths
+
+*2026-08-17*
+
+**Decision:** I ran the live scenarios after CI and offline evaluations passed.
+
+**Why:** A refund request extracted “2 Ergonomic Desk Chairs,” which failed to match “Ergonomic Desk Chair.” A suggested policy question also produced an unsupported-answer response under production embeddings.
+
+**Tradeoff:** The refund cases bypassed extraction, and retrieval evaluations used the local provider. More cases through those same paths would leave these gaps intact. [51](#decision-51) fixed extraction; [52–53](#decision-52) investigated retrieval.
+
+**Evidence:** [Deployment investigation](CASE_STUDY.md).
+
+
+<a id="51-fixed-the-refund-extraction-bug-stop-folding-quantity-into-the-product-name"></a>
+<a id="decision-51"></a>
+
+### 51. Extract product names without quantity
+
+*2026-08-17*
+
+**Decision:** I changed the refund extraction field description to request the product name alone, with the failing chair request as an example.
+
+**Why:** Two live endpoint checks returned the clean product name and `requires_manager_approval` under rule 6. An unaffected refund case still passed, and a live extraction test covered the reproduced failure.
+
+**Tradeoff:** This remains model behavior with one known phrasing covered. The deterministic refund category still supplies pre-extracted fields.
+
+**Evidence:** [Extraction regression test](apps/api/tests/test_refund_extraction.py).
+
+
+<a id="52-recalibrated-the-rag-relevance-threshold-for-the-embedding-provider-production-runs"></a>
+<a id="decision-52"></a>
+
+### 52. Calibrate retrieval for the production provider
+
+*2026-08-17*
+
+**Decision:** I repeated the 18-question calibration with Voyage and selected 0.48, while retaining 0.46 locally.
+
+**Why:** A relevant example at distance 0.4779 failed the local cutoff. The new production value retained relevant calibration examples but admitted 8 of 18 irrelevant candidates, compared with 3 of 18 locally.
+
+**Tradeoff:** The original live question remained unresolved. Increasing retrieval depth also admitted more off-topic candidates. [53](#decision-53) then checked the exact query recorded in the live trace.
+
+**Evidence:** [Provider thresholds](apps/api/app/rag/service.py).
+
+
+<a id="53-closing-the-damaged-shipments-retrieval-gap-as-a-known-limitation"></a>
+<a id="decision-53"></a>
+
+### 53. Keep the production ranking failure visible
+
+*2026-08-18*
+
+**Decision:** I documented the unresolved “damaged shipments policy” query and changed the suggested prompt to a phrasing already verified in production.
+
+**Why:** The exact traced query ranked rule 4 fourth at distance 0.6101 under Voyage, versus second at 0.4191 locally. The raw-question experiment in [52](#decision-52) had measured a different query.
+
+**Tradeoff:** Changing the demo wording did not fix retrieval. The known phrasing still needs work, and threshold or retrieval-depth changes had not resolved it without other costs.
+
+**Evidence:** [Recorded finding](evals/findings.md).
+
+
+<a id="54-exposing-request_log_id-on-analyzeresponserefundevaluateresponse-so-the-ui-can-link-straight-to-a-trace"></a>
+<a id="decision-54"></a>
+
+### 54. Return request IDs for direct trace links
+
+*2026-08-18*
+
+**Decision:** I generated the log UUID before execution and returned `request_log_id` from analyze and refund responses.
+
+**Why:** The UI needed to link each result to its request record. Response schemas and generated frontend types were updated together.
+
+**Tradeoff:** The initial cache path replaced the original ID with the cache-hit ID. [55](#decision-55) reversed that choice. Trace access also needs an authorization policy before exposing customer data.
+
+**Evidence:** [Analyze response schema](apps/api/app/orchestrator/schemas.py).
+
+
+<a id="55-cache-hits-keep-the-original-requests-trace-reversing-54s-own-choice"></a>
+<a id="decision-55"></a>
+
+### 55. Link cached answers to their original trace
+
+*2026-08-22*
+
+**Decision:** A cached answer links to the request that originally produced it. The trace page identifies the answer as served from cache.
+
+**Why:** Decision 54 linked to the cache-hit request, which showed zero tool calls and near-zero latency. That hid the evidence behind the answer.
+
+**Tradeoff:** The cache hit still writes its own record, but the answer links to the earlier execution. Verification showed repeated questions returned the same original ID with tool calls and timing. This updates [54](#decision-54) for cached analyze responses only.
+
+**Evidence:** [Cached analyze responses](apps/api/app/orchestrator/analyze_service.py).
+
+
+<a id="56-measuring-llm-call-time-separately-from-tool-time-and-total-latency"></a>
+<a id="decision-56"></a>
+
+### 56. Measure model-call time directly
+
+*2026-08-22*
+
+**Decision:** I added `request_log.llm_latency_ms`, summed across covered analyze calls and refund extraction, including retry sleep.
+
+**Why:** A 13-second request showed only 23ms of tool time. The remaining time had been labeled as model/orchestration time through subtraction. Direct measurement recorded 12,245ms of model time within 12,329ms total.
+
+**Tradeoff:** Older rows have NULL and retain a derived fallback. Retry sleep remains included because the field measures elapsed time spent in the model-call path.
+
+**Evidence:** [Request log schema](apps/api/app/db/observability_models.py).
+
+
+<a id="57-moved-the-proxy-middleware-into-src-so-next-dev-runs-it"></a>
+<a id="decision-57"></a>
+
+### 57. Keep proxy middleware under src
+
+*2026-08-23*
+
+**Decision:** I moved the frontend proxy middleware into `apps/web/src/`.
+
+**Why:** Local API requests returned 404 while production worked. In this layout, the development server discovered middleware under src; the build also accepted its former app-root location.
+
+**Tradeoff:** The file retained the middleware.ts name. A fresh development server handled requests after the move, and the production build still registered the proxy. Moving to the newer proxy.ts convention remained separate work.
+
+**Evidence:** [Frontend proxy](apps/web/src/middleware.ts).
+
+
+<a id="58-a-landing-page-separate-from-the-scenario-demo"></a>
+<a id="decision-58"></a>
+
+### 58. Give the project a homepage before the scenarios
+
+*2026-08-27*
+
+**Decision:** I moved the demo to `/scenarios` and added an overview at `/` with results, architecture, and navigation.
+
+**Why:** A visitor previously landed on scenario cards without an explanation of the project. The first homepage reused a captured injection example and read scores from committed results.
+
+**Tradeoff:** The overview repeated some architecture content. Its highlight categories were curated, so the Evaluation Lab remained the place to inspect full coverage. [59](#decision-59) expanded the presentation.
+
+**Evidence:** [Homepage](apps/web/src/app/page.tsx).
+
+
+<a id="59-a-visual-pass-real-pre-run-snapshots-and-a-wider-landing-story"></a>
+<a id="decision-59"></a>
+
+### 59. Show captured results before a live run
+
+*2026-08-30*
+
+**Decision:** I added tabbed snapshots and scenario previews captured from actual application responses, alongside shared visual styling and navigation.
+
+**Why:** Visitors could inspect an outcome before waiting for a model call. Stored snapshots suppress trace links because the demo database can reset; fresh runs return working links.
+
+**Tradeoff:** Snapshots need recapture as time-sensitive data changes. The capture script retained a small duplicate test-client setup rather than adding an abstraction. This records the original visual pass, not a specification for all later page copy.
+
+**Evidence:** [Snapshot capture](evals/capture_scenario_snapshots.py).
+
+
+<a id="60-sourcing-the-ui-from-real-component-libraries-not-hand-rolling-it"></a>
+<a id="decision-60"></a>
+
+### 60. Use established UI components
+
+*2026-08-30*
+
+**Decision:** I used shadcn/ui for buttons, badges, and cards, and beUI for animated tabs. Source comments identify adaptations.
+
+**Why:** Integrating the components exposed missing shared border styling. Color tokens were mapped to the site's theme, and card radius and shadows were adjusted to fit the existing design.
+
+**Tradeoff:** Five runtime dependencies were added, with motion carrying weight for a small number of components. Unused candidate libraries contributed no code. This choice traded dependency cost for reusable component behavior.
+
+**Evidence:** [UI components](apps/web/src/components/ui/).
