@@ -1,130 +1,149 @@
-# Setup & Deployment
+# Setup and deployment
 
-Local setup, running the apps, and deploying to production. For what this project is and how it works, see [the main README](../README.md).
+This guide covers local setup and the repository's deployment configuration. For endpoint behavior, see the [API guide](../apps/api/README.md). The [architecture](../ARCHITECTURE.md) explains how the services fit together.
 
-## Structure
+## Prepare your environment
 
-```
-apps/web       Next.js 16 + TypeScript + Tailwind frontend
-apps/api       Python 3.14 + FastAPI backend (poetry)
-packages/shared  Generated TS types (openapi-typescript output, not hand-written)
-```
+Install Python 3.14, Poetry, Node.js, pnpm, and Docker. The repository pins pnpm in [package.json](../package.json). Postgres 17 with pgvector runs through [Docker Compose](../docker-compose.yml).
 
-This is one monorepo rather than separate frontend and backend repos. There's no organizational split to justify two repos: one developer, one deploy cadence. The tradeoff only pays off because of codegen: `packages/shared` is generated straight from the API's OpenAPI spec, so there's no hand-written type for the contract to drift out of sync with. Skipping codegen would reintroduce the same drift problem two repos would have had, with less visibility into when it happens.
-
-## Tooling
-
-Workspaces are managed with **pnpm** (not npm) — pnpm's content-addressable store and stricter symlinked `node_modules` avoid the phantom-dependency issues plain npm workspaces allow, which matters once `apps/web` starts importing from `packages/shared`.
-
-`apps/api` is managed separately with **Poetry**, since it's a Python package outside the JS workspace graph.
-
-## Setup
-
-Install JS dependencies (web + shared):
+Start from the repository root:
 
 ```bash
 pnpm install
-```
-
-Install the API's dependencies:
-
-```bash
-cd apps/api
-poetry install
-```
-
-Start the database:
-
-```bash
 docker compose up -d
-```
-
-This brings up a single `postgres` service (image `pgvector/pgvector:pg17`) with the `vector` extension available, listening on `localhost:5432`. No app services are wired into compose yet.
-
-Copy the env templates and fill in real values:
-
-```bash
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
-`EMBEDDING_PROVIDER` (apps/api/.env) controls where RAG's embeddings come from — see `DECISIONS.md` #8:
-- **Dev:** `EMBEDDING_PROVIDER=local` (the default if unset) — local `BAAI/bge-m3`, no `VOYAGE_API_KEY` needed.
-- **Deploy:** `EMBEDDING_PROVIDER=voyage` — hosted Voyage AI, requires `VOYAGE_API_KEY`.
+Copy the templates on first setup; copying them again replaces existing local settings. Keep credentials in the ignored `.env` files.
 
-## Database
+Configure these values before running migrations or starting the apps:
 
-Apply migrations and load fixture data (from `apps/api`, with Postgres up and `.env` configured):
+| Setting | Where | Purpose |
+|---|---|---|
+| `DATABASE_URL` | API | Main database connection; the template matches the default local Compose database |
+| `OPS_AGENT_DB_PASSWORD` | API | Password for the restricted SQL role |
+| `REFUND_EVALUATOR_DB_PASSWORD` | API | Password for the restricted refund role |
+| `ANTHROPIC_API_KEY` | API | Required for live Claude calls |
+| `EMBEDDING_PROVIDER` | API | `local` for BAAI/bge-m3 or `voyage` for hosted embeddings |
+| `VOYAGE_API_KEY` | API | Required when using `voyage` |
+| `INTERNAL_PROXY_SECRET` | API and web | Set the same secret in both apps |
+| `NEXT_PUBLIC_API_URL` | Web | API base URL; locally, `http://localhost:8000` |
+
+Use distinct generated passwords for the database roles. Their migrations require the configured values. Changing a password in `.env` alone does not update an existing database role.
+
+Local embeddings need memory and an initial model download. Production uses Voyage. Use the same provider for ingestion and querying; switching providers requires re-ingestion and retrieval verification.
+
+## Prepare the database
+
+Run from `apps/api`:
 
 ```bash
+poetry install
 poetry run alembic upgrade head
 poetry run python -m app.db.seed
+poetry run python -m app.rag.ingest
 ```
 
-Schema is defined via SQLAlchemy models under `apps/api/app/db/models.py`; migrations live in `apps/api/alembic/versions/`. `seed.py` is re-runnable — it truncates and reseeds the six Part 1 tables (customers, products, orders, order_items, refunds, support_tickets) with deterministic fixture data.
+Migrations create the schema and restricted roles. The seed script replaces nine business tables, including shipments and campaign data, using `TRUNCATE ... CASCADE`. Run it against the intended demo database; it replaces records created during earlier demo sessions in those tables and can affect dependent records.
 
-## Running the apps
+Ingestion separately replaces `policy_chunks` with passages from the documents listed in [ingest.py](../apps/api/app/rag/ingest.py). It needs a working embedding provider.
+
+## Start and verify the apps
+
+In one terminal, from `apps/api`:
 
 ```bash
-# API (from apps/api)
 poetry run uvicorn app.main:app --reload --port 8000
+```
 
-# Web (from repo root)
+In another terminal, from the repository root:
+
+```bash
 pnpm --filter web dev
 ```
 
-The API exposes a health check at `GET /health`, its OpenAPI spec at `/openapi.json`, the SQL analysis path at `POST /query/sql`, the RAG retrieval path at `POST /query/rag`, two orchestrator flows built on top of both — `POST /query/analyze` (combined SQL + RAG with a structural groundedness check) and `POST /refund/evaluate` (natural-language refund request → decision, no DB mutation) — and a unified request log across all four at `GET /observability/requests` (filter/paginate only, no aggregation) — see `apps/api/README.md` for all of it. RAG needs its policy corpus ingested first: `poetry run python -m app.rag.ingest` (from `apps/api`).
-
-## Tests and evaluations
+Open the frontend at `http://localhost:3000`. Check the API process with:
 
 ```bash
-cd apps/api
-poetry run pytest
+curl http://localhost:8000/health
 ```
 
+A healthy response is `{"status":"ok"}`. This checks reachability; it does not exercise the database or model. Run a scenario in the frontend to verify a complete request, then inspect its log in System Traces.
+
+The frontend sends `/api/*` requests through its server-side proxy. That proxy adds `X-Internal-Proxy-Secret` before forwarding to the backend. Direct API requests, including `/docs` and `/openapi.json`, require the same header. `/health` is exempt.
+
+## Run checks
+
+From the repository root:
+
 ```bash
-cd apps/api
+pnpm --filter web test
+pnpm --filter web lint
+pnpm --filter web build
+```
+
+The frontend build fetches Google Fonts and needs network access for that step.
+
+From `apps/api`:
+
+```bash
+poetry run pytest
 poetry run python ../../evals/run.py --subset deterministic
 ```
 
-The second command runs the deterministic eval subset, no API key needed and the same one CI runs on every push. The full 79-case suite needs a live model call for most categories:
+Some pytest tests make live model calls. The deterministic evaluation subset runs 18 cases without live model calls, using the prepared application environment. See [Running evaluations](../evals/README.md) for full runs and output interpretation.
+
+## Regenerate frontend types
+
+The frontend consumes generated API types from `packages/shared`. Regenerate them when API routes or schemas change; leave the generated file unedited by hand.
+
+The existing `pnpm run codegen` script targets the API directly and does not supply its required secret header. With both local apps running, use the frontend proxy instead. Run from the repository root:
 
 ```bash
-cd apps/api
-EVAL_RATE_LIMIT_BYPASS=1 poetry run python ../../evals/run.py --bypass-cache
+pnpm --filter shared exec openapi-typescript http://localhost:3000/api/openapi.json -o src/generated.ts
 ```
 
-See `evals/methodology.md` for what each category measures and how the numbers were made.
+The proxy supplies the secret from the web environment. Review the generated diff and rebuild the frontend afterward.
 
-## Codegen: OpenAPI → TypeScript
+## Deploy the backend
 
-`packages/shared` contains only generated TypeScript — nothing there is hand-written. With the API running (`poetry run uvicorn app.main:app --port 8000`), regenerate the types by running, from the repo root:
+[render.yaml](../render.yaml) declares the API service, a Postgres database, and a daily reseed job. It sets the API root to `apps/api`. The pre-deploy command runs migrations and policy ingestion; the start command launches Uvicorn on the assigned port.
+
+Create a Render Blueprint from the repository and review the declared resources. Configure the required environment before a successful deployment:
+
+- `DATABASE_URL` comes from the Blueprint's database connection.
+- `OPS_AGENT_DB_PASSWORD` is generated by the Blueprint.
+- Supply `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, and `INTERNAL_PROXY_SECRET` through the service environment. Ingestion needs the Voyage key during pre-deploy.
+- Add `REFUND_EVALUATOR_DB_PASSWORD` manually. The current Blueprint omits it, but the refund-role migration and application require it. Use the password matching that role if it already exists.
+
+Production sets `EMBEDDING_PROVIDER=voyage`. After migrations complete, seed the business fixtures once from the API service environment if the database is new:
 
 ```bash
-pnpm run codegen
+poetry run python -m app.db.seed
 ```
 
-This runs `openapi-typescript http://localhost:8000/openapi.json -o src/generated.ts` inside `packages/shared`, pulling the live OpenAPI spec from the running FastAPI app. Re-run it any time the API's routes or schemas change; never edit `packages/shared/src/generated.ts` by hand.
+The separate reseed job runs daily at 06:00 UTC. Application deploys reload policy passages but do not reseed business records. Check the deployment output for successful migrations and ingestion, then verify `/health`.
 
-## Deployment
+## Deploy the frontend
 
-`render.yaml` (repo root) is a [Render Blueprint](https://render.com/docs/blueprint-spec) for **`apps/api` only** — it defines the FastAPI web service, the Postgres database, and a daily reseed cron job, all Starter tier. It is not committed to trigger anything automatically; deploying is a manual step:
+Deploy the same repository to Vercel with `apps/web` as the project root. Keep the rest of the monorepo available during the build: the frontend imports the shared package and reads committed evaluation reports outside its directory.
 
-1. In the Render dashboard: **New → Blueprint**, connect this GitHub repo. Render finds `render.yaml` at the repo root and shows the three resources it defines (`ecom-ops-api`, `ecom-ops-db`, `ecom-ops-reseed`) for review before creating anything.
-2. Apply the blueprint. Render provisions the Postgres instance and deploys the web service — `preDeployCommand` runs `alembic upgrade head` against it before the new version takes traffic, every deploy, no exceptions (see the comments in `render.yaml`).
-3. **After first deploy**, set the secret env vars manually — they're declared as `sync: false` in `render.yaml`, meaning Render intentionally leaves them blank rather than expecting a value in the committed file: go to the `ecom-ops-api` service → **Environment**, and set `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, and `INTERNAL_PROXY_SECRET` to real values. The service won't serve real requests correctly until all three are set (`OPS_AGENT_DB_PASSWORD` doesn't need manual entry — Render generates it automatically on first deploy per `render.yaml`'s `generateValue: true`).
-4. The `ecom-ops-reseed` cron job runs `python -m app.db.seed` daily at 06:00 UTC against the same database — independent of deploys, so an in-progress demo interaction isn't wiped by an unrelated code push (see the comment above it in `render.yaml`).
-5. Before this actually protects anything, edit `apps/api/app/main.py`'s `ALLOWED_ORIGINS` — it ships with a placeholder (`https://REPLACE_WITH_PRODUCTION_VERCEL_DOMAIN`) that must become the real production Vercel domain, no wildcard, no preview-deployment origins.
+Set `NEXT_PUBLIC_API_URL` to the deployed API's base URL. Set the server-only `INTERNAL_PROXY_SECRET` to the same value used by the API, then deploy and run a scenario.
 
-**`apps/web` (Next.js) is not part of this blueprint** — Render Blueprints don't drive Vercel deploys, and forcing a Next.js frontend into a Render web service would fight both platforms' conventions. Deploy `apps/web` to Vercel separately (connect the same repo, set the project root to `apps/web`, configure `apps/web/.env`'s variables — e.g. the API's base URL — in Vercel's dashboard); that config isn't written yet and would live in Vercel's own project settings or an `apps/web/vercel.json`, not here.
+The backend's [origin allowlist](../apps/api/app/main.py) already contains `https://ecom-workflow-agent-web.vercel.app`. Update it if deploying under a different frontend domain. CORS controls browser origins; the proxy secret controls access to backend requests. Neither establishes an end user's identity.
 
-### Shared proxy secret (`INTERNAL_PROXY_SECRET`)
+Secret rotation requires updating both hosting environments and redeploying as needed. Never give the shared secret a `NEXT_PUBLIC_` prefix.
 
-Every request the backend receives except `GET /health` must carry an `X-Internal-Proxy-Secret` header matching `INTERNAL_PROXY_SECRET` exactly, checked by `apps/api/app/proxy_secret.py` — anything missing or mismatched gets a `403`. `apps/web/src/middleware.ts` is the only thing that's supposed to know this value; it reads it from its own server-side `INTERNAL_PROXY_SECRET` env var (never `NEXT_PUBLIC_`-prefixed, never sent to the browser) and injects the header on every `/api/*` request it proxies to the backend. CORS (`apps/api/app/main.py`) is a second, independent layer restricting which browser origins can call the API at all — neither substitutes for the other.
+## When setup fails
 
-This means the **same secret value must be set manually in two places** after first deploy, and they must match byte-for-byte:
-- Render: `ecom-ops-api` service → **Environment** → `INTERNAL_PROXY_SECRET`
-- Vercel: `apps/web` project → **Settings → Environment Variables** → `INTERNAL_PROXY_SECRET` (Production scope)
+| Symptom | Check |
+|---|---|
+| Migration fails while creating a role | Both role passwords are configured before migration |
+| Health succeeds but requests return 403 | The web and API proxy secrets match, and the web proxy is being used |
+| Refund requests fail to connect | The refund role exists and its password matches the API setting |
+| Policy retrieval returns no passages | Ingestion completed using the selected provider; inspect relevance filtering too |
+| A deployed policy answer differs from local results | Provider, corpus, and calibrated threshold match the environment under test |
+| Code generation returns 403 | Use the local proxy command above with both apps running |
 
-Generate one value (e.g. `python3 -c "import secrets; print(secrets.token_urlsafe(24))"`) and paste the identical string into both dashboards — there's no mechanism that keeps them in sync automatically, so a rotation means updating both.
-
+For request-level failures, use the [API debugging guide](../apps/api/README.md#inspect-a-failure). Production ranking and identity limitations are covered in [Architecture](../ARCHITECTURE.md).
