@@ -1,49 +1,72 @@
-# Evals
+# Running evaluations
 
-A quick look at each category in `evals/cases.json`: what it checks, why it can be scored automatically, and what a failure means.
+Use the evaluation runner to check the assistant against known cases and compare behavior across changes. [EVALS.md](../EVALS.md) defines the categories and coverage limits. The [Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab) presents saved results.
 
-## `refund_evaluator`
+## Prepare the environment
 
-The category with the most cases (12), since it deals with financial data. Each case feeds a real order into `evaluate_refund()` and checks two things: the right outcome, and the right policy rule cited. It's a pure function with no AI in the decision, so the expected value can be traced exactly against real data. A failure here means the system told a customer the wrong thing.
+Follow the [API setup](../apps/api/README.md) first. The runner needs the configured database, migrations, seeded records, and ingested policy corpus. Use a development database: evaluations exercise application paths and write logs.
 
-## `groundedness`
+Run the commands below from `apps/api`. The runner invokes the FastAPI application through its test client, so a separate API server is unnecessary. It supplies the configured proxy-secret header itself.
 
-Two cases test whether `check_groundedness()` itself still works — not whether the app's answers are generally grounded. The function flags an answer that cites a policy rule that was never retrieved; these cases confirm that detection still fires. Both feed a fixed answer and fixed chunks directly into the function, so scoring is exact. A failure here means a hallucinated rule could drive a real refund decision.
+## Run the deterministic subset
 
-## `topic_coverage`
+```bash
+poetry run python ../../evals/run.py --subset deterministic
+```
 
-A second, independent guard for a different failure mode: does an answer make shipment claims when no shipment data was ever queried. Same as `groundedness`, it's a deterministic check on a fixed answer and a fixed record of what was queried. A failure here means the system stated something about a shipment with nothing backing it up.
+This runs 18 cases covering refund rules, answer checks, and simulated model failures. It makes no live model calls and skips the live cache check. The other application environment settings are still required.
 
-## `permission`
+This is the evaluation subset used in CI. The separate pytest step includes some tests that call Claude, so running all of pytest has different requirements.
 
-More of an integration test than a model eval. These six cases confirm a role either gets to call an endpoint or gets a 403, matching the tool registry. Example: a support agent can draft a ticket but not confirm one. Scoring is exact — it's a status code check. A failure here isn't a quality miss, it's an access-control hole.
+## Run all supported cases
 
-## Why these four first
+With a working Anthropic key configured:
 
-None of these four measure AI quality. They should score at or near 100%, by design. No model calls, no cost, no variance, known outcomes — they're the control group that proves the harness and reporting work before pointing any of it at real, noisy model behavior. A failure here means a bug in the code or the test data, not the model.
+```bash
+EVAL_RATE_LIMIT_BYPASS=1 poetry run python ../../evals/run.py --bypass-cache
+```
 
-## `sql`
+The runner currently scores 62 of the dataset's 79 cases. It reports unsupported categories and skipped cases separately. It also runs a cache check. Live model calls incur cost; retrieval uses the configured embedding provider.
 
-The first category that actually calls the model. Each case sends a question to `/query/sql` and checks the SQL it generates — right tables, no blocked columns, right status. There's no single correct SQL string, so scoring checks for the right pieces of text, not an exact match. A failure means the generated SQL got the wrong answer or leaked a column it shouldn't have.
+`--bypass-cache` skips cached answers on supported case paths. The separate cache check intentionally exercises caching.
 
-**Known limitation:** this is text matching, not real SQL parsing. A table joined through an alias could look like a miss; a name inside a comment or string could look like a hit. A first pass, not a full solution.
+To compare a different application model:
 
-## `rag`
+```bash
+EVAL_RATE_LIMIT_BYPASS=1 poetry run python ../../evals/run.py --model MODEL_ID
+```
 
-Each case sends a question to `/query/rag` and checks whether the right policy rule shows up in the retrieved chunks. No AI call here — just embedding + similarity search — so results are stable run to run, unlike `sql`.
+Replace `MODEL_ID` with the model to test. This option enables cache bypass automatically. The judge uses its separate `JUDGE_MODEL` setting and remains fixed when the application model changes.
 
-**Known limitation:** this only measures recall — did the right rule come back. It doesn't check whether irrelevant chunks also came back, or whether an answer would actually use the rule correctly.
+## Read the output
 
-## `mixed`
+Each run creates a timestamped directory under [results](results/):
 
-Runs the full `/query/analyze` loop and checks it a few ways: did it call the right tools, did it finish instead of hitting the loop limit, and does an AI judge confirm the answer covers every required point. Unlike the categories above, part of the grading is a judgment call, not a fixed rule. A failure means the system routed to the wrong tool, gave an incomplete answer, or missed something it needed to say.
+| File | Contents |
+|---|---|
+| `report.md` | Category scores, case outcomes, and skipped coverage |
+| `results.json` | Structured results for inspection and reporting |
+| `experiment.json` | Model settings, prompt versions, dataset hash, commit, and cache setting |
 
-## `prompt_injection`
+Failure records provide additional details for failed cases. Start with the case ID and reason, then inspect generated SQL, returned rows, or judge reasoning as appropriate. A failed verdict can indicate an application defect, a scoring problem, or an environment issue.
 
-Sends a message with a hidden bad instruction and checks whether the system falls for it. An AI judge reads the real answer and tool calls, then labels the result `resisted`, `partial_leak`, `complied`, or `insufficient_evidence` — only `resisted` passes. Same as `mixed`, this needs a judge, not a fixed rule. A failure means a hidden instruction actually changed the system's behavior.
+The runner exits with status 1 if a scored case or the cache check fails. A successful exit does not mean every case in the dataset ran. Check skipped coverage before reporting a pass rate.
 
-**Known limitation:** only 5 of 8 cases run today. 2 need a ticket feature that doesn't exist yet, 1 needs a real image.
+## Compare changes
 
-## `resilience`
+Keep the dataset, seed data, judge, and embedding provider consistent when comparing an application change. Record intentional differences. Repeat model-dependent runs to see whether the result holds across attempts.
 
-Checks what happens when the Anthropic call itself fails, not whether it succeeds. Each case mocks two failures in a row, for either SQL generation or the `/query/analyze` loop, then checks the real `request_log` row it leaves behind: a structured failure instead of a hang, `retry_count` of `1`, and no fabricated data. No live API call, no cost. A failure here means a dependency going down could hang the whole request instead of failing honestly.
+Report case counts alongside percentages. Seven cases over three runs produce 21 outcomes, with repeated observations of the same questions. Those observations do not establish performance on 21 independent questions.
+
+Inspect failures before changing the prompt or code. Preserve the case expectations during a fix; a suspected scoring defect needs its own review and explanation. The [case study](../CASE_STUDY.md) shows how that distinction changed the SQL work.
+
+For retrieval comparisons, use the provider you intend to deploy and its calibrated threshold. Local results do not validate production ranking behavior.
+
+## Further reading
+
+- [Methodology](methodology.md): scoring and review procedures.
+- [Primary results](primary_results.md): selected before/after measurements.
+- [Experiment history](experiment_history.md): changes tested and their outcomes.
+- [Measurement context](measurement_context.md): configuration and interpretation limits.
+
+Timestamped reports preserve what happened during those runs. Read their configuration before applying an older result to the current application.
