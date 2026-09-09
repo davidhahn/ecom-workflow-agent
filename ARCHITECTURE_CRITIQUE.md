@@ -1,88 +1,152 @@
-# Architecture Critique
+# Architecture review
 
-An independent review of this project's architecture, run as a cold read with no prior context on this codebase or its history — the brief given was to poke holes in it the way a skeptical senior engineer would before more gets built on top of it, not to summarize or rubber-stamp what's already documented.
+The original review read the design documents without prior project context, then checked their claims against the implementation. It identified ten findings. This document tracks what changed and what remains unresolved.
 
-**Method:** read `ARCHITECTURE.md`, `DECISIONS.md`, `PRODUCT_SPEC.md`, and `CLAUDE.md`, then cross-checked specific claims against the actual implementation under `apps/api/app/{orchestrator,query,rag,db}/` and the frontend, rather than taking the docs at their word. Findings are ranked by severity. The goal was findings beyond what `DECISIONS.md` already self-reports, not a restatement of its own tradeoffs.
+Status reviewed against repository code on **September 9, 2026**. This was a documentation and source review, not a new deployment test. [Architecture](ARCHITECTURE.md) describes the current system; the [decision log](DECISIONS.md) records the investigations and choices behind the changes.
 
-The table below tracks what happened to each finding since. A fixed finding got a real code change, checked against a test or a measured number. An accepted finding is still real. I weighed what it would cost to fix against where this project stands, and chose to leave the risk in place on purpose. An open finding sits exactly where it started, and it carries real weight. Someone went looking for holes in this design without being told what they'd find. The table is what happened after that.
+## Where the findings stand
 
-| # | finding | status | resolution / reasoning | evidence |
-|---|---------|--------|-------------------------|----------|
-| 1 | Groundedness check doesn't gate anything | accepted | Part 1 has no remediation flow. Hiding the answer had nowhere to go. A prominent warning banner makes the flag harder to miss now. | `DECISIONS.md` #18, commit `ec45312` |
-| 2 | Refund resolution can match the wrong customer | fixed | `resolve_order_item()` refuses now when no customer identifier comes through, and returns `could_not_process`. | `DECISIONS.md` #16, commit `ec45312`, `test_evaluate_refund_request_returns_could_not_process_for_missing_customer` |
-| 3 | No RAG relevance floor | fixed | A relevance threshold gates every RAG answer now, calibrated at 0.46 locally and 0.48 in production. One production-only ranking edge case remains, tracked as its own limitation. | `DECISIONS.md` #39, commits `bd56edf` + `4be52c1`, `evals/ablation_table.md` (off-topic refusal 0/15 → 12/15) |
-| 4 | No semantic correctness check on the SQL path | fixed | `sql_semantic` checks the returned value now against a hand-verified number. The old check only looked at the query's shape. | `DECISIONS.md` #37, commit `0ed5da2`, `evals/sql_semantic_calibration.md` (66.7% → 100%, 3/3 runs) |
-| 5 | Silent empty answer on tool-loop exhaustion | fixed | The loop returns an explicit `incomplete: True` now when Claude never reaches an answer. It used to fall through to an empty string that passed groundedness by accident. | `DECISIONS.md` #17, commit `ec45312`, `test_tool_loop_exhaustion_returns_incomplete_not_empty_grounded_answer` |
-| 6 | Refund policy constants hand-duplicated, no drift protection | fixed | A test checks the evaluator's constants now against the actual wording in `refund_policy.md`. The numbers are still copied by hand. A mismatch fails that test today. | commit `1aab2ae`, `test_refund_policy_drift.py` (caught a real break during the `DECISIONS.md` #49 CI-gate test) |
-| 7 | No timeout or retry on Anthropic calls | fixed | Every call gets a 30-second timeout and one bounded retry now, for timeouts, dropped connections, rate limits, and 5xx responses. | `DECISIONS.md` #38, commit `06dbc8d`, `test_two_retryable_failures_raises_with_retry_count_one` |
-| 8 | Refund evaluator runs under the full-privilege connection | fixed | The evaluator runs under its own restricted `refund_evaluator_readonly` Postgres role now. | `DECISIONS.md` #29, commit `4e3d355`, `test_refund_evaluator_session_uses_restricted_readonly_role` |
-| 9 | Partial-quantity refunds aren't modeled | open | `amount_cents` still uses the full line quantity. Extraction excludes quantity entirely, a side effect of a different fix. Nothing here has changed. | limitation, no fix scheduled |
-| 10 | Zero authentication on any endpoint | accepted | Documented non-goal for Part 1 in `PRODUCT_SPEC.md`. Finding #2's fix narrows the risk this once compounded with. The gap itself hasn't moved. | `PRODUCT_SPEC.md`, README Limitations |
+Finding numbers match the original review. Status applies to the specific issue, not the overall reliability of that component.
 
----
+| # | Finding | Status |
+|---|---|---|
+| [1](#finding-1) | Flagged policy answers remain visible | Accepted for the demo |
+| [2](#finding-2) | Missing customer details allowed a cross-customer lookup | Fixed for missing identifiers |
+| [3](#finding-3) | Retrieval always returned the nearest passages | Threshold added; ranking gap remains |
+| [4](#finding-4) | SQL safety checks missed incorrect calculations | Evaluation coverage added; live correctness remains limited |
+| [5](#finding-5) | Tool-loop exhaustion produced an empty answer | Fixed |
+| [6](#finding-6) | Copied policy constants could drift | Tests added for selected constants |
+| [7](#finding-7) | Model calls lacked an explicit failure policy | Partially addressed |
+| [8](#finding-8) | Refund evaluation used the full-access database connection | Fixed |
+| [9](#finding-9) | Partial-quantity refunds are not modeled | Open |
+| [10](#finding-10) | The system does not verify end-user identity | Open; backend perimeter added |
 
-## High severity
+The original severity groups described an earlier implementation. They are omitted here because the remaining risks need assessment against the intended deployment. Verified identity and data isolation would be prerequisites for customer use.
 
-**1. The groundedness check doesn't gate anything — it's a badge, not a backstop.**
-`analyze_service.py` computes `grounded` / `ungrounded_claims` via `check_groundedness()`, but `AnalyzeResponse` always includes the LLM's full `answer` text regardless of the result. The frontend renders the complete answer with equal visual prominence to a small badge underneath. `ARCHITECTURE.md` describes this as one of two non-substitutable gates alongside the structural gate, but in practice only the structural gate actually stops anything from reaching the caller — the probabilistic check is pure telemetry. This directly undercuts the product promise (`PRODUCT_SPEC.md`: "trust the answer is... backed by an actual policy citation"): a support analyst under time pressure reading top-to-bottom could easily act on a flagged-but-still-displayed hallucination.
+## Findings and follow-up
 
-**Status: Accepted.** The frontend shows a prominent warning banner now, whenever `grounded` is false (`DECISIONS.md` #18). Before, a small badge did that job, easy to miss under time pressure. The answer still renders in full either way. Part 1 has no remediation flow, no re-generation, no escalation, so there was nowhere else for a flagged answer to go. The check still doesn't gate anything.
+<a id="finding-1"></a>
 
-**2. Refund-request resolution can silently match the wrong customer, not just the wrong order.**
-In `refund_evaluator.resolve_order_item()`, if `customer_identifier` is falsy (extraction returns an empty string whenever the request text doesn't name a customer — common, since Part 1 has no identity/session concept at all), the SQL applies **no customer filter whatsoever** and returns the single most-recent order_item matching the product name across the *entire* customer base. `DECISIONS.md` #11 only discusses ambiguity within one customer's multiple orders — it never surfaces that with no customer identifier, the evaluator can render a real approve/deny decision against a completely different customer's purchase history. This is a correctness gap in the core evaluated use case, undocumented anywhere.
+### 1. What happens when a policy answer is flagged?
 
-**Status: Fixed.** `resolve_order_item()` refuses now when no customer identifier comes through. It used to fall back to a product-only match across every customer. A refund request naming no customer returns `could_not_process` (`DECISIONS.md` #16). Verified end to end against both seeded edge cases.
+**Original finding:** A small grounding badge was easy to miss beside a full answer. The design description also implied stronger enforcement than the check provided.
 
-**3. No retrieval-relevance floor — groundedness verifies citation-vs-retrieved, never retrieved-vs-relevant.**
-`rag/service.py::query_rag` always returns the top `k=3` chunks by cosine distance with no similarity threshold, out of a corpus of only ~17 chunks total. An off-topic or edge-case question still gets back its 3 "closest" chunks, and if the LLM cites one of them, `check_groundedness` passes trivially — it was retrieved, so it's "grounded," regardless of whether it's actually a good match for the question. This is precisely the gap-between-the-gates scenario the two-gate design is meant to close, but neither gate checks it: the structural gate has no visibility into RAG, and groundedness only checks presence, not relevance.
+**Current behavior:** A prominent warning lists ungrounded claims above the answer. The answer remains visible. Citation matching checks whether named rules were retrieved; it cannot establish that the answer interpreted them correctly.
 
-**Status: Fixed, with one open edge case.** A relevance threshold sits in front of every RAG answer now, calibrated at 0.46 locally and 0.48 in production (`DECISIONS.md` #39). A question with nothing relevant in the corpus gets refused. Before, it got a confident answer built on the closest available chunks anyway. One query, "damaged shipments policy," still ranks the wrong chunk first under the production embedding model. `DECISIONS.md` #53 and the README's Limitations section track that gap on its own, separate from the missing floor this finding named.
+**Remaining risk:** A user can act on a flagged answer. Regeneration, withholding a recommendation, and escalation remain unimplemented. The warning is accepted for the demo, with those limits stated.
 
-**4. No semantic/correctness check exists on the SQL path at all.**
-The four layers (AST/table-column allowlist, cost, DB role, audit) validate *shape* and *permission* — none of them, nor anything else, checks whether the generated query's logic actually answers the question asked (wrong join, wrong denominator for a "rate," inverted filter). A structurally valid but semantically wrong query passes all four layers and gets confidently narrated in the final answer, with no counterpart to the RAG path's (weak, per #3) groundedness signal. This asymmetry between the two paths isn't self-reported anywhere.
+**Evidence:** [Decision 18](DECISIONS.md#decision-18), [answer rendering](apps/web/src/components/AnalyzeResult.tsx), and [grounding calibration](evals/groundedness_calibration.md).
 
-**Status: Fixed.** A `sql_semantic` eval category checks the returned value now against a hand-verified number (`DECISIONS.md` #37). The old check only looked at the query's shape. The first real measurement came back at 66.7%. A targeted prompt fix brought that to 100%, holding across three runs since.
+<a id="finding-2"></a>
 
----
+### 2. Can a refund request resolve to the wrong customer?
 
-## Medium severity
+**Original finding:** When extraction returned no customer identifier, the lookup fell back to a product match across all customers.
 
-**5. Silent empty-answer failure on tool-loop exhaustion — violates the project's own "Fail Loudly" rule.**
-`analyze_service.py` runs `MAX_TOOL_ITERATIONS = 4`; if Claude is still requesting tools on the 4th call, the loop exits without ever hitting the `break` (which only fires when `stop_reason != "tool_use"`). `answer` then defaults to `""`, and since an empty string yields zero claimed citations, `check_groundedness("", ...)` trivially returns `grounded=True`. Net effect: a genuinely unanswered complex question renders as a blank answer with a green "Grounded" badge and a 200 OK — no error, no partial-result flag. `CLAUDE.md` explicitly names this exact pattern as a failure mode to avoid.
+**Current behavior:** Missing customer details return `could_not_process`. The product-only fallback was removed.
 
-**Status: Fixed.** The loop returns an explicit `incomplete: True` now when Claude never reaches a final answer (`DECISIONS.md` #17). It used to fall through to an empty string. That path skips the groundedness check entirely, so an empty answer can't pass it by accident.
+**Remaining risk:** A supplied name or email is not verified identity. The lookup also selects the most recent matching order item, so this fix does not resolve every ambiguity or establish permission to inspect that customer's order.
 
-**6. Refund-policy numeric constants are hand-duplicated with zero drift protection — the opposite of the project's own stated principle.**
-`refund_evaluator.py` hardcodes `REASON_WINDOW_DAYS`, `APPROVAL_THRESHOLD_CENTS`, `REPEAT_REFUND_THRESHOLD`, `FINAL_SALE_CATEGORIES`, etc., copied by hand from `docs/policies/refund_policy.md`. This is the exact anti-pattern the project explicitly engineered around elsewhere — decision #7's chunker and decision #9's groundedness rule-title map are both built to derive from the source doc rather than hand-duplicate it, specifically to avoid drift. Here, the numbers that actually drive real approve/deny/manager-approval decisions have no such linkage; a future policy edit (e.g. raising the threshold) silently desyncs with nothing to catch it.
+**Evidence:** [Decision 16](DECISIONS.md#decision-16) and [refund resolution](apps/api/app/orchestrator/refund_evaluator.py).
 
-**Status: Fixed.** `apps/api/tests/test_refund_policy_drift.py` checks the evaluator's hardcoded constants now against the actual wording in `refund_policy.md`. The numbers are still copied by hand, so this doesn't remove the duplication. A mismatch fails a test today, where it once shipped silently. The test already caught a real break, during a deliberate CI-gate check (`DECISIONS.md` #49).
+<a id="finding-3"></a>
 
-**7. No timeout/retry/circuit-breaker on any Anthropic API call, on synchronous routes sharing one threadpool.**
-`claude_client.py`, `refund_extraction.py`, and `analyze_service.py` all call the Anthropic SDK with default settings — no explicit timeout. Because the FastAPI routes are defined `def`, not `async def`, each call occupies a thread from FastAPI's shared, size-limited threadpool. A slow or rate-limited Anthropic API means hung requests accumulate across *all* request types at once — a spike of slow `/query/analyze` calls could starve unrelated `/refund/evaluate` calls. Not discussed anywhere in the docs.
+### 3. Can retrieval return no supporting evidence?
 
-**Status: Fixed.** Every Anthropic call now goes through a 30-second timeout and one bounded retry, with a 2-second delay, only for timeouts, dropped connections, rate limits, and 5xx responses (`DECISIONS.md` #38, `app/llm_retry.py`). A failed call returns a structured error instead of raising. `retry_count` on `request_log` records what happened, and a test mocks two failures in a row to confirm it.
+**Original finding:** Retrieval returned the nearest passages even for unrelated questions. Citing one could then satisfy the grounding check.
 
-**8. Refund evaluator's DB queries run under the full-privilege app connection, not the read-only role.**
-`resolve_order_item` / `evaluate_refund` use `SessionLocal` (the same connection used for migrations/seeding), not `ops_agent_readonly`. These queries are partly built from LLM-extracted free text via `.ilike()` — parameterized, so no injection risk, but the same "assume the logic layer has bugs, keep an independent DB-level backstop" reasoning behind decisions #5/#6 was never applied to this second LLM-adjacent path.
+**Current behavior:** A distance threshold filters retrieved candidates: 0.46 for local embeddings and 0.48 for Voyage. Retrieval can return no qualifying passages. The saved local comparison improved off-topic refusal from 0/15 to 12/15.
 
-**Status: Fixed.** The refund evaluator runs its queries now through its own restricted `refund_evaluator_readonly` Postgres role. That role is separate from the full-access connection used for migrations and seeding (`DECISIONS.md` #29). A test checks the evaluator is actually using it, so a regression here fails loudly.
+**Remaining risk:** Relevant and irrelevant passages overlap in distance. The threshold does not guarantee relevance or a refusal. One known production query, “damaged shipments policy,” still ranks the needed rule poorly.
 
-**9. Partial-quantity refunds aren't modeled, despite the policy explicitly requiring proration.**
-The refund-request extraction schema has no "how many units" field, and `evaluate_refund` always computes `amount_cents` as the full `quantity × unit_price_cents` for the line. A request to return 1 of 3 units gets evaluated as if the full 3-unit amount is being refunded, which can push a request across (or keep it under) the $200 manager-approval threshold incorrectly. `refund_policy.md`'s own "Partial Refunds" rule is simply unimplemented, and unlike the seed-date decay (#14) or ILIKE-ambiguity (#11) gaps, this isn't flagged anywhere as a known limitation.
+**Evidence:** [Retrieval service](apps/api/app/rag/service.py), [experiment results](evals/ablation_table.md), and [Decision 53](DECISIONS.md#decision-53).
 
-**Status: Open.** `evaluate_refund()` still computes `amount_cents` as the full `quantity × unit_price_cents` for the line. Extraction still excludes quantity entirely. That change fixed a different bug, the "2 Ergonomic Desk Chairs" extraction case, and left this one alone. A request to return one of three units still gets evaluated as if the whole line is being refunded. Nothing has changed here since this finding was written.
+<a id="finding-4"></a>
 
----
+### 4. Does valid SQL calculate the right answer?
 
-## Low severity
+**Original finding:** Execution checks restricted SQL access and cost but did not verify the calculation.
 
-**10. Zero authentication on any endpoint.**
-No CORS middleware, no `Authorization`/API-key checks, no auth dependency anywhere in `apps/api/app`. Documented as a non-goal in `PRODUCT_SPEC.md`, but combined with finding #2, the actual risk is understated: anyone with network access can pull any customer's order/refund history and produce refund decisions against arbitrary identities, with no record of who asked. Fine for a localhost demo; the docs never caveat against pointing this at anything more reachable than that.
+**Current behavior:** SQL evaluations compare returned values with independently calculated expectations. Those checks exposed calculation errors and guided a prompt change. Seven cases over three runs improved from 14/21 correct outcomes to 21/21.
 
-**Status: Accepted.** No authentication exists anywhere in the API. It's a documented non-goal, in `PRODUCT_SPEC.md` and in the README's own Limitations section. Finding #2's fix narrows the compounded risk this finding described. A wrong-customer decision can no longer happen silently. The underlying gap hasn't moved. Real deployment needs a real identity provider first.
+**Remaining risk:** These assertions cover known evaluation questions. They are not a runtime correctness check for arbitrary user requests. An allowed query can still return a plausible wrong answer.
 
----
+**Evidence:** [SQL calibration](evals/sql_semantic_calibration.md), [primary results](evals/primary_results.md), and [Decision 37](DECISIONS.md#decision-37).
 
-## What held up well
+<a id="finding-5"></a>
 
-Decision #6 (the column-grant vs. table-grant-then-revoke Postgres ACL discovery) is real, empirically-verified engineering — a genuinely non-obvious behavior (`REVOKE` on a column after a table-wide `GRANT` is a silent no-op) caught by actually testing it end-to-end, not just asserted in a comment, with the migration matching the doc's claim exactly. Decision #13 (`JSONB none_as_null`) is a sharp, non-obvious catch that most projects ship with silently. The named-citation groundedness heuristic (#9) and its explicit bias toward false positives over false negatives is a well-reasoned tradeoff given the stated constraint of no second LLM judge call — the reasoning holds up even under adversarial scrutiny, which is more than most self-reported tradeoffs survive.
+### 5. Does the tool loop report when it cannot finish?
+
+**Original finding:** Exhausting the loop could return an empty answer that passed the citation check and appeared grounded.
+
+**Current behavior:** The exhausted path returns `incomplete: true` with an explanation and skips grounding. Clients can distinguish this from a completed answer.
+
+**Remaining risk:** Clients must handle the incomplete field. The response does not by itself explain why the model kept requesting tools; that requires inspecting the trace.
+
+**Evidence:** [Decision 17](DECISIONS.md#decision-17) and [analyze service](apps/api/app/orchestrator/analyze_service.py).
+
+<a id="finding-6"></a>
+
+### 6. What catches a policy change that the code misses?
+
+**Original finding:** Refund constants were copied from policy text with no test tying them back to it.
+
+**Current behavior:** Tests compare selected policy values with evaluator constants, including reason windows, the approval threshold, and repeat-refund limits. A historical CI experiment deliberately changed the approval threshold and recorded failures in both the policy test and refund evaluation.
+
+**Remaining risk:** The constants remain manually maintained. The tests match specific wording and cover selected rules; they do not establish complete agreement between prose and code.
+
+**Evidence:** [Policy drift tests](apps/api/tests/test_refund_policy_drift.py) and [CI experiment](DECISIONS.md#decision-49).
+
+<a id="finding-7"></a>
+
+### 7. What happens when a model call stalls or fails?
+
+**Original finding:** Calls lacked a shared, explicit timeout and retry policy. Slow synchronous requests could occupy the application's worker threads.
+
+**Current behavior:** SQL generation and analyze calls use a wrapper with a 30-second timeout and one retry after two seconds for covered transient errors. Their services handle exhausted attempts with error or incomplete responses.
+
+**Remaining risk:** Refund, ticket, and invoice extraction still call the SDK outside that wrapper, as do the investigation planner and evaluation judge. The work did not establish circuit breaking or isolation between workloads. The original “fixed for every call” status was too broad.
+
+**Evidence:** [Retry wrapper](apps/api/app/llm_retry.py), [retry tests](apps/api/tests/test_llm_retry.py), and [Decision 38](DECISIONS.md#decision-38).
+
+<a id="finding-8"></a>
+
+### 8. How much database access does refund evaluation need?
+
+**Original finding:** The evaluator used the same full-access connection as migrations and seeding.
+
+**Current behavior:** It uses `refund_evaluator_readonly`, limited to its required tables. Customer email is available for resolution and excluded from the evaluator response.
+
+**Remaining risk:** Correct role configuration still matters. The role limits database operations but does not establish which customer records a caller may access.
+
+**Evidence:** [Restricted session](apps/api/app/db/refund_readonly.py) and [Decision 29](DECISIONS.md#decision-29).
+
+<a id="finding-9"></a>
+
+### 9. What if someone returns only part of an order line?
+
+**Original finding:** The policy allows partial refunds, but the evaluator calculates the amount using the full line quantity.
+
+**Current behavior:** The calculation remains `quantity × unit_price_cents`. Extraction has no field for the quantity being returned. Removing quantity from the product name fixed lookup behavior, not partial-refund support.
+
+**Remaining risk:** Returning one of several units can be evaluated against the full amount, affecting manager-approval routing. Supporting this needs quantity extraction, validation against the purchased units, and appropriate cases.
+
+**Evidence:** [Refund evaluator](apps/api/app/orchestrator/refund_evaluator.py), [extraction schema](apps/api/app/orchestrator/refund_extraction.py), and [refund policy](docs/policies/refund_policy.md).
+
+<a id="finding-10"></a>
+
+### 10. Who is allowed to use the customer data?
+
+**Original finding:** The early API had no authenticated caller or deployed perimeter.
+
+**Current behavior:** The backend checks a shared proxy secret, and CORS restricts browser origins. Tool permissions use a caller-set demo-role header. Those controls serve different purposes; none verifies the end user's identity.
+
+**Remaining risk:** Real users need verified identity and access scoped to their organization and records. Refusing a missing customer identifier does not authorize requests that supply one. The current demo should not be treated as ready for customer data.
+
+**Evidence:** [Proxy-secret middleware](apps/api/app/proxy_secret.py), [role checks](apps/api/app/permissions.py), and [Decision 23](DECISIONS.md#decision-23).
+
+## How to use this review
+
+Start with the remaining risk for the workflow you plan to change, then follow its evidence links. A completed fix closes a specific failure; it does not replace testing the surrounding request path.
+
+The [case study](CASE_STUDY.md) follows the investigations. [EVALS.md](EVALS.md) describes what the current suite exercises and what it bypasses.
