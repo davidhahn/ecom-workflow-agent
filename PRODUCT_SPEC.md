@@ -1,68 +1,66 @@
-# Product Spec: Enterprise Operations Intelligence Agent
+# Product scope
 
-## Problem
+I built an e-commerce operations assistant to explore how natural-language requests can work with business data and policy rules. This document describes the intended users, the workflows available today, and the limits of the demo.
 
-Ops and support analysts answer the same two kinds of questions constantly: "what does the data say" (refund rates, order trends, product-level patterns) and "what does policy say" (return windows, exclusions, approval thresholds). Today that means either writing SQL against the operations database directly, or hunting through policy markdown docs by hand — both slow, both require knowledge most analysts on the team don't have (SQL) or don't have memorized (the exact wording of every policy rule), and both are easy to get subtly wrong in a way that isn't obvious until a customer disputes the answer.
+The project began with SQL analysis and policy retrieval. Refund evaluation and other workflows followed. The [decision log](DECISIONS.md) preserves those earlier scope choices; [Architecture](ARCHITECTURE.md) describes the current implementation.
 
-This project builds a natural-language interface to both — one agent an analyst can ask a question in plain English, and trust the answer is either backed by a real query against real data, backed by an actual policy citation, or both.
+## Who is it for?
 
-## Users
+The intended users are support staff and operations analysts. A refund question can require an order lookup, a policy check, and a decision about whether a manager needs to review it. Reporting questions require agreement on what a metric means before calculating it.
 
-Primary: **ops and support analysts** — the people who field refund disputes, run ad hoc reporting for their lead, and decide (or recommend) whether a specific refund request should be approved. They are not SQL-literate and should never need to be. They need answers fast, and they need to be able to trust or verify those answers without independently re-deriving them.
+The assistant provides a plain-language interface to that work. The intended benefit is less manual lookup and more consistent handling of routine questions. This is a portfolio project using seeded records; customer adoption and time savings have not been measured.
 
-Secondary: whoever reviews this agent's own behavior — spot-checking whether its answers were actually grounded, whether it's rejecting the SQL it should reject. Part 1 supports this only as a byproduct (every request is logged), not as a dedicated workflow.
+Engineers and reviewers can also inspect requests through System Traces and examine saved evaluation results. Those interfaces help explain what the system did and where its behavior needs further work.
 
-## Goals (Part 1)
+## What can someone do?
 
-Part 1 exists to prove two things work end-to-end, on real data, before anything else gets built on top of them:
+| Workflow | Example | Current behavior |
+|---|---|---|
+| Ask about business data | “Which product category has the highest refund rate?” | Queries seeded records and returns an answer based on the results |
+| Look up policy | “What does our policy require before a damaged-shipping refund can be processed?” | Retrieves policy passages and uses them to answer |
+| Combine data and policy | Ask for a refund-rate calculation and the relevant policy | Can use both tools within the same bounded workflow |
+| Evaluate a refund | Paste a customer's refund request | Extracts details, resolves an order, and applies fixed refund rules |
+| Inspect a request | Open a result's execution trace | Shows the recorded outcome and available execution details |
 
-1. **A natural-language question about ops data gets answered from a real, safe, read-only SQL query** — not a fabricated number, not an unrestricted query against the database.
-2. **A natural-language question about refund policy gets answered from the actual policy document** — not the model's general knowledge or a plausible-sounding guess, and any claim citing a specific rule can be checked against what was actually retrieved.
+Refund evaluation can approve or deny a request, require manager approval, or flag it for review. An unresolved request returns `could_not_process`. The evaluator returns a decision without issuing the refund or updating its record.
 
-A third surface, **refund request evaluation**, was built alongside these to give the RAG path's policy rules a concrete, deterministic consumer: given a free-text refund request, resolve it against real order data and return a decision (approve / deny / needs manager approval / flag for review / can't process) with the specific rule that drove it — without ever guessing a value it isn't confident about.
+The API also supports ticket and invoice draft/confirm flows. Drafts require a separate confirmation request with write permission before a business record is inserted. These flows have no dedicated frontend screens. See the [API guide](apps/api/README.md) for endpoint details.
 
-## Non-Goals (Part 1)
+## What should the experience make clear?
 
-Deliberately out of scope for this phase — not because they don't matter, but because proving the two core paths work has to come first:
+**What the system used.** Answers should give users evidence they can inspect. Combined requests record tool calls, and policy answers expose citations that can be compared with retrieved passages.
 
-- **Executing** a refund decision (writing to the `refunds` table). Part 1 evaluates and recommends only.
-- Multi-agent decomposition, model routing, or any orchestration beyond a single tool-calling loop as a user-facing feature — a Planner → Data Analyst pipeline already exists (`app/orchestrator/investigation_planner.py`, `data_analyst.py`) but isn't wired to an endpoint yet (see `DECISIONS.md` #26).
-- No dedicated prompt-injection defense feature exists — though an 8-case `prompt_injection` eval category is actively run against the system, with at least one documented finding (see `DECISIONS.md` #9, the fabricated-rule-number case). Auth/RBAC and row-level data isolation remain out of scope (the structural gate restricts *what* can be queried — tables, columns, verbs — not *whose* data a given caller can see).
-- Full PII column-scoping — only `customers.email` is currently hardcoded out of reach. See `ARCHITECTURE.md`'s open questions.
-- A dedicated review/monitoring workflow for analysts auditing the agent's own answers — request logging exists, but nothing is built on top of it yet.
+**What completed.** Rejected queries and exhausted tool loops need explicit outcomes. A response should acknowledge an unsupported action rather than leave the user thinking it was performed.
 
-Full technical rationale for these boundaries lives in `ARCHITECTURE.md`; this doc states the product boundary, not the engineering reasoning behind it.
+**What needs review.** Citation warnings remain visible alongside the answer. Matching a cited rule to a retrieved passage does not establish that the answer applied it correctly.
 
-## Use Cases
+**What the user can change.** Missing customer details stop refund evaluation. The current interface does not conduct a follow-up conversation to resolve that ambiguity.
 
-**1. Ask an ops data question.**
-_"What's our refund rate for Electronics this quarter?"_ → the agent decides whether it needs live data, policy text, or both, runs whatever's needed, and answers in plain language with the query's result reflected accurately.
+These are product expectations. The evaluations test selected examples of them; they do not guarantee every generated response meets them.
 
-**2. Ask a policy question.**
-_"Can a customer return a clearance item?"_ → the agent answers from the actual refund policy document and states which rule the answer rests on, so the analyst (or the customer) can go check it themselves.
+## Where are the boundaries?
 
-**3. Ask a question that needs both.**
-_"Are we seeing more refund requests than our repeat-refund policy should be catching?"_ → the agent pulls real numbers and checks them against the actual policy rule in the same answer, rather than answering only the data half or only the policy half.
+Generated SQL runs through validation, cost checks, and a restricted database role. The model cannot use that path to write business records. Refund decisions follow a separate rules engine, with extracted fields checked against database records.
 
-**4. Evaluate a specific refund request.**
-An analyst pastes in a customer's free-text refund request → the agent resolves it against the real order/customer record and returns a decision, the specific policy rule that decision rests on, and its reasoning — or honestly says it can't process the request rather than guessing.
+The application still has limits that matter to users:
 
-## Functional Requirements
+- **Identity and access:** Demo roles come from a caller-set header. The backend proxy secret does not verify the end user. Verified identity and tenant isolation are required before connecting customer data.
+- **Refund coverage:** The evaluator uses the full order-line quantity. It does not support partial-quantity refunds or a persisted process for collecting missing evidence.
+- **Answer accuracy:** Allowed SQL can calculate the wrong value. Retrieval has a known production ranking failure, and citation checks can miss misinterpretations.
+- **Customer resolution:** Requiring a customer identifier prevents the missing-customer fallback. It does not authenticate that person or resolve every possible order match.
 
-- A single natural-language endpoint that can use a SQL tool, a policy-retrieval tool, both, or neither, depending on the question.
-- Every SQL query the agent runs must be a read-only `SELECT` against an explicit table/column allowlist, with no path for the agent to execute a write, regardless of how the question is phrased.
-- Every answer that cites a specific policy rule must be checked against what was actually retrieved for that request, and the answer must say so if a cited rule wasn't actually retrieved.
-- Refund evaluation must resolve against real order/customer records — never invent an order, a customer, or a refund amount — and must refuse to guess (rather than pick the most likely option) when the request text doesn't clearly map to one of the known reason codes.
-- Every request to any of the above must be logged (input, output, timing, cost) whether it succeeds, gets rejected, or errors.
+An investigation pipeline has a tested Planner and Data Analyst, but no endpoint or final report-writing stage. Open-ended investigation is not a completed product workflow. [Decision 45](DECISIONS.md#decision-45) records the deferral.
 
-## Success Criteria
+## How do I judge whether it works?
 
-- A representative set of ops-data questions gets answered with real, correct query results (validated by `evals/cases.json`'s `sql` and `mixed` cases).
-- A representative set of policy questions retrieves the actual governing rule in its top results (validated by the `rag` cases).
-- Adversarial or unsafe SQL requests (write attempts, blocked columns, disallowed tables) are rejected before execution, every time — this is a 100%-or-it's-broken bar, not a target to trend toward.
-- The groundedness check correctly flags a citation to a rule that wasn't actually retrieved, and correctly passes a citation that was (validated by the `groundedness` cases).
-- Refund evaluation reaches the correct decision, for the correct policy reason, on known real order rows — and correctly declines to process ambiguous or unresolvable requests instead of guessing (validated by the `refund_evaluator` cases).
+For the demo, I check calculations against independently derived answers, retrieval against expected passages, and refund outcomes against policy rules and seeded orders. Fixed-input tests exercise execution restrictions and failure handling.
 
-## What's Next
+The refund-rule evaluations bypass natural-language extraction, so passing those cases does not validate the full request path. Deployment checks exposed that gap. [EVALS.md](EVALS.md) describes coverage, while the [case study](CASE_STUDY.md) follows the resulting fixes.
 
-Later phases — multi-agent orchestration, security hardening, observability tooling beyond request logging — are intentionally undesigned until the above is proven. See `ARCHITECTURE.md` for the scope boundary and open questions that later phases will need to resolve.
+A customer pilot would need its own success criteria. I would start with one workflow, measure its current handling time and correction rate, and agree on which errors require human review or stopping the pilot. Those business outcomes remain unmeasured here.
+
+## Try it or explore further
+
+[Run a scenario](https://ecom-workflow-agent-web.vercel.app/scenarios) to inspect an example request and its outcome. The [Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab) provides saved measurements and their scope.
+
+The [roadmap](LATER.md) tracks proposed work. Implementation details and setup belong in [Architecture](ARCHITECTURE.md) and [Setup and deployment](docs/DEPLOY.md).
