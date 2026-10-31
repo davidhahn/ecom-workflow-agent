@@ -1,35 +1,42 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { ExpandableImage } from "@/components/ExpandableImage";
 import { SnapshotTabs } from "@/components/SnapshotTabs";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { GITHUB_REPO_URL } from "@/lib/site";
 import { RESPONSIBILITY_ROWS } from "@/lib/architecture";
-import { getEvalResults, type EvalCategoryResult } from "@/lib/evals";
+import { getEvalResults } from "@/lib/evals";
 
 export const metadata: Metadata = {
   description:
     "A full-stack case study in reliable AI systems: grounding, deterministic guardrails, evals, and cost and latency tracking, worked out through a real e-commerce ops agent.",
 };
 
-// A curated subset, not the full category list. These four map to the
-// site's three core capabilities (SQL, RAG, refunds) plus the permission
-// gate. The numbers still come from the committed run either way.
-const HIGHLIGHT_CATEGORIES = ["sql_semantic", "rag", "refund_evaluator", "permission"];
-
-// Two of the five findings in evals/findings.md, picked to show the site
-// measures real gaps and closes them, not just a pass rate. Both link into
-// the Evaluation Lab's Findings report.
-const FINDING_CARDS: { title: string; body: string }[] = [
+const FINDINGS = [
   {
-    title: "Safe SQL, wrong number.",
-    body: "Structural checks passed 21 of 21. The actual values only matched by hand-checking 14 of 21. A prompt fix closed that gap, and it held for three runs after.",
+    title: "Safe SQL can still return the wrong business answer",
+    problem: "Structural checks passed, but the queries could still calculate the wrong refund rate.",
+    decision: "I checked the returned values against independent calculations, then clarified the metric instructions and added result assertions.",
+    evidence: "Seven cases improved from 14/21 correct results to 21/21 across three runs. That demonstrates the fix on this workload, not every possible query.",
+    href: "/evaluation-lab#findings",
+    link: "Read the SQL investigation →",
   },
   {
-    title: "The same query, two different answers.",
-    body: "One embedding model ranked the right policy chunk second. Production's model ranked it fourth, past the cutoff. The threshold now gets calibrated per provider.",
+    title: "A retrieval setting didn't transfer to production",
+    problem: "The same policy query ranked the relevant chunk second with one embedding model and fourth with production's model, beyond the cutoff.",
+    decision: "I calibrated the retrieval threshold per provider rather than assuming the same settings would work for both.",
+    evidence: "Separate thresholds addressed other retrieval failures, but this specific damaged-shipment query remained unresolved. The ranking comparison explains the remaining gap.",
+    href: "/evaluation-lab#findings",
+    link: "Read the retrieval investigation →",
+  },
+  {
+    title: "The model proposes; code decides what can happen",
+    problem: "Interpreting a request requires flexibility. Database permissions and refund eligibility need consistent enforcement.",
+    decision: "Claude selects tools and extracts intent. Code validates SQL access and applies fixed refund rules, without giving the model a refund write path.",
+    evidence: "The scenario above shows an embedded override being ignored. The architecture and request traces expose the checks behind the decision; one example alone isn't a security guarantee.",
+    href: "/architecture",
+    link: "Explore the controls and tradeoffs →",
   },
 ];
 
@@ -63,10 +70,6 @@ const EXPLORE_LINKS: { href: string; label: string; description: string }[] = [
 
 export default function HomePage() {
   const results = getEvalResults();
-  const highlights = HIGHLIGHT_CATEGORIES.map((name) =>
-    results.categories.find((c) => c.category === name)
-  ).filter((c): c is EvalCategoryResult => c !== undefined);
-  const failing = results.categories.filter((c) => c.failed > 0);
 
   return (
     <div className="flex flex-col gap-14">
@@ -135,236 +138,35 @@ export default function HomePage() {
 
       <SnapshotTabs />
 
-      {/* 1. Can we trust the answer? */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">1. Can we trust the answer?</h2>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            An LLM can sound completely sure of something that&apos;s wrong. In an ops setting, an
-            answer built on a policy nobody looked up is expensive, and nobody finds out until
-            later.
-          </p>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Retrieval scores each question against the policy corpus by similarity, and anything
-            under a calibrated threshold gets dropped. An off-topic question comes back with
-            &quot;I don&apos;t know.&quot; It doesn&apos;t get a guess dressed up as an answer. A
-            separate groundedness check goes further. It confirms that any rule the final answer
-            cites showed up in what got retrieved for that request.
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {FINDING_CARDS.filter((c) => c.title.startsWith("The same query")).map((card) => (
-            <Card key={card.title} className="overflow-hidden p-0">
-              <Link
-                href="/evaluation-lab#findings"
-                className="block p-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
-              >
-                <h3 className="font-semibold">{card.title}</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{card.body}</p>
-              </Link>
-            </Card>
-          ))}
-          <Link
-            href="/ask"
-            className="flex flex-col justify-center rounded-md border border-black/10 p-5 hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
-          >
-            <h3 className="font-semibold">Try it against a real question</h3>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              Ask a policy question on the Ask page and see the retrieved evidence and grounding
-              status behind the answer.
-            </p>
-          </Link>
-        </div>
-      </section>
-
-      {/* 2. Can we trust the action? */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">2. Can we trust the action?</h2>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            A model that reasons well still needs a leash around what it can do. Claude decides
-            what ought to happen next, whether that&apos;s a SQL query or a refund decision.
-            Whether it happens is up to code sitting outside the model.
-          </p>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Before any of that reaches the database, three separate checks get a look at it. One
-            is an AST-level allowlist: it knows which tables, columns, and functions are fair
-            game, and blocks the rest. Another puts a ceiling on how expensive a query is allowed
-            to get, checked before the query runs. A permission gate sits behind both of those,
-            matching the calling role against what that role is allowed to touch. Even if every
-            one of those had a bug, the database role itself only has access to a narrow slice of
-            the schema.
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="py-5">
-            <CardContent className="px-5">
-              <p className="font-mono text-xs text-gray-400 dark:text-gray-500">Model</p>
-              <h3 className="mt-1 font-semibold">Proposes</h3>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                Claude reads the request and figures out whether the answer needs a SQL query, a
-                policy lookup, or both, and drafts one. It never touches the database or the
-                refunds table directly.
-              </p>
-            </CardContent>
+      <section className="flex flex-col gap-6" aria-labelledby="engineering-findings">
+        <h2 id="engineering-findings" className="text-2xl font-semibold">
+          Three engineering decisions behind the demo
+        </h2>
+        {FINDINGS.map((finding) => (
+          <Card key={finding.title} className="gap-4 p-5 sm:p-6">
+            <h3 className="text-lg font-semibold">{finding.title}</h3>
+            <dl className="grid gap-3 text-sm text-gray-600 dark:text-gray-300">
+              <div>
+                <dt className="font-medium text-gray-900 dark:text-gray-100">Problem</dt>
+                <dd className="mt-1 max-w-prose">{finding.problem}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-gray-900 dark:text-gray-100">Decision</dt>
+                <dd className="mt-1 max-w-prose">{finding.decision}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-gray-900 dark:text-gray-100">Evidence</dt>
+                <dd className="mt-1 max-w-prose">{finding.evidence}</dd>
+              </div>
+            </dl>
+            <Link
+              href={finding.href}
+              className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline"
+            >
+              {finding.link}
+            </Link>
           </Card>
-          <Card className="py-5">
-            <CardContent className="px-5">
-              <p className="font-mono text-xs text-gray-400 dark:text-gray-500">Code</p>
-              <h3 className="mt-1 font-semibold">Enforces</h3>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                A handful of independent checks run before anything touches real data. Refunds
-                follow their own fixed rule waterfall, model or no model, with no write path the
-                LLM controls.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <ExpandableImage
-          src="/architecture-diagram.svg"
-          alt="Request flow: user request through the agent/orchestrator loop, into the SQL tool or the Policy/RAG tool, through a deterministic enforcement seam, to a final response, with a trace log recording every stage."
-          className="mx-auto w-full max-w-2xl rounded-md border border-black/10 dark:border-white/10"
-        />
-      </section>
-
-      {/* 3. How do we know it works? */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">3. How do we know it works?</h2>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            If you don&apos;t measure behavior, all you have is a story about the system. A change
-            can read like an improvement in one transcript and still be a regression somewhere
-            else, in a place that transcript never shows you.
-          </p>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Every claim on this page is backed by a versioned eval suite, {results.overall.total}{" "}
-            cases right now, scored by a fixed rule wherever that&apos;s possible, and by a judge
-            model only when a fixed rule can&apos;t capture the question. Every change runs
-            through the same harness before it ships. The harness traces every failure back to a
-            root cause before it counts.
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {highlights.map((c) => (
-            <Card key={c.category} className="py-4">
-              <CardContent className="px-4">
-                <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{c.category}</p>
-                <p className="mt-1 text-2xl font-semibold text-accent">
-                  {c.passed}/{c.n}
-                </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {c.pass_rate.toFixed(1)}%
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {FINDING_CARDS.filter((c) => c.title.startsWith("Safe SQL")).map((card) => (
-            <Card key={card.title} className="overflow-hidden p-0">
-              <Link
-                href="/evaluation-lab#findings"
-                className="block p-5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
-              >
-                <h3 className="font-semibold">{card.title}</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{card.body}</p>
-              </Link>
-            </Card>
-          ))}
-        </div>
-
-        {failing.length > 0 && (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Still not at 100%: {failing.map((c) => c.category).join(", ")}.
-          </p>
-        )}
-
-        <Link
-          href="/evaluation-lab"
-          className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline"
-        >
-          See the full breakdown →
-        </Link>
-      </section>
-
-      {/* 4. Can we understand what happened? */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">4. Can we understand what happened?</h2>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            The words in an answer aren&apos;t proof of what happened to produce it. Without
-            instrumentation, a production LLM system is a black box, and debugging it means
-            guessing.
-          </p>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Every request writes its own record as it runs. The trace captures which tools got
-            called and what came back from each one. It also captures whether the groundedness
-            check passed and which guardrails fired. Alongside that sits the ordinary operational
-            detail: latency broken down by step, tokens, cost, and whether the answer came from
-            cache. System Traces lays all of it out next to the original request, in the order it
-            happened.
-          </p>
-        </div>
-
-        <Link
-          href="/activity"
-          className="self-start rounded-md border border-black/10 px-4 py-2 text-sm hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
-        >
-          <span className="font-semibold text-accent">Every request</span>{" "}
-          <span className="text-gray-500 dark:text-gray-400">traced end to end →</span>
-        </Link>
-      </section>
-
-      {/* 5. How should AI and code split the work? */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">5. How should AI and code split the work?</h2>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Every part of this architecture is a decision about who holds judgment here, the
-            model or the code. Getting that call wrong has a real failure mode attached to it,
-            whichever direction it goes.
-          </p>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            The seam is what the README calls &quot;LLM proposes, Python enforces&quot;: Claude
-            keeps the parts that call for judgment, and ordinary code keeps everything that
-            can&apos;t be left to a guess. The Architecture page follows a request through the controls and explains what happens
-            when it fails.
-          </p>
-        </div>
-
-        <Link
-          href="/architecture"
-          className="self-start rounded-md border border-black/10 px-4 py-2 text-sm hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
-        >
-          <span className="font-semibold text-accent">{RESPONSIBILITY_ROWS.length}</span>{" "}
-          <span className="text-gray-500 dark:text-gray-400">checks that run without the model →</span>
-        </Link>
-      </section>
-
-      {/* 6. Does it work as real software? */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">6. Does it work as real software?</h2>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            A prototype that only works in a notebook, or along a single happy path, doesn&apos;t
-            say much about whether a design holds up. The reliability questions above only mean
-            something if the surrounding system is real, deployed software.
-          </p>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            A Next.js and TypeScript frontend talks to a FastAPI backend over generated,
-            type-safe API types. Postgres with pgvector backs both the transactional data and the
-            policy retrieval index, migrated with Alembic and seeded from a re-runnable fixture
-            script. External calls carry timeouts and one bounded retry. When something fails
-            anyway, it comes back as a structured error, a status the caller can act on. A
-            deterministic slice of the eval suite has to pass in CI before any of it reaches
-            production.
-          </p>
-        </div>
+        ))}
       </section>
 
       <section className="flex flex-col gap-3 border-t border-black/10 pt-10 dark:border-white/10">
