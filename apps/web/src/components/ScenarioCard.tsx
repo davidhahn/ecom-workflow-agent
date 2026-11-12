@@ -80,6 +80,15 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
           </p>
         </details>
 
+        <div className="rounded-md border border-black/10 p-4 dark:border-white/10">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            Request sent to the agent
+          </p>
+          <blockquote className="mt-2 max-w-prose text-sm whitespace-pre-wrap wrap-anywhere text-gray-700 dark:text-gray-300">
+            {scenario.input}
+          </blockquote>
+        </div>
+
         <Button type="button" onClick={run} disabled={state.status === "loading"} className="self-start">
           {state.status === "loading" ? "Running…" : "Run it fresh"}
         </Button>
