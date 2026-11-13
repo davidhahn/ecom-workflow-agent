@@ -24,7 +24,7 @@ describe("Landing page", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        new RegExp(`eval cases pass \\(${results.overall.pass_rate.toFixed(1).replace(".", "\\.")}%\\)`)
+        new RegExp(`passed \\(${results.overall.pass_rate.toFixed(1).replace(".", "\\.")}%\\)`)
       )
     ).toBeInTheDocument();
   });
@@ -61,15 +61,18 @@ describe("Landing page", () => {
     expect(findingLinks).toHaveLength(2);
   });
 
-  it("renders a highlight stat card for each curated category with real numbers from results.json", () => {
-    const results = getEvalResults();
+  it("shows the engineering findings and the remaining retrieval limitation", () => {
     render(<HomePage />);
 
-    for (const name of ["sql_semantic", "rag", "refund_evaluator", "permission"]) {
-      const category = results.categories.find((c) => c.category === name)!;
-      expect(screen.getByText(name)).toBeInTheDocument();
-      expect(screen.getAllByText(`${category.passed}/${category.n}`).length).toBeGreaterThan(0);
+    for (const name of [
+      "Safe SQL can still return the wrong business answer",
+      "A retrieval setting didn't transfer to production",
+      "The model proposes; code decides what can happen",
+    ]) {
+      expect(screen.getByRole("heading", { name, level: 3 })).toBeInTheDocument();
     }
+    expect(screen.getByText(/specific damaged-shipment query remained unresolved/)).toBeInTheDocument();
+    expect(screen.getByText(/Saved evaluation run:/)).toBeInTheDocument();
   });
 
   it("links into every other page in the site", () => {

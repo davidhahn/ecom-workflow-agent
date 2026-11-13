@@ -25,17 +25,24 @@ export function AnalyzeResult({
 
   return (
     <div className="flex flex-col gap-5 rounded-md border border-black/10 p-6 dark:border-white/10">
-      <div className="flex flex-wrap gap-2">
-        <Badge variant={result.sql_used ? "success" : "secondary"}>
-          {result.sql_used ? "SQL used" : "SQL not used"}
-        </Badge>
-        <Badge variant={result.rag_used ? "success" : "secondary"}>
-          {result.rag_used ? "Policy lookup used" : "Policy lookup not used"}
-        </Badge>
-        <Badge variant={result.grounded ? "success" : "danger"}>
-          {result.grounded ? "Grounded" : "Ungrounded claims detected"}
-        </Badge>
-        {result.cached && <Badge variant="secondary">Cached</Badge>}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-gray-500 dark:text-gray-400">Tools used:</span>
+          {result.sql_used && <Badge variant="secondary">Database query</Badge>}
+          {result.rag_used && <Badge variant="secondary">Policy search</Badge>}
+          {!result.sql_used && !result.rag_used && <Badge variant="secondary">None</Badge>}
+          {result.cached && <Badge variant="secondary">Cached</Badge>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-gray-500 dark:text-gray-400">Policy citation check:</span>
+          <Badge variant={result.grounded ? "success" : "danger"}>
+            {result.grounded ? "Passed" : "Flagged"}
+          </Badge>
+        </div>
+        <p className="max-w-prose text-xs text-gray-500 dark:text-gray-400">
+          Checks whether cited policy rules appeared in the retrieved material. A pass can
+          also mean no policy citations were found. This doesn&apos;t verify every claim or calculation.
+        </p>
       </div>
 
       {!result.grounded && (

@@ -112,11 +112,12 @@ export default function HomePage() {
             href="/evaluation-lab"
             className="rounded-md border border-black/10 px-4 py-2 text-sm hover:bg-black/[0.03] dark:border-white/10 dark:hover:bg-white/[0.03]"
           >
+            <span className="text-gray-500 dark:text-gray-400">Saved evaluation run: </span>
             <span className="font-semibold text-accent">
               {results.overall.passed}/{results.overall.total}
             </span>{" "}
             <span className="text-gray-500 dark:text-gray-400">
-              eval cases pass ({results.overall.pass_rate.toFixed(1)}%)
+              passed ({results.overall.pass_rate.toFixed(1)}%)
             </span>
           </Link>
           <Link

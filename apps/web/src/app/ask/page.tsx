@@ -55,10 +55,7 @@ export default function AskPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold">Ask</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Test the agent across data and knowledge. Claude decides whether the question needs a
-          SQL query, a policy lookup, or both. Deterministic controls decide what data it&apos;s
-          allowed to reach. A grounding check flags any claim the retrieved evidence doesn&apos;t
-          support.
+          Ask a question about the sample orders or refund policies.
         </p>
       </div>
 
@@ -90,6 +87,11 @@ export default function AskPage() {
           ))}
         </div>
       </div>
+
+      <p className="max-w-prose text-sm text-gray-500 dark:text-gray-400">
+        Claude chooses a database query, a policy search, or both. Code controls data access,
+        and a policy citation check compares cited rules with the retrieved material.
+      </p>
 
       {state.status === "error" && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">

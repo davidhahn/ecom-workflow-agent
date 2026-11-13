@@ -31,8 +31,8 @@ describe("AnalyzeResult", () => {
     render(<AnalyzeResult result={baseResult({ sql_used: true, rag_used: false })} />);
 
     expect(screen.getByText(/highest refund rate/i)).toBeInTheDocument();
-    expect(screen.getByText("SQL used")).toBeInTheDocument();
-    expect(screen.getByText("Policy lookup not used")).toBeInTheDocument();
+    expect(screen.getByText("Database query")).toBeInTheDocument();
+    expect(screen.queryByText("Policy search")).not.toBeInTheDocument();
   });
 
   it("flags an ungrounded answer instead of presenting it as trustworthy", () => {
@@ -42,7 +42,7 @@ describe("AnalyzeResult", () => {
       />
     );
 
-    expect(screen.getByText("Ungrounded claims detected")).toBeInTheDocument();
+    expect(screen.getByText("Flagged")).toBeInTheDocument();
     expect(screen.getByText(/unverified claim/i)).toBeInTheDocument();
     expect(screen.getByText("rule 15")).toBeInTheDocument();
   });
