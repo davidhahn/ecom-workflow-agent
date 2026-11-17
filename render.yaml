@@ -26,7 +26,7 @@ services:
     runtime: python
     plan: starter
     rootDir: apps/api
-    buildCommand: pip install poetry && poetry install --no-interaction --no-ansi
+    buildCommand: POETRY_INSTALLER_PARALLEL=false poetry install --no-interaction --no-ansi
     # Migrations run on every deploy, no exceptions — this is a pre-deploy
     # command, not part of buildCommand, specifically so it runs against the
     # real target database and blocks the new version from receiving traffic
@@ -47,6 +47,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.14.5
+      - key: POETRY_VERSION
+        value: 2.1.3
       - key: DATABASE_URL
         fromDatabase:
           name: ecom-ops-db
@@ -91,11 +93,13 @@ services:
     plan: starter
     rootDir: apps/api
     schedule: "0 6 * * *" # 06:00 UTC daily — low-traffic time for a demo app
-    buildCommand: pip install poetry && poetry install --no-interaction --no-ansi
+    buildCommand: POETRY_INSTALLER_PARALLEL=false poetry install --no-interaction --no-ansi
     startCommand: poetry run python -m app.db.seed
     envVars:
       - key: PYTHON_VERSION
         value: 3.14.5
+      - key: POETRY_VERSION
+        value: 2.1.3
       - key: DATABASE_URL
         fromDatabase:
           name: ecom-ops-db

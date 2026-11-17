@@ -110,6 +110,14 @@ The proxy supplies the secret from the web environment. Review the generated dif
 
 [render.yaml](../render.yaml) declares the API service, a Postgres database, and a daily reseed job. It sets the API root to `apps/api`. The pre-deploy command runs migrations and policy ingestion; the start command launches Uvicorn on the assigned port.
 
+Render already supplies Poetry. Both services pin `POETRY_VERSION=2.1.3` and use this build command:
+
+```bash
+POETRY_INSTALLER_PARALLEL=false poetry install --no-interaction --no-ansi
+```
+
+Do not prepend `pip install poetry`: that installs another copy into the build environment and changes shared dependencies before the locked application install. Serial installation avoids overlapping package changes while pip is running. If a build failed with an inconsistent `attrs` import during dependency installation, clear the Render build cache before redeploying. For services managed through the dashboard rather than Blueprint sync, apply the build command and Poetry version there too.
+
 Create a Render Blueprint from the repository and review the declared resources. Configure the required environment before a successful deployment:
 
 - `DATABASE_URL` comes from the Blueprint's database connection.
