@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from app.llm_retry import AnthropicCallFailed, call_with_retry, new_client
 from app.query.schema_context import build_schema_context
+from app.query.metric_instructions import SQL_METRIC_INSTRUCTIONS
 from app.query.tool_spec import RUN_SQL_QUERY_TOOL
 
 load_dotenv()
@@ -32,19 +33,7 @@ list columns explicitly — never use SELECT *, and use COUNT(id) rather than
 COUNT(*). The customers table's email column is not available to you and
 must never appear in your query.
 
-When a question asks for a rate or percentage over order line items (e.g.
-"refund rate"), compute both sides of the ratio in the same unit as the
-question — use SUM(order_items.quantity), not a row count, since one
-order_items row can represent more than one unit sold. Only count a refund
-toward a rate if it reflects a completed outcome (refunds.status =
-'approved') — a pending or denied refund hasn't actually happened.
-
-Example — "What is the refund rate for a product category?"
-  Wrong: COUNT(DISTINCT refunds.id) / COUNT(DISTINCT order_items.id)
-    (counts rows, not units, and counts every refund regardless of status)
-  Right: SUM(order_items.quantity) FILTER (WHERE refunds.status = 'approved')
-         / SUM(order_items.quantity)
-    (counts units sold, and only refunds that were actually approved)
+{metric_instructions}
 
 Schema:
 {schema}
@@ -85,7 +74,7 @@ def propose_sql(question: str) -> ProposedQuery:
             client,
             model=model,
             max_tokens=1024,
-            system=SYSTEM_PROMPT.format(schema=build_schema_context()),
+            system=SYSTEM_PROMPT.format(schema=build_schema_context(), metric_instructions=SQL_METRIC_INSTRUCTIONS),
             tools=[RUN_SQL_QUERY_TOOL],
             tool_choice={"type": "tool", "name": "run_sql_query"},
             messages=[{"role": "user", "content": question}],

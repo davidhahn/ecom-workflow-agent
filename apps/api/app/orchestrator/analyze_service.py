@@ -10,6 +10,7 @@ from app.observability.logger import request_log_span
 from app.observability.schemas import ToolCallEntry
 from app.query.claude_client import DEFAULT_MODEL, ProposedQuery
 from app.query.schema_context import build_schema_context
+from app.query.metric_instructions import SQL_METRIC_INSTRUCTIONS
 from app.query.service import ExecutedQuery, execute_proposed_query
 from app.rag.service import NO_RELEVANT_EVIDENCE_MESSAGE, query_rag
 from app.rag.schemas import RagChunkResult
@@ -26,7 +27,7 @@ MAX_TOOL_ITERATIONS = 4
 # claude_client.PROMPT_VERSION, the one already tracking the SQL prompt.
 # This prompt had no version marker before now, so a model comparison run
 # had no way to confirm it held steady between runs.
-SYSTEM_PROMPT_VERSION = "v2"
+SYSTEM_PROMPT_VERSION = "v3"
 
 SYSTEM_PROMPT = """You are an ops assistant for an eCommerce company. Answer \
 the user's question using the tools available:
@@ -64,6 +65,8 @@ knowledge.
 This is an enterprise ops tool. Write your final answer in plain \
 professional prose — no emoji.
 
+{metric_instructions}
+
 Database schema:
 {schema}
 """
@@ -75,7 +78,10 @@ def _run_search_policy_tool(tool_input: dict) -> list[RagChunkResult]:
 
 
 def _run_run_sql_query_tool(question: str, tool_input: dict) -> ExecutedQuery:
-    proposed = ProposedQuery(query=tool_input["query"], intent=tool_input["intent"])
+    proposed = ProposedQuery(
+        query=tool_input["query"], intent=tool_input["intent"],
+        prompt_version=f"analyze-{SYSTEM_PROMPT_VERSION}",
+    )
     return execute_proposed_query(question, proposed)
 
 
@@ -93,7 +99,7 @@ def _build_sources(chunks: list[RagChunkResult]) -> list[SourceRef]:
 
 def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
     with request_log_span("analyze", question) as log:
-        cache_key = normalize_key(question)
+        cache_key = f"{SYSTEM_PROMPT_VERSION}:{normalize_key(question)}"
         cached = None if bypass_cache else cache_get("analyze", cache_key)
         if cached is not None:
             log.cached = True
@@ -113,7 +119,7 @@ def analyze(question: str, *, bypass_cache: bool = False) -> AnalyzeResponse:
 
         client = new_client()
         model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
-        system = SYSTEM_PROMPT.format(schema=build_schema_context())
+        system = SYSTEM_PROMPT.format(schema=build_schema_context(), metric_instructions=SQL_METRIC_INSTRUCTIONS)
 
         messages: list[dict] = [{"role": "user", "content": question}]
         sql_used = False

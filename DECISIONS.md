@@ -977,3 +977,17 @@ No decision was recorded under this number. It is reserved to preserve existing 
 **Tradeoff:** Five runtime dependencies were added, with motion carrying weight for a small number of components. Unused candidate libraries contributed no code. This choice traded dependency cost for reusable component behavior.
 
 **Evidence:** [UI components](apps/web/src/components/ui/).
+
+### 61. Share metric definitions with the Ask SQL-generation path
+
+*2026-11-16*
+
+**Observed failure:** A fresh deployed Ask response to “Which products have the highest refund rate?” labeled order-item row counts as units sold and counted refunds without filtering approved status. Trace: `876ffc6a-872f-48ce-8a56-177c15c80a0e`.
+
+**Cause:** `/query/sql` sends the metric instructions from its v2 prompt to Claude. `/query/analyze` generates SQL itself with a separate prompt and calls `execute_proposed_query` directly, bypassing that prompt. Structural and permission checks do not establish metric correctness. The existing SQL semantic evaluations exercise `/query/sql`, so those results do not prove the Ask path follows the same definition.
+
+**Decision:** Extract the existing quantity/status instructions into one shared module and include them in both model requests. Bump the analyze prompt to v3, version its cache key to avoid pre-fix answers, and tag its SQL audit entries `analyze-v3`. The direct SQL prompt's rendered metric text remains unchanged.
+
+**Verification:** Model-boundary tests inspect the actual prompt sent by both paths, plus cache-key and audit-version tests. An opt-in live Ask regression compares the generated Home refund-rate result with an independent Postgres calculation using quantities and approved refunds. Existing evaluation cases, expected answers, and historical results remain unchanged.
+
+**Limit:** Sharing instructions prevents this configuration mismatch; it does not guarantee model compliance. Local network restrictions blocked database-backed verification in this session. The live regression must pass with model/database access, followed by a deployed fresh-run check, before calling the production calculation fixed. Historical 21/21 results describe the direct SQL path and its tested workload.
