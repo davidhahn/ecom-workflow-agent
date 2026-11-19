@@ -9,6 +9,16 @@ import path from "node:path";
 // also accepts the app root, which is how a root-level file deployed fine
 // while next dev quietly ran without any proxy.
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/evaluation-report": [
+      "../../evals/cases.json",
+      "../../evals/results/20260822-201944/results.json",
+      "../../evals/results/20260822-201944/experiment.json",
+      "../../evals/labels.json",
+      "../../evals/request_faithfulness_labels.json",
+      "../../evals/ablation_raw.json",
+    ],
+  },
   turbopack: {
     root: path.join(__dirname, "..", ".."),
   },

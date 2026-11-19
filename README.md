@@ -24,12 +24,12 @@ The project is about designing a system that can catch, explain, and contain mod
 
 ## Results
 
-I used a dataset of 79 evaluation cases to test behavior against known answers and expected outcomes. Eighteen cases run in CI without live model calls.
+The dataset defines 79 cases across 13 categories. The saved August 22 local run scored 62 cases: 60 passed and 2 failed (96.8%). The remaining 17 were not scored: 8 invoice cases, 6 ticket cases, and 3 injection cases without the required harness. This historical run does not evaluate the current deployment. Eighteen cases run in CI without live model calls.
 
 - **SQL correctness: 67% → 100%.** Seven cases ran three times before and after a prompt change, improving from 14/21 to 21/21 correct answers.
 - **Policy retrieval: 58% → 92%.** A relevance threshold improved handling of off-topic questions. These results use the local embedding model; I still need to repeat the evaluation with the production provider.
 
-[Full report](evals/primary_results.md) · [Methodology](evals/methodology.md)
+[Public evaluation report](https://ecom-workflow-agent-web.vercel.app/evaluation-report) · [Before/after evidence](evals/primary_results.md) · [Methodology](evals/methodology.md)
 
 ## See it in action
 

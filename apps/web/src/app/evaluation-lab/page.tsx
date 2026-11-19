@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ReportDisclosure } from "@/components/ReportDisclosure";
 import { Markdown } from "@/components/Markdown";
 import { NextSteps } from "@/components/NextSteps";
@@ -51,6 +52,9 @@ export default function EvaluationLabPage() {
     <div className="flex flex-col gap-12">
       <div>
         <h1 className="text-3xl font-semibold">Evaluation Lab</h1>
+        <Link href="/evaluation-report" className="mt-3 inline-block text-sm font-medium text-accent underline underline-offset-2">
+          Read the public evaluation report →
+        </Link>
         <p className="mt-3 max-w-prose text-base text-gray-600 dark:text-gray-300">
           I use these evaluations to check changes against known answers and expected behavior.
           The reports below show what improved, what failed, and how the findings changed what I built.
