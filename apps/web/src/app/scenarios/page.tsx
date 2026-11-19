@@ -11,9 +11,13 @@ export default function ScenariosPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold">Scenarios</h1>
         <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          Run a curated case and compare the result against the behavior promised up front.
+          Choose a scenario, compare its request and saved result, then run it fresh to inspect the execution trace.
         </p>
       </div>
+
+      <p className="max-w-prose text-sm text-gray-500 dark:text-gray-400">
+        Uses seeded sample data. Refund scenarios evaluate eligibility; they do not issue refunds.
+      </p>
 
       <ScenarioDemo />
 

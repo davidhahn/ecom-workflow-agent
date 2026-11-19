@@ -18,10 +18,22 @@ const WRAPPER_CLASSES = [
   "[&_table]:w-full [&_table]:border-collapse [&_th]:border-b [&_td]:border-t [&_th]:border-black/10 [&_td]:border-black/10 [&_th]:py-1.5 [&_td]:py-1.5 [&_th]:text-left dark:[&_th]:border-white/10 dark:[&_td]:border-white/10",
 ].join(" ");
 
-export function Markdown({ content }: { content: string }) {
+export function Markdown({ content, headingPrefix }: { content: string; headingPrefix?: string }) {
   return (
     <div className={WRAPPER_CLASSES}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={headingPrefix ? {
+          h2: ({ children }) => (
+            <h2
+              id={`${headingPrefix}-${String(children).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
+              className="scroll-mt-20"
+            >
+              {children}
+            </h2>
+          ),
+        } : undefined}
+      >{content}</ReactMarkdown>
     </div>
   );
 }

@@ -74,7 +74,7 @@ export default function ArchitecturePage() {
           <li>The generated answer passes through policy citation and topic-coverage checks.</li>
           <li>The request log records the outcome and execution details.</li>
         </ol>
-        <h3 className="text-lg font-medium">Refund requests</h3>
+        <h3 id="refund-requests" className="scroll-mt-20 text-lg font-medium">Refund requests</h3>
         <p className={COPY}>
           Refund requests follow a separate path. Claude extracts the relevant fields. Application
           code resolves the order and applies the policy rules to return a decision. The evaluator

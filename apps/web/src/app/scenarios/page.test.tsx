@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RoleProvider } from "@/lib/role-context";
 import { SCENARIOS } from "@/lib/scenarios";
 import ScenariosPage from "./page";
@@ -23,7 +23,31 @@ function renderScenariosPage() {
   );
 }
 
+function selectScenario(id: string) {
+  act(() => {
+    window.history.replaceState(null, "", `#${id}`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  });
+}
+
+beforeEach(() => {
+  window.history.replaceState(null, "", "/");
+});
+
 describe("Scenarios page", () => {
+  it("opens the linked scenario and responds to browser hash navigation", () => {
+    window.history.replaceState(null, "", "#injection-attempt");
+    renderScenariosPage();
+    expect(screen.getByRole("heading", { name: "Injection attempt" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Data analysis" })).not.toBeInTheDocument();
+    selectScenario("data-analysis");
+    expect(screen.getByRole("heading", { name: "Data analysis" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Injection attempt" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "How I checked the calculations →" })).toHaveAttribute(
+      "href", "/evaluation-lab#findings-finding-2-sql-calculation-errors"
+    );
+  });
+
   it("renders the page heading", () => {
     renderScenariosPage();
 
@@ -34,6 +58,7 @@ describe("Scenarios page", () => {
     renderScenariosPage();
 
     for (const scenario of SCENARIOS) {
+      selectScenario(scenario.id);
       expect(screen.getByRole("heading", { name: scenario.name })).toBeInTheDocument();
       expect(screen.getByText(scenario.expectedBehavior)).toBeInTheDocument();
     }
@@ -44,15 +69,16 @@ describe("Scenarios page", () => {
 
     expect(screen.getAllByText(/captured from a real run/i)).toHaveLength(SCENARIOS.length);
     expect(screen.queryByRole("link", { name: "View execution trace" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Run it fresh" })).toHaveLength(SCENARIOS.length);
+    expect(screen.getAllByRole("button", { name: "Run it fresh" })).toHaveLength(1);
   });
 
   it("running an analyze-type scenario calls analyzeQuestion with that scenario's exact input", () => {
     renderScenariosPage();
     const scenario = SCENARIOS.find((s) => s.endpoint === "analyze")!;
 
+    selectScenario(scenario.id);
     const card = screen.getByRole("heading", { name: scenario.name }).closest(`#${scenario.id}`)!;
-    fireEvent.click(within(card).getByRole("button", { name: "Run it fresh" }));
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "Run it fresh" }));
 
     expect(analyzeQuestion).toHaveBeenCalledWith(scenario.input, "read_only_viewer");
   });
@@ -61,8 +87,9 @@ describe("Scenarios page", () => {
     renderScenariosPage();
     const scenario = SCENARIOS.find((s) => s.endpoint === "refund")!;
 
+    selectScenario(scenario.id);
     const card = screen.getByRole("heading", { name: scenario.name }).closest(`#${scenario.id}`)!;
-    fireEvent.click(within(card).getByRole("button", { name: "Run it fresh" }));
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "Run it fresh" }));
 
     expect(evaluateRefund).toHaveBeenCalledWith(scenario.input, "read_only_viewer");
   });

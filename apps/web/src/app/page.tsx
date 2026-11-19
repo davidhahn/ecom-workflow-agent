@@ -19,7 +19,7 @@ const FINDINGS = [
     problem: "Structural checks passed, but the queries could still calculate the wrong refund rate.",
     decision: "I checked the returned values against independent calculations, then clarified the metric instructions and added result assertions.",
     evidence: "Seven cases improved from 14/21 correct results to 21/21 across three runs. That demonstrates the fix on this workload, not every possible query.",
-    href: "/evaluation-lab#findings",
+    href: "/evaluation-lab#findings-finding-2-sql-calculation-errors",
     link: "Read the SQL investigation →",
   },
   {
@@ -27,7 +27,7 @@ const FINDINGS = [
     problem: "The same policy query ranked the relevant chunk second with one embedding model and fourth with production's model, beyond the cutoff.",
     decision: "I calibrated the retrieval threshold per provider rather than assuming the same settings would work for both.",
     evidence: "Separate thresholds addressed other retrieval failures, but this specific damaged-shipment query remained unresolved. The ranking comparison explains the remaining gap.",
-    href: "/evaluation-lab#findings",
+    href: "/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment",
     link: "Read the retrieval investigation →",
   },
   {

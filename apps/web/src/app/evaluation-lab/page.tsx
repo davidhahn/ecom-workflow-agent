@@ -1,3 +1,4 @@
+import { ReportDisclosure } from "@/components/ReportDisclosure";
 import { Markdown } from "@/components/Markdown";
 import { NextSteps } from "@/components/NextSteps";
 import { getAllEvalReports, getEvalResults, getExperimentMetadata } from "@/lib/evals";
@@ -170,11 +171,7 @@ export default function EvaluationLabPage() {
         {reports.map((report) => {
           const summary = REPORT_SUMMARIES[report.name];
           return (
-            <details
-              key={report.name}
-              id={report.name.replace(/\.md$/, "")}
-              className="scroll-mt-20 overflow-hidden rounded-md border border-black/10 dark:border-white/10"
-            >
+            <ReportDisclosure key={report.name} id={report.name.replace(/\.md$/, "")}>
               <summary className="cursor-pointer select-none px-5 py-4">
                 <span className="text-base font-medium">{summary.title}</span>
                 <span className="ml-2 font-mono text-xs text-gray-400 dark:text-gray-500">
@@ -185,9 +182,9 @@ export default function EvaluationLabPage() {
                 </span>
               </summary>
               <div className="border-t border-black/10 bg-black/[0.015] px-5 py-6 dark:border-white/10 dark:bg-white/[0.02]">
-                <Markdown content={report.content} />
+                <Markdown content={report.content} headingPrefix={report.name.replace(/\.md$/, "")} />
               </div>
-            </details>
+            </ReportDisclosure>
           );
         })}
       </div>

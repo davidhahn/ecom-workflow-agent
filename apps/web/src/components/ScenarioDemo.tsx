@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   evaluateRefund,
   formatRetryAfter,
@@ -12,6 +12,7 @@ import { RefundResult } from "@/components/RefundResult";
 import { ScenarioCard } from "@/components/ScenarioCard";
 import { Button } from "@/components/ui/button";
 import { SCENARIOS } from "@/lib/scenarios";
+import { useHashTarget } from "@/lib/use-hash-target";
 import { useRole } from "@/lib/role-context";
 
 type FreeformState =
@@ -25,6 +26,14 @@ export function ScenarioDemo() {
   const [state, setState] = useState<FreeformState>({ status: "idle" });
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
   const { role } = useRole();
+  const targetId = useHashTarget();
+  const selected = SCENARIOS.find((scenario) => scenario.id === targetId) ?? SCENARIOS[0];
+
+  useEffect(() => {
+    if (targetId === selected.id) {
+      document.getElementById(selected.id)?.scrollIntoView?.({ block: "start" });
+    }
+  }, [targetId, selected.id]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,8 +55,22 @@ export function ScenarioDemo() {
   return (
     <div className="flex flex-col gap-12">
       <div className="flex flex-col gap-6">
+        <nav aria-label="Choose a scenario" className="flex flex-wrap gap-2">
+          {SCENARIOS.map((scenario) => (
+            <a
+              key={scenario.id}
+              href={`#${scenario.id}`}
+              aria-current={selected.id === scenario.id ? "true" : undefined}
+              className="rounded-md border border-black/15 px-3 py-2 text-sm hover:bg-black/[0.03] aria-[current=true]:border-accent aria-[current=true]:text-accent dark:border-white/15 dark:hover:bg-white/[0.03]"
+            >
+              {scenario.name}
+            </a>
+          ))}
+        </nav>
         {SCENARIOS.map((scenario) => (
-          <ScenarioCard key={scenario.id} scenario={scenario} />
+          <div key={scenario.id} hidden={selected.id !== scenario.id}>
+            <ScenarioCard scenario={scenario} />
+          </div>
         ))}
       </div>
 

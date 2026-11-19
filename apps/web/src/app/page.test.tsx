@@ -57,7 +57,7 @@ describe("Landing page", () => {
 
     const findingLinks = screen
       .getAllByRole("link")
-      .filter((link) => link.getAttribute("href") === "/evaluation-lab#findings");
+      .filter((link) => link.getAttribute("href")?.startsWith("/evaluation-lab#findings-"));
     expect(findingLinks).toHaveLength(2);
   });
 
