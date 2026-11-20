@@ -14,8 +14,8 @@ export function IntroBanner() {
   if (pathname === "/") return null;
 
   return (
-    <div className="border-b border-black/10 bg-black/[0.03] px-6 py-3 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-1">
+    <div className="border-b border-black/10 bg-black/[0.03] py-3 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
+      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-4 gap-y-1 px-6">
         <span>
           An AI systems engineering case study, using e-commerce ops as the testbed. Ask a
           question or evaluate a refund, then see the full decision trace behind it.

@@ -2,8 +2,8 @@ import { GITHUB_REPO_URL } from "@/lib/site";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-black/10 px-6 py-8 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+    <footer className="border-t border-black/10 py-8 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6">
         <span>Built by David Hahn.</span>
         <div className="flex flex-wrap items-center gap-4">
           <a

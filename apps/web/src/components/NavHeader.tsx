@@ -34,11 +34,11 @@ export function NavHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-background/85 backdrop-blur dark:border-white/10">
-      <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-4">
+      <div className="mx-auto flex w-full max-w-5xl items-center gap-6 px-6 py-4">
         <Link href="/" className="shrink-0 font-semibold">
           Ops Intelligence Agent
         </Link>
-        <nav className="flex min-w-0 flex-1 gap-4 overflow-x-auto pb-1.5 whitespace-nowrap">
+        <nav className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto py-1.5 whitespace-nowrap">
           {TABS.map((tab) => {
             const active = pathname === tab.href;
             return (
