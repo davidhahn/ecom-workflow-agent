@@ -8,8 +8,8 @@ const ROOT = path.resolve(process.cwd(), "..", "..");
 function read<T>(file: string): T {
   return JSON.parse(fs.readFileSync(path.join(ROOT, "evals", file), "utf8"));
 }
-type Case = { id: string; category: string };
-type Observation = Case & { passed: boolean; latency_ms: number; cost_usd: number | null };
+type Case = { id: string; category: string; input: string };
+type Observation = Pick<Case, "id" | "category"> & { passed: boolean; latency_ms: number; cost_usd: number | null; actual: { rows?: Record<string, unknown>[] } };
 type Label = { case_id: string; judge_verdict?: string; human_verdict?: string; judge_response_relationship?: string; human_response_relationship?: string };
 
 // Nearest-rank p95 keeps the convention explicit, especially for tiny samples.
@@ -66,7 +66,17 @@ export function getPublicEvalReport() {
       distinct: new Set(rows.map((item) => item.case_id)).size,
       runs: new Set(rows.map((item) => item.run_index)).size };
   });
-  return { results, experiment, categories, audits, regression,
+  const exampleId = "sql-semantic-01-home-refund-rate-denominator";
+  const exampleCase = dataset.find((item) => item.id === exampleId);
+  const exampleRows = saved.cases.find((item) => item.id === exampleId)?.actual.rows;
+  const row = exampleRows?.[0];
+  if (!exampleCase || !row || typeof row.total_units_sold !== "number" ||
+      typeof row.approved_refund_units !== "number" || !Number.isFinite(Number(row.refund_rate_pct))) {
+    throw new Error("Saved Home refund-rate example is missing its measured result");
+  }
+  const example = { id: exampleId, request: exampleCase.input, sold: row.total_units_sold,
+    refunded: row.approved_refund_units, rate: Number(row.refund_rate_pct) };
+  return { results, experiment, categories, audits, regression, example,
     datasetCount: dataset.length, categoryCount: defined.size,
     currentDatasetHash: createHash("sha256").update(datasetBytes).digest("hex").slice(0, 12),
     skipped: dataset.length - saved.cases.length };

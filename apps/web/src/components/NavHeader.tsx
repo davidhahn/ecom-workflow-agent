@@ -9,7 +9,7 @@ const TABS = [
   { href: "/scenarios", label: "Scenarios" },
   { href: "/ask", label: "Ask" },
   { href: "/activity", label: "System Traces" },
-  { href: "/evaluation-lab", label: "Evaluation Lab" },
+  { href: "/evaluation-lab", label: "Results & evidence" },
   { href: "/architecture", label: "Architecture" },
 ];
 

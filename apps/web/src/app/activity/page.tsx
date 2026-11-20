@@ -122,7 +122,7 @@ export default function ActivityPage() {
         links={[
           {
             href: "/evaluation-lab",
-            label: "Evaluation Lab",
+            label: "Results & evidence",
             note: "See how these requests get measured.",
           },
           {

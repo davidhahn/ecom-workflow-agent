@@ -58,7 +58,7 @@ const EXPLORE_LINKS: { href: string; label: string; description: string }[] = [
   },
   {
     href: "/evaluation-lab",
-    label: "Evaluation Lab",
+    label: "Results & evidence",
     description: "The actual eval numbers, and where each one comes from.",
   },
   {

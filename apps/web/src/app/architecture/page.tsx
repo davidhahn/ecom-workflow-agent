@@ -152,7 +152,7 @@ export default function ArchitecturePage() {
 
       <NextSteps links={[
         { href: "/scenarios", label: "Scenarios", note: "Follow a request and inspect its result." },
-        { href: "/evaluation-lab", label: "Evaluation Lab", note: "See the measurements and recorded failures." },
+        { href: "/evaluation-lab", label: "Results & evidence", note: "See the measurements and recorded failures." },
         { href: `${GITHUB_REPO_URL}/blob/main/ARCHITECTURE.md`, label: "Architecture document", note: "Read the implementation details and source references." },
       ]} />
     </div>

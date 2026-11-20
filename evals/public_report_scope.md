@@ -1,10 +1,10 @@
 # Public evaluation report — first pass
 
-Route: `/evaluation-report`. Linked from Evaluation Lab and the repository README.
+Canonical route: `/evaluation-lab` (Results & evidence). The former `/evaluation-report` redirects here. The homepage remains the project overview; this page also works as a self-contained introduction.
 
 ## Scope
 
-Explain the agent, reconcile coverage, show saved category results, judge agreement, category median/p95 harness latency and recorded model cost, and one SQL before/after comparison. No new suite run, charts, filters, or redesign.
+Explain the agent, walk through the recorded Home refund-rate request and result, show main results with their limits, then one SQL failure and fix. Keep the full category table, timing/cost table, run settings, and source reports available as expandable detail. Judge agreement remains a separate sample. No new suite run, charts, filters, or redesign.
 
 ## Verified provenance
 

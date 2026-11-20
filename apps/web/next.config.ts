@@ -10,13 +10,14 @@ import path from "node:path";
 // while next dev quietly ran without any proxy.
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
-    "/evaluation-report": [
+    "/evaluation-lab": [
       "../../evals/cases.json",
       "../../evals/results/20260822-201944/results.json",
       "../../evals/results/20260822-201944/experiment.json",
       "../../evals/labels.json",
       "../../evals/request_faithfulness_labels.json",
       "../../evals/ablation_raw.json",
+      "../../evals/*.md",
     ],
   },
   turbopack: {

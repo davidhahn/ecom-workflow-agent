@@ -24,14 +24,16 @@ export function Markdown({ content, headingPrefix }: { content: string; headingP
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={headingPrefix ? {
+          h1: ({ children }) => <h3 className="text-lg font-semibold normal-case tracking-normal">{children}</h3>,
           h2: ({ children }) => (
-            <h2
+            <h4
               id={`${headingPrefix}-${String(children).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
-              className="scroll-mt-20"
+              className="mt-8 scroll-mt-20 text-base font-semibold"
             >
               {children}
-            </h2>
+            </h4>
           ),
+          h3: ({ children }) => <h5 className="mt-5 text-sm font-semibold">{children}</h5>,
         } : undefined}
       >{content}</ReactMarkdown>
     </div>

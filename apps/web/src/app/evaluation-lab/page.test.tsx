@@ -1,68 +1,41 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { getEvalResults, getExperimentMetadata } from "@/lib/evals";
 import EvaluationLabPage from "./page";
 
-describe("Evaluation Lab page", () => {
-  it("separates comparison results from the dated snapshot", () => {
+describe("Combined results and evidence page", () => {
+  it("introduces the project and a concrete request before results and failure details", () => {
     render(<EvaluationLabPage />);
-    const comparison = screen.getByRole("heading", { name: "Before-and-after results" });
-    const snapshot = screen.getByRole("heading", { name: "Saved run: August 22, 2026" });
-    expect(comparison.compareDocumentPosition(snapshot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Read the comparison and its sources/ })).toHaveAttribute("href", "#primary_results");
-    expect(document.getElementById("primary_results")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByText(/I built this assistant to answer questions/)).toBeInTheDocument();
+    expect(screen.getByText("What is the refund rate for Home category products?")).toBeInTheDocument();
+    expect(screen.getByText("2 approved refunded units / 24 units sold = 8.33%")).toBeInTheDocument();
+    const example = screen.getByRole("heading", { name: "One request, from question to result" });
+    const coverage = screen.getByRole("heading", { name: "What passed, what failed, and what didn’t run" });
+    const failure = screen.getByRole("heading", { name: "A query can run successfully and still give the wrong number" });
+    expect(example.compareDocumentPosition(coverage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(coverage.compareDocumentPosition(failure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(/not a live Ask response/)).toBeInTheDocument();
   });
 
-  it("shows the real overall pass rate from the committed results.json, not a typed-in number", () => {
-    const results = getEvalResults();
+  it("keeps one total, with sample size and historical limits beside it", () => {
     render(<EvaluationLabPage />);
-
-    // The headline splits the fraction and its caption across two spans.
-    expect(
-      screen.getByText(new RegExp(`${results.overall.passed}/${results.overall.total}`))
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        new RegExp(`cases passed \\(${results.overall.pass_rate.toFixed(1).replace(".", "\\.")}%\\)`)
-      )
-    ).toBeInTheDocument();
+    expect(screen.getAllByText("60/62 tests passed (96.8%)")).toHaveLength(1);
+    expect(screen.getByText(/79 cases in the dataset/)).toHaveTextContent("13 categories · 17 not run · 2 failures");
+    expect(screen.getByText(/These results come from the August 22 local run/)).toBeInTheDocument();
+    expect(screen.getByText(/Twelve rule checks with known inputs/)).toHaveTextContent("bypass the model");
+    expect(screen.getByText(/These times include the test runner/)).toHaveTextContent("excludes grading calls");
   });
 
-  it("shows the real environment metadata from the committed experiment.json", () => {
-    const experiment = getExperimentMetadata();
+  it("keeps detailed tables and source reports expandable, including existing deep links", () => {
     render(<EvaluationLabPage />);
-
-    expect(screen.getAllByText(experiment.application_model).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(experiment.git_commit).length).toBeGreaterThan(0);
-  });
-
-  it("renders a row per category from results.json", () => {
-    const results = getEvalResults();
-    render(<EvaluationLabPage />);
-
-    for (const category of results.categories) {
-      // Short category names like "sql" or "rag" also appear inside the
-      // rendered report prose below the table. This check confirms the
-      // table row exists and accepts extra matches.
-      expect(screen.getAllByText(category.category).length).toBeGreaterThan(0);
+    const categorySummary = screen.getByText("All 13 categories and skipped coverage");
+    expect(categorySummary.closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Timing and cost by category").closest("details")).not.toHaveAttribute("open");
+    for (const id of ["primary_results", "findings", "methodology", "measurement_context", "frozen_suite", "experiment_history"]) {
+      expect(document.getElementById(id)).toBeInTheDocument();
     }
-  });
-
-  it("renders all six committed eval reports", () => {
-    render(<EvaluationLabPage />);
-
-    // Each report's own H1, from the markdown itself. Titles like "Findings"
-    // can also appear on the collapsed summary row, so match all and require
-    // at least one.
-    for (const heading of [
-      "Frozen Final Evaluation Suite",
-      "Primary Results",
-      "Experiment History",
-      "Measurement Context",
-      "Findings",
-      "Methodology Notes",
-    ]) {
-      expect(screen.getAllByText(heading).length).toBeGreaterThan(0);
-    }
+    expect(document.getElementById("findings-finding-2-sql-calculation-errors")).toBeInTheDocument();
+    expect(document.getElementById("findings-finding-5-differences-in-the-deployed-environment")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Try a live scenario →" })).toHaveAttribute("href", "/scenarios");
   });
 });

@@ -110,7 +110,7 @@ export default function AskPage() {
           },
           {
             href: "/evaluation-lab",
-            label: "Evaluation Lab",
+            label: "Results & evidence",
             note: "Check the real numbers behind this kind of answer.",
           },
         ]}

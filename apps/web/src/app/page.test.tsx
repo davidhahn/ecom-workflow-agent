@@ -88,7 +88,7 @@ describe("Landing page", () => {
   it("renders an explore card for every destination page", () => {
     render(<HomePage />);
 
-    for (const name of ["Scenarios", "Ask", "System Traces", "Evaluation Lab", "Architecture"]) {
+    for (const name of ["Scenarios", "Ask", "System Traces", "Results & evidence", "Architecture"]) {
       expect(screen.getByRole("heading", { name, level: 3 })).toBeInTheDocument();
     }
   });

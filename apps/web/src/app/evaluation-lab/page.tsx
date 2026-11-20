@@ -1,12 +1,11 @@
 import Link from "next/link";
+import { getPublicEvalReport, REPORT_RUN } from "@/lib/public-eval-report";
 import { ReportDisclosure } from "@/components/ReportDisclosure";
 import { Markdown } from "@/components/Markdown";
-import { NextSteps } from "@/components/NextSteps";
-import { getAllEvalReports, getEvalResults, getExperimentMetadata } from "@/lib/evals";
+import { getAllEvalReports } from "@/lib/evals";
 import { GITHUB_REPO_URL } from "@/lib/site";
 
-// Summary line per report, shown on the collapsed row so a reader can decide
-// what to expand without opening everything.
+export const metadata = { title: "Results & evidence", description: "What testing an e-commerce operations agent revealed about wrong calculations, incomplete checks, and the work still needed." };
 const REPORT_SUMMARIES: Record<string, { title: string; hook: string }> = {
   "frozen_suite.md": {
     title: "Dataset and comparison scope",
@@ -34,144 +33,153 @@ const REPORT_SUMMARIES: Record<string, { title: string; hook: string }> = {
   },
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  sql: "SQL queries", sql_semantic: "SQL correctness", rag: "Policy retrieval",
-  mixed: "Combined data and policy answers", request_faithfulness: "Unsupported-action responses",
-  groundedness: "Policy citation checks", topic_coverage: "Topic coverage",
+const LABELS: Record<string, string> = {
+  sql: "SQL queries", sql_semantic: "SQL calculations", rag: "Policy retrieval",
+  mixed: "Combined data and policy answers", refund_evaluator: "Refund rules",
+  groundedness: "Policy citation checks", topic_coverage: "Unsupported-topic checks",
   permission: "Permissions", prompt_injection: "Prompt injection",
-  refund_evaluator: "Refund rules", resilience: "Failure handling",
+  request_faithfulness: "Unsupported-action responses", resilience: "Failure handling",
+  invoice_evaluator: "Invoice workflow", ticket_evaluator: "Ticket workflow",
 };
+const seconds = (ms: number | null) => ms === null ? "—" : `${(ms / 1000).toFixed(3)} s`;
+const cell = "px-3 py-3 align-top";
+const table = "w-full text-left text-sm [&_th]:font-medium [&_tr]:border-b [&_tr]:border-black/10 dark:[&_tr]:border-white/10";
+function Source({ file, children }: { file: string; children: React.ReactNode }) {
+  return <a className="text-accent underline underline-offset-2" href={`${GITHUB_REPO_URL}/blob/main/evals/${file}`}>{children}</a>;
+}
 
 export default function EvaluationLabPage() {
-  const results = getEvalResults();
-  const experiment = getExperimentMetadata();
+  const report = getPublicEvalReport();
+  const { results, experiment } = report;
   const reports = getAllEvalReports();
-  const skippedCaseCount = Object.keys(results.skipped_case_ids).length;
-
   return (
-    <div className="flex flex-col gap-12">
-      <div>
-        <h1 className="text-3xl font-semibold">Evaluation Lab</h1>
-        <Link href="/evaluation-report" className="mt-3 inline-block text-sm font-medium text-accent underline underline-offset-2">
-          Read the public evaluation report →
-        </Link>
-        <p className="mt-3 max-w-prose text-base text-gray-600 dark:text-gray-300">
-          I use these evaluations to check changes against known answers and expected behavior.
-          The reports below show what improved, what failed, and how the findings changed what I built.
-        </p>
-      </div>
-
-      <section aria-labelledby="comparison-heading">
-        <h2 id="comparison-heading" className="text-xl font-semibold">Before-and-after results</h2>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead><tr><th className="p-2">Capability</th><th className="p-2">Before</th><th className="p-2">After</th><th className="p-2">Scope</th></tr></thead>
-            <tbody>
-              <tr><td className="p-2">SQL correctness</td><td className="p-2">14/21 (67%)</td><td className="p-2">21/21 (100%)</td><td className="p-2">Seven cases, three runs per configuration</td></tr>
-              <tr><td className="p-2">Policy retrieval</td><td className="p-2">7/12 (58%)</td><td className="p-2">11/12 (92%)</td><td className="p-2">Twelve cases, unchanged results across three runs per configuration</td></tr>
-              <tr><td className="p-2">Combined data and policy answers</td><td className="p-2">7/8</td><td className="p-2">7/8</td><td className="p-2">Eight cases, one run per configuration; the failing case changed</td></tr>
-            </tbody>
-          </table>
+    <article className="flex flex-col gap-10">
+      <header className="flex flex-col gap-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400">E-commerce operations agent · Evaluation report</p>
+        <h1 className="text-3xl font-semibold sm:text-4xl">How I check whether the agent gives the right answer</h1>
+        <p className="max-w-prose text-gray-600 dark:text-gray-300">I built this assistant to answer questions about orders, refund rates, and company policies, and to check whether a refund qualifies. For someone using it, the important part is whether the answer is correct and whether they can see how it was reached.</p>
+        <p className="max-w-prose text-sm text-gray-500 dark:text-gray-400">The demo uses seeded sample records and evaluates refund eligibility without issuing refunds. I haven&apos;t measured customer adoption or business savings.</p>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <Link className="font-medium text-accent underline" href="/scenarios">Try a live scenario →</Link>
+          <a className="text-accent underline" href="#coverage">See the main results ↓</a>
         </div>
-        <p className="mt-3 max-w-prose text-sm text-gray-600 dark:text-gray-300">These comparisons used the local embedding model. Production uses Voyage and needs a separate evaluation.</p>
-        <a className="mt-3 inline-block text-sm underline underline-offset-2" href="#primary_results">Read the comparison and its sources ↓</a>
+      </header>
+
+
+      <section className="space-y-4" aria-labelledby="example">
+        <h2 id="example" className="text-xl font-semibold">One request, from question to result</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Recorded direct-SQL example · August 22 local run · SQL prompt v2 · not a live Ask response</p>
+        <div className="rounded-lg border border-black/10 p-5 dark:border-white/10">
+          <p className="text-sm font-medium">Request</p>
+          <blockquote className="mt-2 max-w-prose">{report.example.request}</blockquote>
+          <ol className="my-5 max-w-prose list-decimal space-y-2 pl-5 text-sm">
+            <li>The model proposes a database query for the question.</li>
+            <li>Code checks access and query cost before running it with read-only permissions.</li>
+            <li>The query counts units sold and approved refunded units. The test compares the result with a separately calculated answer.</li>
+          </ol>
+          <p className="text-sm font-medium">Recorded result</p>
+          <p className="mt-2 text-2xl font-semibold">{report.example.refunded} approved refunded units / {report.example.sold} units sold = {report.example.rate.toFixed(2)}%</p>
+          <p className="mt-3 max-w-prose text-sm text-gray-500 dark:text-gray-400">This matched the independent answer for this case. Safe execution alone would not establish that the calculation was correct.</p>
+        </div>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <Link className="text-accent underline" href="/ask">Ask your own data question →</Link>
+          <Source file={`results/${REPORT_RUN}/results.json`}>Recorded query and result</Source>
+        </div>
       </section>
 
-      <div>
-        <h2 className="text-xl font-semibold">Saved run: August 22, 2026</h2>
-        <p className="mt-3 text-3xl font-semibold">
-          {results.overall.passed}/{results.overall.total}
-          <span className="ml-2 text-lg font-normal text-gray-500 dark:text-gray-400">
-            cases passed ({results.overall.pass_rate.toFixed(1)}%)
-          </span>
-        </p>
-        <p className="mt-2 max-w-prose text-base text-gray-600 dark:text-gray-300">
-          This snapshot shows one recorded run. Its totals cover the cases that executed, with
-          skipped cases listed under Run details. The comparisons above draw on separately recorded experiments.
-        </p>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-black/10 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-              <th className="py-3 pr-4 font-medium">Capability</th>
-              <th className="py-3 pr-4 font-medium">Cases run</th>
-              <th className="py-3 pr-4 font-medium">Passed</th>
-              <th className="py-3 pr-4 font-medium">Pass rate</th>
-              <th className="py-3 pr-4 font-medium">What it tests</th>
-
-            </tr>
-          </thead>
-          <tbody>
-            {results.categories.map((c) => (
-              <tr key={c.category} className="border-b border-black/5 dark:border-white/5">
-                <td className="py-3 pr-4">{CATEGORY_LABELS[c.category] ?? c.category}<span className="mt-1 block font-mono text-xs text-gray-500">{c.category}</span></td>
-                <td className="py-3 pr-4">{c.n}</td>
-                <td className="py-3 pr-4">
-                  {c.passed}/{c.n}
-                </td>
-                <td className="py-3 pr-4">{c.pass_rate.toFixed(1)}%</td>
-                <td className="py-3 pr-4 text-gray-600 dark:text-gray-300">{c.what_it_tests}</td>
-
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="mt-3 max-w-prose text-sm text-gray-500 dark:text-gray-400">
-          Categories contain 2–12 cases. These results describe behavior on the tested scenarios.
-          Repeated runs help assess consistency, but broader coverage requires additional cases.
-        </p>
-      </div>
-
-      <details className="rounded-md border border-black/10 dark:border-white/10">
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
-          Run details and skipped cases
-        </summary>
-        <div className="border-t border-black/10 px-4 py-3 text-sm dark:border-white/10">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
-            <div>
-              <dt className="text-gray-500 dark:text-gray-400">Application model</dt>
-              <dd className="font-mono">{experiment.application_model}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-500 dark:text-gray-400">Judge model</dt>
-              <dd className="font-mono">{experiment.judge_model}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-500 dark:text-gray-400">Dataset version</dt>
-              <dd className="font-mono">{experiment.eval_dataset_version}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-500 dark:text-gray-400">Commit</dt>
-              <dd className="font-mono">{experiment.git_commit}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-500 dark:text-gray-400">Cache bypassed</dt>
-              <dd className="font-mono">{experiment.cache_bypassed ? "yes" : "no"}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-500 dark:text-gray-400">Run</dt>
-              <dd className="font-mono">{results.timestamp}</dd>
-            </div>
-          </dl>
-          {(results.skipped_categories.length > 0 || skippedCaseCount > 0) && (
-            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-              Skipped this run: {results.skipped_categories.join(", ")}. {skippedCaseCount}{" "}
-              individual case{skippedCaseCount === 1 ? "" : "s"} skipped too, each for a stated
-              reason recorded in <code>results.json</code>.
-            </p>
-          )}
+      <section className="space-y-4" aria-labelledby="coverage">
+        <h2 id="coverage" className="text-xl font-semibold">What passed, what failed, and what didn’t run</h2>
+        <div className="rounded-lg border border-black/10 p-5 dark:border-white/10">
+          <p className="text-2xl font-semibold">{results.overall.passed}/{results.overall.total} tests passed ({(100 * results.overall.passed / results.overall.total).toFixed(1)}%)</p>
+          <p className="mt-2 text-sm">{report.datasetCount} cases in the dataset · {report.categoryCount} categories · {report.skipped} not run · {results.overall.failed} failures</p>
+          <p className="mt-3 max-w-prose text-sm text-gray-500 dark:text-gray-400">These results come from the August 22 local run. They cover the questions tested then; they don’t establish how the current deployed app handles every question. The run details and source files are below.</p>
         </div>
-      </details>
-
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold">Reports</h2>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            Start with the comparisons to see what changed. Each report includes the evidence needed to interpret its results.
-          </p>
+        <p className="max-w-prose">I have {report.datasetCount} cases across {report.categoryCount} categories. This run covered 11 categories. The test code for 8 invoice cases and 6 ticket cases wasn’t implemented, and 3 injection cases needed inputs or workflows the runner couldn’t handle. Those 17 cases are left out of the pass rate.</p>
+        <p className="text-sm"><Source file="cases.json">Dataset</Source> · <Source file={`results/${REPORT_RUN}/results.json`}>Saved results and skip reasons</Source></p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            { category: "sql_semantic", note: "Four calculation cases through the direct SQL endpoint; this does not validate every Ask query." },
+            { category: "mixed", note: "Eight combined data/policy answers, with one failure. Scoring includes a model grader." },
+            { category: "refund_evaluator", note: "Twelve rule checks with known inputs. They bypass the model reading the customer’s message." },
+          ].map(({ category, note }) => {
+            const row = report.categories.find((item) => item.category === category)!;
+            return <div key={category} className="rounded-md border border-black/10 p-4 dark:border-white/10">
+              <h3 className="font-medium">{LABELS[category]}</h3>
+              <p className="mt-2 text-2xl font-semibold">{row.passed}/{row.scored}</p>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{note}</p>
+            </div>;
+          })}
         </div>
+        <details className="rounded-md border border-black/10 p-4 dark:border-white/10">
+          <summary className="cursor-pointer font-medium">All 13 categories and skipped coverage</summary>
+        <div className="overflow-x-auto"><table className={table}>
+          <caption className="mb-3 text-left text-sm text-gray-500">Results from the August 22 run. Refund-rule tests supply known fields directly, so they don’t test whether the model understood the customer’s message. Policy retrieval tests check which passages were found, not whether the final answer used them correctly.</caption>
+          <thead><tr>{["Area tested", "Cases", "Run", "Passed / run", "Not run"].map((label) => <th key={label} className={cell}>{label}</th>)}</tr></thead>
+          <tbody>{report.categories.map((row) => <tr key={row.category}>
+            <th scope="row" className={cell}>{LABELS[row.category]}</th>
+            <td className={cell}>{row.defined}</td><td className={cell}>{row.scored}</td>
+            <td className={cell}>{row.scored ? `${row.passed}/${row.scored} (${(100 * row.passed / row.scored).toFixed(1)}%)` : "Not run"}</td>
+            <td className={cell}>{row.skipped}</td>
+          </tr>)}</tbody>
+        </table></div>
+        </details>
+        <p className="max-w-prose text-sm text-gray-500">Two cases failed: a calculation of the average time before a refund request, and an answer that combined order data with policy. The query, answer, and scoring need to be read together to understand those failures. A failed test can also expose a problem with the expected answer or the test setup.</p>
+      </section>
+
+      <section className="space-y-4" aria-labelledby="regression">
+        <h2 id="regression" className="text-xl font-semibold">A query can run successfully and still give the wrong number</h2>
+        <p className="max-w-prose">An order line can contain several units of a product. Counting each line as one unit gave the wrong refund rate, and including pending or denied refunds could inflate it further. The access and query checks allowed this SQL to run because it was safe to execute. They didn’t check whether it calculated the metric I meant.</p>
+        <p className="max-w-prose">I worked out the expected answers separately in the database, compared them with the agent’s results, and clarified the metric instructions. I also added checks against those expected values. Across the seven SQL questions, the results improved:</p>
+        <p className="text-lg font-semibold">{report.regression[0].passed}/{report.regression[0].n} → {report.regression[1].passed}/{report.regression[1].n} correct SQL outcomes</p>
+        <p className="max-w-prose text-sm">That’s {report.regression[0].distinct} questions repeated {report.regression[0].runs} times before and after. It gives me evidence that the changes helped on those questions. Several settings changed between the two configurations, so I can’t attribute the improvement to one change alone. These tests also used the direct SQL endpoint. A later live check found that Ask used a different prompt and needed the same metric instructions added separately.</p>
+        <p className="text-sm"><Source file="primary_results.md">Read the comparison</Source> · <Source file="ablation_raw.json">Raw before/after results</Source> · <Source file="measurement_context.md">Experiment configurations</Source></p>
+      </section>
+
+
+      <section className="space-y-4" aria-labelledby="judge">
+        <h2 id="judge" className="text-xl font-semibold">How I checked the model grading the answers</h2>
+        <p className="max-w-prose">Some answers need more than a numeric comparison, so I use a second model to grade them against written criteria. I compared its decisions with my own labels in two separate reviews. We agreed on {report.audits.reduce((sum, row) => sum + row.agreed, 0)} of {report.audits.reduce((sum, row) => sum + row.n, 0)} decisions. However, every answer in that sample was a passing example, including responses that correctly said an action couldn’t be performed. I still need to check how well the grader catches bad answers. These reviews are separate from the 62-case run.</p>
+        <ul className="list-disc space-y-2 pl-5 text-sm">{report.audits.map((audit) => <li key={audit.file}><Source file={audit.file}>{audit.file === "labels.json" ? "Answer-grading review" : "Unsupported-action review"}</Source>: {audit.agreed}/{audit.n} decisions agree, across {audit.distinct} different questions{audit.n !== audit.distinct ? " (repeated observations of the same questions)" : ""}.</li>)}</ul>
+      </section>
+
+      <section className="space-y-4" aria-labelledby="performance">
+        <h2 id="performance" className="text-xl font-semibold">How long the tests took and what the model calls cost</h2>
+        <p className="max-w-prose text-sm">I calculated these figures from the same saved run, including failed tests. The median shows the middle recorded time. The p95 shows the time at or below which at least 95% of the tests finished. Each question ran once here. With only a few cases in a category, p95 is the slowest recorded time.</p>
+        <p className="max-w-prose text-sm text-gray-500">These times include the test runner’s work and, for some categories, the grading model. They aren’t measurements of how long a user waits in production. Cost covers the recorded calls to the application model. It excludes grading calls, hosting, and any unrecorded cost of turning policy text into searchable vectors. Missing costs are shown as “Not recorded”; $0 means no model cost was recorded for that test.</p>
+        <details className="rounded-md border border-black/10 p-4 dark:border-white/10">
+          <summary className="cursor-pointer font-medium">Timing and cost by category</summary>
+        <div className="overflow-x-auto"><table className={table}>
+          <thead><tr>{["Area tested", "Timed cases", "Median", "p95", "Average recorded cost / case", "Cost records"].map((label) => <th key={label} className={cell}>{label}</th>)}</tr></thead>
+          <tbody>{report.categories.filter((row) => row.scored).map((row) => <tr key={row.category}>
+            <th scope="row" className={cell}>{LABELS[row.category]}</th><td className={cell}>{row.n}</td>
+            <td className={`${cell} whitespace-nowrap`}>{seconds(row.medianMs)}</td><td className={`${cell} whitespace-nowrap`}>{seconds(row.p95Ms)}</td>
+            <td className={cell}>{row.meanCost === null ? "Not recorded" : `$${row.meanCost.toFixed(5)}`}</td><td className={cell}>{row.costN}/{row.scored}</td>
+          </tr>)}</tbody>
+        </table></div>
+        </details>
+        <Source file={`results/${REPORT_RUN}/results.json`}>Per-case timing and cost records</Source>
+      </section>
+
+      <section className="space-y-3 border-t border-black/10 pt-6 dark:border-white/10">
+        <h2 className="text-xl font-semibold">Where the numbers come from</h2>
+        <p className="max-w-prose text-sm">The category results and timing table come from one saved run. The SQL comparison and grading reviews use separate samples, linked in their sections.</p>
+        <details>
+          <summary className="cursor-pointer text-sm font-medium">Run settings and source details</summary>
+          <ul className="mt-4 list-disc space-y-2 pl-5 text-sm">
+          <li>Saved category results, timing, cost: run {REPORT_RUN}, commit {experiment.git_commit}, dataset {experiment.eval_dataset_version}, cache bypassed: {String(experiment.cache_bypassed)}.</li>
+          <li>Application model: {experiment.application_model}; judge: {experiment.judge_model}. SQL prompt: {experiment.prompt_version.sql}; analyze prompt: {experiment.prompt_version.analyze}.</li>
+          <li>Local embeddings with threshold 0.46, as recorded in <Source file="measurement_context.md">measurement_context.md</Source>. Production uses Voyage and needs separate measurement.</li>
+          <li>Timing uses the median and nearest-rank p95, calculated within each category. Average cost uses only cases with a recorded cost; the table shows how many records were available.</li>
+          <li>Current dataset byte hash: {report.currentDatasetHash}. {report.currentDatasetHash === experiment.eval_dataset_version ? "Matches the saved run's dataset hash." : "Differs from the saved run; current definitions must not be treated as the historical dataset without review."}</li>
+          <li>Judge audit: the two linked label files, separate samples with 33 total verdicts. Those files do not contain a dataset hash, run ID, or model configuration; their provenance is less complete than the saved suite run. Ablation: seven SQL questions × three runs per configuration; its commit was not recorded in the raw artifact.</li>
+          </ul>
+        </details>
+        <p className="text-sm"><Source file={`results/${REPORT_RUN}/experiment.json`}>Saved run configuration</Source> · <a className="text-accent underline" href="#source-reports">Detailed reports and methodology ↓</a></p>
+      </section>
+
+      <section id="source-reports" className="scroll-mt-20 space-y-4">
+        <h2 className="text-xl font-semibold">Source reports</h2>
+        <p className="max-w-prose text-sm text-gray-500 dark:text-gray-400">Open a report for the full experiments, failure investigations, or scoring method. The summaries above are enough to follow the main findings.</p>
         {reports.map((report) => {
           const summary = REPORT_SUMMARIES[report.name];
           return (
@@ -191,18 +199,12 @@ export default function EvaluationLabPage() {
             </ReportDisclosure>
           );
         })}
-      </div>
+      </section>
 
-      <NextSteps
-        links={[
-          {
-            href: "/architecture",
-            label: "Architecture",
-            note: "See how the execution controls and answer checks work.",
-          },
-          { href: `${GITHUB_REPO_URL}/blob/main/CASE_STUDY.md`, label: "Case study", note: "Follow the investigation and the decisions it changed." },
-        ]}
-      />
-    </div>
+      <section className="rounded-lg border border-black/10 p-5 dark:border-white/10">
+        <h2 className="text-xl font-semibold">What I need to measure next</h2>
+        <p className="mt-3 max-w-prose">The next check is to repeat the calculation tests through the Ask workflow people actually use, with the current deployed settings and cached answers turned off. I’ll compare the results with independently calculated answers and record the time and model cost for each attempt. The two live checks after the prompt fix returned the right values, but I need repeated results before treating that as broader evidence.</p>
+      </section>
+    </article>
   );
 }

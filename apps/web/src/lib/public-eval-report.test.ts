@@ -5,6 +5,7 @@ describe("Public report measurements", () => {
   it("reconciles defined, scored, skipped, and passed outcomes", () => {
     const report = getPublicEvalReport();
     expect(report.datasetCount).toBe(79);
+    expect(report.example).toEqual({ id: "sql-semantic-01-home-refund-rate-denominator", request: "What is the refund rate for Home category products?", sold: 24, refunded: 2, rate: 8.33 });
     expect(report.categoryCount).toBe(13);
     expect(report.categories.reduce((sum, row) => sum + row.scored, 0)).toBe(62);
     expect(report.categories.reduce((sum, row) => sum + row.passed, 0)).toBe(60);

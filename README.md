@@ -20,7 +20,7 @@ The model can decide what should happen, but application code decides what is al
 
 The project is about designing a system that can catch, explain, and contain model errors. That pushed the work beyond prompting and into execution control, evaluation, observability, and failure handling.
 
-**[Live demo](https://ecom-workflow-agent-web.vercel.app/)** · [Case study](CASE_STUDY.md) · [Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab)
+**[Live demo](https://ecom-workflow-agent-web.vercel.app/)** · [Case study](CASE_STUDY.md) · [Results & evidence](https://ecom-workflow-agent-web.vercel.app/evaluation-lab)
 
 ## Results
 
@@ -29,7 +29,7 @@ The dataset defines 79 cases across 13 categories. The saved August 22 local run
 - **SQL correctness: 67% → 100%.** Seven cases ran three times before and after a prompt change, improving from 14/21 to 21/21 correct answers.
 - **Policy retrieval: 58% → 92%.** A relevance threshold improved handling of off-topic questions. These results use the local embedding model; I still need to repeat the evaluation with the production provider.
 
-[Public evaluation report](https://ecom-workflow-agent-web.vercel.app/evaluation-report) · [Before/after evidence](evals/primary_results.md) · [Methodology](evals/methodology.md)
+[Public evaluation report](https://ecom-workflow-agent-web.vercel.app/evaluation-lab) · [Before/after evidence](evals/primary_results.md) · [Methodology](evals/methodology.md)
 
 ## See it in action
 
@@ -74,5 +74,5 @@ Requires Python 3.14, Poetry, Node/pnpm, and Docker. Follow [Setup and deploymen
 
 - **[Case study](CASE_STUDY.md)** — what the evaluations uncovered and how the findings changed the work.
 - **[Architecture](ARCHITECTURE.md)** — request flow, execution controls, and implementation details.
-- **[Evaluation Lab](https://ecom-workflow-agent-web.vercel.app/evaluation-lab)** — evaluation results and methodology.
+- **[Results & evidence](https://ecom-workflow-agent-web.vercel.app/evaluation-lab)** — evaluation results and methodology.
 - **[Deployment](docs/DEPLOY.md)** — local setup and deployment instructions.
