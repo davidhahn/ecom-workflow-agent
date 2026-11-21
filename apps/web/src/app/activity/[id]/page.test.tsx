@@ -47,6 +47,24 @@ function renderTracePage() {
 }
 
 describe("Execution Trace page", () => {
+  it.each([
+    ["analyze", { answer: "Electronics leads at **43.48%**." }, /Electronics leads at/],
+    ["refund_evaluate", { status: "denied", reasoning: "The return window has elapsed." }, /The return window has elapsed/],
+    ["analyze", { error: "The database query failed." }, /The database query failed/],
+  ])("shows the recorded result for %s without opening raw data", async (request_type, output, text) => {
+    vi.mocked(getRequestLog).mockResolvedValue(baseDetail({ request_type, output }));
+    renderTracePage();
+
+    await waitFor(() => expect(screen.getByRole("region", { name: "Recorded result" })).toHaveTextContent(text));
+  });
+
+  it("identifies a missing explanation without inventing an answer", async () => {
+    vi.mocked(getRequestLog).mockResolvedValue(baseDetail({ output: null }));
+    renderTracePage();
+
+    await waitFor(() => expect(screen.getByText(/this log has no answer or explanation/i)).toBeInTheDocument());
+  });
+
   it("shows a loading state while the trace is being fetched", () => {
     vi.mocked(getRequestLog).mockReturnValue(new Promise(() => {}));
 

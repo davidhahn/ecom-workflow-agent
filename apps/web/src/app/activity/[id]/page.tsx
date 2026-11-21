@@ -7,6 +7,7 @@ import { getRequestLog, type RequestLogDetailRow } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { ToolCallTrace } from "@/components/ToolCallTrace";
 import { JsonPreview } from "@/components/JsonPreview";
+import { Markdown } from "@/components/Markdown";
 import { useRole } from "@/lib/role-context";
 import { SCENARIOS } from "@/lib/scenarios";
 import {
@@ -96,6 +97,12 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
   const concreteStatus = deriveConcreteStatus(detail);
   const latency = deriveLatencyBreakdown(detail);
   const toolCalls = detail.tool_calls ?? [];
+  const output = typeof detail.output === "object" && detail.output !== null && !Array.isArray(detail.output)
+    ? detail.output as Record<string, unknown>
+    : null;
+  const resultText = detail.request_type === "analyze" ? output?.answer
+    : detail.request_type === "refund_evaluate" ? output?.reasoning
+    : null;
   // The headline badge should reflect the worst thing that happened, not
   // just the reliability axis. A request can succeed with no retries while
   // a guardrail below flags a real problem, like an ungrounded claim, and
@@ -125,6 +132,28 @@ function TraceDetail({ detail }: { detail: RequestLogDetailRow }) {
           {detail.cached && <Badge variant="secondary">Cached</Badge>}
         </div>
       </div>
+
+      <section aria-labelledby="recorded-result" className="flex flex-col gap-3">
+        <h2 id="recorded-result" className="text-lg font-semibold">Recorded result</h2>
+        {typeof resultText === "string" && resultText.trim() ? (
+          <div className="rounded-md border border-black/10 p-6 dark:border-white/10">
+            <Markdown content={resultText} />
+          </div>
+        ) : typeof output?.error === "string" ? (
+          <p className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            {output.error}
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            This log has no answer or explanation to display. The recorded output is available
+            under “Raw request log data” below.
+          </p>
+        )}
+        <p className="max-w-prose text-xs text-gray-500 dark:text-gray-400">
+          This is what the request returned, not an independent check of its accuracy. The steps
+          and checks below show how it was produced.
+        </p>
+      </section>
 
       {/* Workflow progress */}
       <div>
