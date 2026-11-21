@@ -64,7 +64,7 @@ export default function ActivityPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-black/10 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                <th className="py-3 pr-4 font-medium tracking-wide uppercase">Time</th>
+                <th className="py-3 pr-4 font-medium tracking-wide uppercase">Request</th>
                 <th className="py-3 pr-4 font-medium tracking-wide uppercase">Type</th>
                 <th className="py-3 pr-4 font-medium tracking-wide uppercase">Latency</th>
                 <th className="py-3 pr-4 font-medium tracking-wide uppercase">Cost</th>
@@ -79,7 +79,7 @@ export default function ActivityPage() {
                   onClick={() => router.push(`/activity/${row.id}`)}
                   className="cursor-pointer border-b border-black/5 hover:bg-black/[0.03] dark:border-white/5 dark:hover:bg-white/[0.03]"
                 >
-                  <td className="py-3 pr-4 whitespace-nowrap">
+                  <td className="min-w-64 py-3 pr-6">
                     {/* This link is the row's real anchor, so keyboard and
                         middle-click work. Mouse clicks land on the row's
                         onClick, and stopPropagation keeps one click from
@@ -87,10 +87,14 @@ export default function ActivityPage() {
                     <Link
                       href={`/activity/${row.id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="hover:text-accent hover:underline"
+                      className="line-clamp-2 max-w-md font-medium wrap-anywhere hover:text-accent hover:underline"
+                      title={row.input}
                     >
-                      {new Date(row.created_at).toLocaleString()}
+                      {row.input}
                     </Link>
+                    <time dateTime={row.created_at} className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {new Date(row.created_at).toLocaleString()}
+                    </time>
                   </td>
                   <td className="py-3 pr-4">{row.request_type}</td>
                   <td className="py-3 pr-4">{row.latency_ms} ms</td>
