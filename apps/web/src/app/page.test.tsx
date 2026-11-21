@@ -1,95 +1,43 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { getEvalResults } from "@/lib/evals";
+import { SCENARIOS } from "@/lib/scenarios";
+import { getScenarioSnapshot } from "@/lib/snapshots";
 import HomePage from "./page";
 
 describe("Landing page", () => {
-  it("renders the hero heading and value prop", () => {
+  it("introduces the use case and a recorded request before the engineering details", () => {
     render(<HomePage />);
-
-    expect(
-      screen.getByRole("heading", {
-        name: /building an ai agent you can inspect and control/i,
-        level: 1,
-      })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "An AI assistant for e-commerce operations" })).toBeInTheDocument();
+    const intro = screen.getByRole("region", { name: "An AI assistant for e-commerce operations" });
+    const scenario = SCENARIOS.find((item) => item.id === "refund-approval")!;
+    const snapshot = getScenarioSnapshot(scenario);
+    expect(within(intro).getByText(`“${scenario.input}”`)).toBeInTheDocument();
+    expect("status" in snapshot && within(intro).getByText(snapshot.status)).toBeInTheDocument();
+    expect(within(intro).getByText(/it doesn’t issue refunds/)).toBeInTheDocument();
+    expect(within(intro).getByText(/doesn’t inspect the photos/)).toBeInTheDocument();
+    expect(within(intro).getByText(/sample data, not a live result/)).toBeInTheDocument();
+    expect(within(intro).getByRole("link", { name: /try this request live/i })).toHaveAttribute("href", "/scenarios#refund-approval");
+    expect(within(intro).getByRole("link", { name: /see results & evidence/i })).toHaveAttribute("href", "/evaluation-lab");
   });
 
-  it("shows the real overall pass rate from the committed results.json, not a typed-in number", () => {
+  it("uses the saved evaluation totals with the historical measurement scope", () => {
+    render(<HomePage />);
     const results = getEvalResults();
-    render(<HomePage />);
-
-    expect(
-      screen.getByText(new RegExp(`${results.overall.passed}/${results.overall.total}`))
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        new RegExp(`passed \\(${results.overall.pass_rate.toFixed(1).replace(".", "\\.")}%\\)`)
-      )
-    ).toBeInTheDocument();
-  });
-
-  it("renders the tabbed snapshot, defaulting to the injection-attempt scenario", () => {
-    render(<HomePage />);
-
-    expect(screen.getByText(/captured from a real run/i)).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Injection attempt", selected: true })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /run this scenario live/i })).toHaveAttribute(
-      "href",
-      "/scenarios#injection-attempt"
-    );
-  });
-
-  it("switches the snapshot and its live link when another tab is clicked", () => {
-    render(<HomePage />);
-
-    fireEvent.click(screen.getByRole("tab", { name: "Data analysis" }));
-
-    expect(screen.getByRole("tab", { name: "Data analysis", selected: true })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /run this scenario live/i })).toHaveAttribute(
-      "href",
-      "/scenarios#data-analysis"
-    );
-  });
-
-  it("renders both finding cards linking into the Evaluation Lab's findings report", () => {
-    render(<HomePage />);
-
-    const findingLinks = screen
-      .getAllByRole("link")
-      .filter((link) => link.getAttribute("href")?.startsWith("/evaluation-lab#findings-"));
-    expect(findingLinks).toHaveLength(2);
-  });
-
-  it("shows the engineering findings and the remaining retrieval limitation", () => {
-    render(<HomePage />);
-
-    for (const name of [
-      "Safe SQL can still return the wrong business answer",
-      "A retrieval setting didn't transfer to production",
-      "The model proposes; code decides what can happen",
-    ]) {
-      expect(screen.getByRole("heading", { name, level: 3 })).toBeInTheDocument();
-    }
+    expect(screen.getByText(`Saved evaluation run: ${results.overall.passed}/${results.overall.total} tests passed (${results.overall.pass_rate.toFixed(1)}%)`)).toBeInTheDocument();
+    expect(screen.getByText(/not the current deployment/)).toBeInTheDocument();
     expect(screen.getByText(/specific damaged-shipment query remained unresolved/)).toBeInTheDocument();
-    expect(screen.getByText(/Saved evaluation run:/)).toBeInTheDocument();
+    expect(screen.getByText(/a later Ask check exposed a separate prompt/)).toBeInTheDocument();
   });
 
-  it("links into every other page in the site", () => {
+  it("keeps routes to the demo, investigations, traces, architecture, and source", () => {
     render(<HomePage />);
-
-    for (const href of ["/scenarios", "/ask", "/activity", "/evaluation-lab", "/architecture"]) {
-      expect(screen.getAllByRole("link").some((link) => link.getAttribute("href") === href)).toBe(
-        true
-      );
-    }
-  });
-
-  it("renders an explore card for every destination page", () => {
-    render(<HomePage />);
-
-    for (const name of ["Scenarios", "Ask", "System Traces", "Results & evidence", "Architecture"]) {
-      expect(screen.getByRole("heading", { name, level: 3 })).toBeInTheDocument();
-    }
+    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
+    for (const href of [
+      "/scenarios#refund-approval", "/scenarios#injection-attempt", "/evaluation-lab",
+      "/evaluation-lab#coverage", "/evaluation-lab#findings-finding-2-sql-calculation-errors",
+      "/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment",
+      "/ask", "/activity", "/architecture", "https://github.com/davidhahn/ecom-workflow-agent",
+    ]) expect(hrefs).toContain(href);
   });
 });
