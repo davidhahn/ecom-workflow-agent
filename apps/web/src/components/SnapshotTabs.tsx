@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AnalyzeResult } from "@/components/AnalyzeResult";
 import { Badge } from "@/components/ui/badge";
 import { RefundResult } from "@/components/RefundResult";
+import { SnapshotCalculationWarning } from "@/components/SnapshotCalculationWarning";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AnalyzeResponse, RefundEvaluateResponse } from "@/lib/api";
 import { SCENARIOS } from "@/lib/scenarios";
@@ -95,7 +96,10 @@ function TabPanel({ id }: { id: TabId }) {
         <p className="mt-1 max-w-prose text-sm text-gray-700 dark:text-gray-300">{scenario.input}</p>
       </div>
       {id === "data-analysis" ? (
-        <AnalyzeResult result={snapshot as AnalyzeResponse} traceHref={null} />
+        <>
+          <SnapshotCalculationWarning />
+          <AnalyzeResult result={snapshot as AnalyzeResponse} traceHref={null} />
+        </>
       ) : (
         <RefundResult result={snapshot as RefundEvaluateResponse} traceHref={null} />
       )}

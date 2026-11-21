@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { AnalyzeResult } from "@/components/AnalyzeResult";
 import { RefundResult } from "@/components/RefundResult";
+import { SnapshotCalculationWarning } from "@/components/SnapshotCalculationWarning";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import type { Scenario } from "@/lib/scenarios";
@@ -123,6 +124,7 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Captured from a real run on {CAPTURED_DATE}.
             </p>
+            {scenario.id === "data-analysis" && <SnapshotCalculationWarning />}
             {scenario.endpoint === "analyze" ? (
               <AnalyzeResult result={snapshot as AnalyzeResponse} traceHref={null} />
             ) : (
