@@ -10,9 +10,11 @@ import { Markdown } from "@/components/Markdown";
 export function AnalyzeResult({
   result,
   traceHref = `/activity/${result.request_log_id}`,
+  traceNewTab = false,
 }: {
   result: AnalyzeResponse;
   traceHref?: string | null;
+  traceNewTab?: boolean;
 }) {
   if (result.incomplete) {
     return (
@@ -91,9 +93,11 @@ export function AnalyzeResult({
       {traceHref !== null && (
         <Link
           href={traceHref}
+          target={traceNewTab ? "_blank" : undefined}
+          rel={traceNewTab ? "noopener noreferrer" : undefined}
           className="self-start text-xs font-medium text-accent underline underline-offset-2 hover:no-underline"
         >
-          View execution trace
+          View execution trace{traceNewTab ? " (new tab)" : ""}
         </Link>
       )}
     </div>

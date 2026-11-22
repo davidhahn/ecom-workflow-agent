@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { GITHUB_REPO_URL } from "@/lib/site";
 
 const TABS = [
+  { href: "/guided-demo", label: "Guided demo" },
   { href: "/scenarios", label: "Scenarios" },
   { href: "/ask", label: "Ask" },
   { href: "/activity", label: "System Traces" },

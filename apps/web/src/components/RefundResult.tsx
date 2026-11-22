@@ -17,9 +17,11 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
 export function RefundResult({
   result,
   traceHref = `/activity/${result.request_log_id}`,
+  traceNewTab = false,
 }: {
   result: RefundEvaluateResponse;
   traceHref?: string | null;
+  traceNewTab?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-5 rounded-md border border-black/10 p-6 dark:border-white/10">
@@ -35,11 +37,11 @@ export function RefundResult({
       {Object.keys(result.extracted_fields).length > 0 && (
         <div className="text-xs text-gray-500 dark:text-gray-400">
           <p className="font-medium text-gray-700 dark:text-gray-300">Extracted fields</p>
-          <dl className="mt-1 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
+          <dl className="mt-1 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1">
             {Object.entries(result.extracted_fields).map(([key, value]) => (
               <div key={key} className="contents">
                 <dt className="font-mono">{key}</dt>
-                <dd>{value === null || value === undefined ? "—" : String(value)}</dd>
+                <dd className="min-w-0 wrap-anywhere">{value === null || value === undefined ? "—" : String(value)}</dd>
               </div>
             ))}
           </dl>
@@ -49,9 +51,11 @@ export function RefundResult({
       {traceHref !== null && (
         <Link
           href={traceHref}
+          target={traceNewTab ? "_blank" : undefined}
+          rel={traceNewTab ? "noopener noreferrer" : undefined}
           className="self-start text-xs font-medium text-accent underline underline-offset-2 hover:no-underline"
         >
-          View execution trace
+          View execution trace{traceNewTab ? " (new tab)" : ""}
         </Link>
       )}
     </div>

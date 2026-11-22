@@ -17,7 +17,7 @@ describe("Landing page", () => {
     expect(within(intro).getByText(/it doesn’t issue refunds/)).toBeInTheDocument();
     expect(within(intro).getByText(/doesn’t inspect the photos/)).toBeInTheDocument();
     expect(within(intro).getByText(/sample data, not a live result/)).toBeInTheDocument();
-    expect(within(intro).getByRole("link", { name: /try this request live/i })).toHaveAttribute("href", "/scenarios#refund-approval");
+    expect(within(intro).getByRole("link", { name: /start the guided demo/i })).toHaveAttribute("href", "/guided-demo");
     expect(within(intro).getByRole("link", { name: /see results & evidence/i })).toHaveAttribute("href", "/evaluation-lab");
   });
 
@@ -34,7 +34,7 @@ describe("Landing page", () => {
     render(<HomePage />);
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     for (const href of [
-      "/scenarios#refund-approval", "/scenarios#injection-attempt", "/evaluation-lab",
+      "/guided-demo", "/scenarios#refund-approval", "/scenarios#injection-attempt", "/evaluation-lab",
       "/evaluation-lab#coverage", "/evaluation-lab#findings-finding-2-sql-calculation-errors",
       "/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment",
       "/ask", "/activity", "/architecture", "https://github.com/davidhahn/ecom-workflow-agent",

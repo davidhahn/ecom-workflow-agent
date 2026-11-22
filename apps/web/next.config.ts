@@ -8,17 +8,20 @@ import path from "node:path";
 // directory, Turbopack dev only discovers middleware there. next build
 // also accepts the app root, which is how a root-level file deployed fine
 // while next dev quietly ran without any proxy.
+const reportFiles = [
+  "../../evals/cases.json",
+  "../../evals/results/20260822-201944/results.json",
+  "../../evals/results/20260822-201944/experiment.json",
+  "../../evals/labels.json",
+  "../../evals/request_faithfulness_labels.json",
+  "../../evals/ablation_raw.json",
+  "../../evals/*.md",
+];
+
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
-    "/evaluation-lab": [
-      "../../evals/cases.json",
-      "../../evals/results/20260822-201944/results.json",
-      "../../evals/results/20260822-201944/experiment.json",
-      "../../evals/labels.json",
-      "../../evals/request_faithfulness_labels.json",
-      "../../evals/ablation_raw.json",
-      "../../evals/*.md",
-    ],
+    "/evaluation-lab": reportFiles,
+    "/guided-demo": reportFiles,
   },
   turbopack: {
     root: path.join(__dirname, "..", ".."),

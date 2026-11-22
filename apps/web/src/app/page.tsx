@@ -57,7 +57,7 @@ export default function HomePage() {
             check whether a customer’s refund request qualifies, in one place.
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <Button asChild><Link href="/scenarios#refund-approval">Try this request live →</Link></Button>
+            <Button asChild><Link href="/guided-demo">Start the guided demo →</Link></Button>
             <Button asChild variant="outline"><Link href="/evaluation-lab">See results &amp; evidence →</Link></Button>
           </div>
           <p className="max-w-prose text-sm text-gray-500 dark:text-gray-400">

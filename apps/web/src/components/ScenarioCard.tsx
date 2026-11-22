@@ -45,7 +45,7 @@ const EVIDENCE_LINKS: Record<string, { href: string; label: string; note: string
   },
 };
 
-export function ScenarioCard({ scenario }: { scenario: Scenario }) {
+export function ScenarioCard({ scenario, traceNewTab = false }: { scenario: Scenario; traceNewTab?: boolean }) {
   const [state, setState] = useState<State>({ status: "snapshot" });
   const { role } = useRole();
   const snapshot = getScenarioSnapshot(scenario);
@@ -134,9 +134,9 @@ export function ScenarioCard({ scenario }: { scenario: Scenario }) {
         )}
 
         {state.status === "success" && state.endpoint === "analyze" && (
-          <AnalyzeResult result={state.result} />
+          <AnalyzeResult result={state.result} traceNewTab={traceNewTab} />
         )}
-        {state.status === "success" && state.endpoint === "refund" && <RefundResult result={state.result} />}
+        {state.status === "success" && state.endpoint === "refund" && <RefundResult result={state.result} traceNewTab={traceNewTab} />}
 
         <div className="border-t border-black/10 pt-4 dark:border-white/10">
           {state.status === "snapshot" && (
