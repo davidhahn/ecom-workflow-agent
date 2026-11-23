@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import EvaluationLabPage from "./page";
 
@@ -7,14 +7,30 @@ describe("Combined results and evidence page", () => {
     render(<EvaluationLabPage />);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByText(/I built this assistant to answer questions/)).toBeInTheDocument();
-    expect(screen.getByText("What is the refund rate for Home category products?")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "One request, from question to result" })).getByText("What is the refund rate for Home category products?")).toBeInTheDocument();
     expect(screen.getByText("2 approved refunded units / 24 units sold = 8.33%")).toBeInTheDocument();
     const example = screen.getByRole("heading", { name: "One request, from question to result" });
     const coverage = screen.getByRole("heading", { name: "What passed, what failed, and what didn’t run" });
-    const failure = screen.getByRole("heading", { name: "A query can run successfully and still give the wrong number" });
+    const failure = screen.getByRole("heading", { name: "The query ran successfully. The refund rate was wrong." });
     expect(example.compareDocumentPosition(coverage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(coverage.compareDocumentPosition(failure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText(/not a live Ask response/)).toBeInTheDocument();
+  });
+
+  it("provides a directly linked investigation with the recorded SQL and its measurement limits", () => {
+    render(<EvaluationLabPage />);
+    const investigation = document.getElementById("sql-investigation")!;
+    expect(investigation).toHaveTextContent("Before: 50.00%");
+    expect(investigation).toHaveTextContent("After: 43.48%");
+    expect(investigation).toHaveTextContent("10 refund records / 20 order lines");
+    expect(investigation).toHaveTextContent("10 approved refunded units / 23 units sold");
+    expect(investigation).toHaveTextContent("Several settings changed");
+    const queries = within(investigation).getByText("See the actual queries, returned rows, and independent checks");
+    expect(queries.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(queries);
+    expect(queries.closest("details")).toHaveAttribute("open");
+    expect(within(investigation).getAllByText(/COUNT\(DISTINCT r.id\)/).length).toBeGreaterThan(0);
+    expect(within(investigation).getAllByRole("link", { name: "Open the saved query and result" })).toHaveLength(4);
   });
 
   it("keeps one total, with sample size and historical limits beside it", () => {

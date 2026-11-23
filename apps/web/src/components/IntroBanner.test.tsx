@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
 }));
 
-const BANNER_TEXT = /an ai systems engineering case study, using e-commerce ops as the testbed/i;
+const BANNER_TEXT = /an e-commerce AI case study/i;
 
 // This is what layout.tsx composes around {children} for every route,
 // reproduced here (mounting the real RootLayout is awkward under RTL's

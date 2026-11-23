@@ -15,6 +15,7 @@ const reportFiles = [
   "../../evals/labels.json",
   "../../evals/request_faithfulness_labels.json",
   "../../evals/ablation_raw.json",
+  "../../evals/sql_semantic_calibration_v1_raw.json",
   "../../evals/*.md",
 ];
 

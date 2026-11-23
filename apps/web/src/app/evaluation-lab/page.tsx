@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SqlInvestigation } from "@/components/SqlInvestigation";
 import { getPublicEvalReport, REPORT_RUN } from "@/lib/public-eval-report";
 import { ReportDisclosure } from "@/components/ReportDisclosure";
 import { Markdown } from "@/components/Markdown";
@@ -126,14 +127,7 @@ export default function EvaluationLabPage() {
         <p className="max-w-prose text-sm text-gray-500">Two cases failed: a calculation of the average time before a refund request, and an answer that combined order data with policy. The query, answer, and scoring need to be read together to understand those failures. A failed test can also expose a problem with the expected answer or the test setup.</p>
       </section>
 
-      <section className="space-y-6" aria-labelledby="regression">
-        <h2 id="regression" className="text-xl font-semibold">A query can run successfully and still give the wrong number</h2>
-        <p className="max-w-prose">An order line can contain several units of a product. Counting each line as one unit gave the wrong refund rate, and including pending or denied refunds could inflate it further. The access and query checks allowed this SQL to run because it was safe to execute. They didn’t check whether it calculated the metric I meant.</p>
-        <p className="max-w-prose">I worked out the expected answers separately in the database, compared them with the agent’s results, and clarified the metric instructions. I also added checks against those expected values. Across the seven SQL questions, the results improved:</p>
-        <p className="text-lg font-semibold">{report.regression[0].passed}/{report.regression[0].n} → {report.regression[1].passed}/{report.regression[1].n} correct SQL outcomes</p>
-        <p className="max-w-prose text-sm">That’s {report.regression[0].distinct} questions repeated {report.regression[0].runs} times before and after. It gives me evidence that the changes helped on those questions. Several settings changed between the two configurations, so I can’t attribute the improvement to one change alone. These tests also used the direct SQL endpoint. A later live check found that Ask used a different prompt and needed the same metric instructions added separately.</p>
-        <p className="text-sm"><Source file="primary_results.md">Read the comparison</Source> · <Source file="ablation_raw.json">Raw before/after results</Source> · <Source file="measurement_context.md">Experiment configurations</Source></p>
-      </section>
+      <SqlInvestigation regression={report.regression} />
 
 
       <section className="space-y-6" aria-labelledby="judge">

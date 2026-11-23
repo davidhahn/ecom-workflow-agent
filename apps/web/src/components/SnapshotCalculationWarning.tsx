@@ -11,7 +11,7 @@ export function SnapshotCalculationWarning() {
         and approved refunds; run it fresh to inspect the current answer and SQL.
       </p>
       <Link
-        href="/evaluation-lab#findings-finding-2-sql-calculation-errors"
+        href="/evaluation-lab#sql-investigation"
         className="mt-2 inline-block font-medium underline underline-offset-2 hover:no-underline"
       >
         Read the calculation investigation →

@@ -18,7 +18,7 @@ const FINDINGS = [
   {
     title: "Safe SQL can still give the wrong answer",
     description: "The query passed its safety checks, but counted order lines instead of units. I compared the results with independent calculations and clarified the metric instructions. Seven questions improved from 14/21 to 21/21 correct outcomes across three runs. Those tests used the direct SQL path; a later Ask check exposed a separate prompt that needed the same fix.",
-    href: "/evaluation-lab#findings-finding-2-sql-calculation-errors",
+    href: "/evaluation-lab#sql-investigation",
     link: "Read the SQL investigation →",
   },
   {

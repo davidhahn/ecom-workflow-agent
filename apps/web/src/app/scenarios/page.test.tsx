@@ -44,7 +44,7 @@ describe("Scenarios page", () => {
     expect(screen.getByRole("heading", { name: "Data analysis" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Injection attempt" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "How I checked the calculations →" })).toHaveAttribute(
-      "href", "/evaluation-lab#findings-finding-2-sql-calculation-errors"
+      "href", "/evaluation-lab#sql-investigation"
     );
   });
 

@@ -35,7 +35,7 @@ describe("Landing page", () => {
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     for (const href of [
       "/guided-demo", "/scenarios#refund-approval", "/scenarios#injection-attempt", "/evaluation-lab",
-      "/evaluation-lab#coverage", "/evaluation-lab#findings-finding-2-sql-calculation-errors",
+      "/evaluation-lab#coverage", "/evaluation-lab#sql-investigation",
       "/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment",
       "/ask", "/activity", "/architecture", "https://github.com/davidhahn/ecom-workflow-agent",
     ]) expect(hrefs).toContain(href);

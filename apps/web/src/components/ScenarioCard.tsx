@@ -34,7 +34,7 @@ const CAPTURED_DATE = new Date(SNAPSHOT_CAPTURED_AT).toLocaleDateString(undefine
 
 const EVIDENCE_LINKS: Record<string, { href: string; label: string; note: string }> = {
   "data-analysis": {
-    href: "/evaluation-lab#findings-finding-2-sql-calculation-errors",
+    href: "/evaluation-lab#sql-investigation",
     label: "How I checked the calculations",
     note: "Independent result checks exposed errors that SQL safety checks missed. The saved experiments cover the direct SQL path, not every Ask response.",
   },
