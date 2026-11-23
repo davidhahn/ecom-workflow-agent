@@ -35,11 +35,11 @@ export function NavHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-background/85 backdrop-blur dark:border-white/10">
-      <div className="mx-auto flex w-full max-w-5xl items-center gap-6 px-6 py-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4 md:flex-nowrap">
         <Link href="/" className="shrink-0 font-semibold">
           Ops Intelligence Agent
         </Link>
-        <nav className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto py-1.5 whitespace-nowrap">
+        <nav className="order-last flex w-full min-w-0 flex-auto items-center gap-4 overflow-x-auto py-1.5 text-sm whitespace-nowrap md:order-none md:w-auto md:flex-1">
           {TABS.map((tab) => {
             const active = pathname === tab.href;
             return (
@@ -69,7 +69,7 @@ export function NavHeader() {
           href={GITHUB_REPO_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 text-xs text-gray-500 hover:text-accent dark:text-gray-400"
+          className="ml-auto shrink-0 text-xs text-gray-500 hover:text-accent md:ml-0 dark:text-gray-400"
         >
           GitHub
         </a>

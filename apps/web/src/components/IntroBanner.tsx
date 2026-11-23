@@ -17,14 +17,13 @@ export function IntroBanner() {
     <div className="border-b border-black/10 bg-black/[0.03] py-3 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
       <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-4 gap-y-1 px-6">
         <span>
-          An AI systems engineering case study, using e-commerce ops as the testbed. Ask a
-          question or evaluate a refund, then see the full decision trace behind it.
+          An e-commerce AI case study. Ask about orders or refund eligibility, then inspect the decision trace.
         </span>
         <a
           href={GITHUB_REPO_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-accent underline underline-offset-2 hover:no-underline"
+          className="shrink-0 whitespace-nowrap font-medium text-accent underline underline-offset-2 hover:no-underline"
         >
           View on GitHub
         </a>

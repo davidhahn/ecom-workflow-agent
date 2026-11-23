@@ -44,9 +44,9 @@ export default function HomePage() {
   });
 
   return (
-    <div className="flex flex-col gap-14">
+    <div className="flex flex-col gap-20">
       <section className="grid items-start gap-8 lg:grid-cols-2 lg:gap-10" aria-labelledby="project-intro">
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-6">
           <p className="text-sm text-gray-500 dark:text-gray-400">E-commerce operations · AI engineering case study</p>
           <h1 id="project-intro" className="text-3xl leading-tight font-semibold sm:text-5xl">
             An AI assistant for <span className="whitespace-nowrap">e-commerce</span> operations
@@ -92,7 +92,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-6" aria-labelledby="engineering-findings">
+      <section className="flex flex-col gap-8" aria-labelledby="engineering-findings">
         <div className="flex flex-col gap-3">
           <h2 id="engineering-findings" className="text-2xl font-semibold">Getting an answer is only the first part</h2>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
@@ -113,7 +113,7 @@ export default function HomePage() {
           </Link>
         </div>
         {FINDINGS.map((finding) => (
-          <Card key={finding.title} className="gap-3 p-5 sm:p-6">
+          <Card key={finding.title} className="gap-5 p-6 sm:p-8">
             <h3 className="text-lg font-semibold">{finding.title}</h3>
             <p className="max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-300">{finding.description}</p>
             <Link href={finding.href} className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline">

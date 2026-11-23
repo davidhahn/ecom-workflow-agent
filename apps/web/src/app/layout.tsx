@@ -39,7 +39,7 @@ export default function RootLayout({
         <RoleProvider>
           <IntroBanner />
           <NavHeader />
-          <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12 sm:py-16">{children}</main>
+          <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12 sm:py-20">{children}</main>
           <SiteFooter />
         </RoleProvider>
       </body>

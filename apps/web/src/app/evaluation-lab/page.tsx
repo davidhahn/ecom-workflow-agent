@@ -53,7 +53,7 @@ export default function EvaluationLabPage() {
   const { results, experiment } = report;
   const reports = getAllEvalReports();
   return (
-    <article className="flex flex-col gap-10">
+    <article className="flex flex-col gap-16">
       <header className="flex flex-col gap-4">
         <p className="text-sm text-gray-500 dark:text-gray-400">E-commerce operations agent · Evaluation report</p>
         <h1 className="text-3xl font-semibold sm:text-4xl">How I check whether the agent gives the right answer</h1>
@@ -66,7 +66,7 @@ export default function EvaluationLabPage() {
       </header>
 
 
-      <section className="space-y-4" aria-labelledby="example">
+      <section className="space-y-6" aria-labelledby="example">
         <h2 id="example" className="text-xl font-semibold">One request, from question to result</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">Recorded direct-SQL example · August 22 local run · SQL prompt v2 · not a live Ask response</p>
         <div className="rounded-lg border border-black/10 p-5 dark:border-white/10">
@@ -87,7 +87,7 @@ export default function EvaluationLabPage() {
         </div>
       </section>
 
-      <section className="space-y-4" aria-labelledby="coverage">
+      <section className="space-y-6" aria-labelledby="coverage">
         <h2 id="coverage" className="text-xl font-semibold">What passed, what failed, and what didn’t run</h2>
         <div className="rounded-lg border border-black/10 p-5 dark:border-white/10">
           <p className="text-2xl font-semibold">{results.overall.passed}/{results.overall.total} tests passed ({(100 * results.overall.passed / results.overall.total).toFixed(1)}%)</p>
@@ -126,7 +126,7 @@ export default function EvaluationLabPage() {
         <p className="max-w-prose text-sm text-gray-500">Two cases failed: a calculation of the average time before a refund request, and an answer that combined order data with policy. The query, answer, and scoring need to be read together to understand those failures. A failed test can also expose a problem with the expected answer or the test setup.</p>
       </section>
 
-      <section className="space-y-4" aria-labelledby="regression">
+      <section className="space-y-6" aria-labelledby="regression">
         <h2 id="regression" className="text-xl font-semibold">A query can run successfully and still give the wrong number</h2>
         <p className="max-w-prose">An order line can contain several units of a product. Counting each line as one unit gave the wrong refund rate, and including pending or denied refunds could inflate it further. The access and query checks allowed this SQL to run because it was safe to execute. They didn’t check whether it calculated the metric I meant.</p>
         <p className="max-w-prose">I worked out the expected answers separately in the database, compared them with the agent’s results, and clarified the metric instructions. I also added checks against those expected values. Across the seven SQL questions, the results improved:</p>
@@ -136,13 +136,13 @@ export default function EvaluationLabPage() {
       </section>
 
 
-      <section className="space-y-4" aria-labelledby="judge">
+      <section className="space-y-6" aria-labelledby="judge">
         <h2 id="judge" className="text-xl font-semibold">How I checked the model grading the answers</h2>
         <p className="max-w-prose">Some answers need more than a numeric comparison, so I use a second model to grade them against written criteria. I compared its decisions with my own labels in two separate reviews. We agreed on {report.audits.reduce((sum, row) => sum + row.agreed, 0)} of {report.audits.reduce((sum, row) => sum + row.n, 0)} decisions. However, every answer in that sample was a passing example, including responses that correctly said an action couldn’t be performed. I still need to check how well the grader catches bad answers. These reviews are separate from the 62-case run.</p>
         <ul className="list-disc space-y-2 pl-5 text-sm">{report.audits.map((audit) => <li key={audit.file}><Source file={audit.file}>{audit.file === "labels.json" ? "Answer-grading review" : "Unsupported-action review"}</Source>: {audit.agreed}/{audit.n} decisions agree, across {audit.distinct} different questions{audit.n !== audit.distinct ? " (repeated observations of the same questions)" : ""}.</li>)}</ul>
       </section>
 
-      <section className="space-y-4" aria-labelledby="performance">
+      <section className="space-y-6" aria-labelledby="performance">
         <h2 id="performance" className="text-xl font-semibold">How long the tests took and what the model calls cost</h2>
         <p className="max-w-prose text-sm">I calculated these figures from the same saved run, including failed tests. The median shows the middle recorded time. The p95 shows the time at or below which at least 95% of the tests finished. Each question ran once here. With only a few cases in a category, p95 is the slowest recorded time.</p>
         <p className="max-w-prose text-sm text-gray-500">These times include the test runner’s work and, for some categories, the grading model. They aren’t measurements of how long a user waits in production. Cost covers the recorded calls to the application model. It excludes grading calls, hosting, and any unrecorded cost of turning policy text into searchable vectors. Missing costs are shown as “Not recorded”; $0 means no model cost was recorded for that test.</p>

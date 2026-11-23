@@ -22,6 +22,14 @@
 }
 
 @theme inline {
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.6;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.7;
+  --text-base: 1.125rem;
+  --text-base--line-height: 1.75;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.5;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-accent: var(--accent);
@@ -62,7 +70,20 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-  line-height: 1.6;
+  font-size: var(--text-base);
+  line-height: 1.75;
+}
+
+@media (width < 48rem) {
+  html {
+    scroll-padding-top: 2.5rem;
+  }
+}
+
+@layer utilities {
+  .max-w-prose {
+    max-width: 60ch;
+  }
 }
 
 /* Real shadcn setups always ship this: without it, sourced components that

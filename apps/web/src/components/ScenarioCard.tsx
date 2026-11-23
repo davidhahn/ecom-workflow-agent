@@ -76,15 +76,15 @@ export function ScenarioCard({ scenario, traceNewTab = false }: { scenario: Scen
   }
 
   return (
-    <Card id={scenario.id} className="scroll-mt-20 gap-5">
+    <Card id={scenario.id} className="scroll-mt-20 gap-8 py-8">
       <CardHeader className="gap-2">
-        <h2 className="text-lg leading-none font-semibold">{scenario.name}</h2>
+        <h2 className="text-lg leading-snug font-semibold">{scenario.name}</h2>
         <CardDescription className="max-w-prose text-base text-gray-600 dark:text-gray-300">
           {scenario.businessContext}
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-5">
+      <CardContent className="flex flex-col gap-8">
         {/* A result is always on screen now, either the captured snapshot or
             a fresh run, so the promise is always right there to compare
             against. */}

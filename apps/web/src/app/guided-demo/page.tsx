@@ -20,7 +20,7 @@ function Scenario({ id }: { id: string }) {
 export default function GuidedDemoPage() {
   const report = getPublicEvalReport();
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-12">
       <header className="flex flex-col gap-3">
         <p className="text-sm text-gray-500 dark:text-gray-400">Start here · Five steps through the product</p>
         <h1 className="text-3xl font-semibold sm:text-4xl">A guided look at the operations agent</h1>

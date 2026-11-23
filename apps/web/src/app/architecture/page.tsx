@@ -46,7 +46,7 @@ const COPY = "max-w-prose text-base text-gray-600 dark:text-gray-300";
 
 export default function ArchitecturePage() {
   return (
-    <div className="flex flex-col gap-12">
+    <div className="flex flex-col gap-16">
       <header className="flex flex-col gap-3">
         <h1 className="text-3xl font-semibold">Architecture</h1>
         <p className={COPY}>

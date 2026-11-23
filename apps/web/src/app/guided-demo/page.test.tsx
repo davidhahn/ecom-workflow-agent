@@ -27,6 +27,17 @@ function goTo(id: string) {
 }
 
 describe("Guided demo", () => {
+  it("switches steps without the link's native scroll navigation", () => {
+    renderGuide();
+    for (const name of ["2. Policy lookup", "Next: Refund decision →", "← Back: Policy lookup"]) {
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      fireEvent(screen.getByRole("link", { name }), event);
+      expect(event.defaultPrevented).toBe(true);
+    }
+    expect(window.location.hash).toBe("#policy");
+    expect(screen.getByRole("heading", { name: "Find the rule before making a decision" })).toBeVisible();
+  });
+
   it("starts with a sourced data result and does not require live API calls", () => {
     renderGuide();
     const report = getPublicEvalReport();
