@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RoleProvider } from "@/lib/role-context";
 import { getPublicEvalReport } from "@/lib/public-eval-report";
@@ -27,6 +27,25 @@ function goTo(id: string) {
 }
 
 describe("Guided demo", () => {
+  it("introduces each scenario once while retaining its request, saved result, and evidence link", () => {
+    renderGuide();
+    goTo("policy");
+    expect(screen.getByRole("heading", { name: "Find the rule before making a decision" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Policy retrieval" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Expected behavior")).not.toBeInTheDocument();
+    expect(screen.getByText("What does our policy require before a damaged-shipping refund can be processed?")).toBeVisible();
+    expect(within(screen.getByRole("region", { name: "Find the rule before making a decision" })).getByText(/Captured from a real run/)).toBeVisible();
+    expect(screen.getByText("Passed")).toBeVisible();
+    expect(screen.getByRole("link", { name: "What changed in production retrieval →" })).toHaveAttribute(
+      "href", "/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment"
+    );
+    goTo("refund");
+    expect(screen.getByText("approved")).toBeVisible();
+    expect(screen.getByText("rule 4", { exact: true })).toBeVisible();
+    goTo("boundary");
+    expect(screen.getByText("could_not_process")).toBeVisible();
+  });
+
   it("switches steps without the link's native scroll navigation", () => {
     renderGuide();
     for (const name of ["2. Policy lookup", "Next: Refund decision →", "← Back: Policy lookup"]) {

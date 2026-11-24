@@ -14,7 +14,7 @@ const linkStyle = "self-start text-sm font-medium text-accent underline underlin
 function Scenario({ id }: { id: string }) {
   const scenario = SCENARIOS.find((item) => item.id === id);
   if (!scenario) throw new Error(`Missing guided demo scenario: ${id}`);
-  return <ScenarioCard scenario={scenario} traceNewTab />;
+  return <ScenarioCard scenario={scenario} traceNewTab showIntroduction={false} />;
 }
 
 export default function GuidedDemoPage() {

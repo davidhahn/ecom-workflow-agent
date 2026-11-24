@@ -45,7 +45,15 @@ const EVIDENCE_LINKS: Record<string, { href: string; label: string; note: string
   },
 };
 
-export function ScenarioCard({ scenario, traceNewTab = false }: { scenario: Scenario; traceNewTab?: boolean }) {
+export function ScenarioCard({
+  scenario,
+  traceNewTab = false,
+  showIntroduction = true,
+}: {
+  scenario: Scenario;
+  traceNewTab?: boolean;
+  showIntroduction?: boolean;
+}) {
   const [state, setState] = useState<State>({ status: "snapshot" });
   const { role } = useRole();
   const snapshot = getScenarioSnapshot(scenario);
@@ -77,28 +85,32 @@ export function ScenarioCard({ scenario, traceNewTab = false }: { scenario: Scen
 
   return (
     <Card id={scenario.id} className="scroll-mt-20 gap-8 py-8">
-      <CardHeader className="gap-2">
-        <h2 className="text-lg leading-snug font-semibold">{scenario.name}</h2>
-        <CardDescription className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-          {scenario.businessContext}
-        </CardDescription>
-      </CardHeader>
+      {showIntroduction && (
+        <CardHeader className="gap-2">
+          <h2 className="text-lg leading-snug font-semibold">{scenario.name}</h2>
+          <CardDescription className="max-w-prose text-base text-gray-600 dark:text-gray-300">
+            {scenario.businessContext}
+          </CardDescription>
+        </CardHeader>
+      )}
 
       <CardContent className="flex flex-col gap-8">
         {/* A result is always on screen now, either the captured snapshot or
             a fresh run, so the promise is always right there to compare
             against. */}
-        <details
-          open={state.status === "snapshot" || state.status === "success" || undefined}
-          className="rounded-md bg-black/[0.02] dark:bg-white/[0.03]"
-        >
-          <summary className="cursor-pointer select-none px-4 py-3 text-xs font-medium text-gray-700 dark:text-gray-300">
-            Expected behavior
-          </summary>
-          <p className="max-w-prose px-4 pb-3 text-sm text-gray-500 dark:text-gray-400">
-            {scenario.expectedBehavior}
-          </p>
-        </details>
+        {showIntroduction && (
+          <details
+            open={state.status === "snapshot" || state.status === "success" || undefined}
+            className="rounded-md bg-black/[0.02] dark:bg-white/[0.03]"
+          >
+            <summary className="cursor-pointer select-none px-4 py-3 text-xs font-medium text-gray-700 dark:text-gray-300">
+              Expected behavior
+            </summary>
+            <p className="max-w-prose px-4 pb-3 text-sm text-gray-500 dark:text-gray-400">
+              {scenario.expectedBehavior}
+            </p>
+          </details>
+        )}
 
         <div className="rounded-md border border-black/10 p-4 dark:border-white/10">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
