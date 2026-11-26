@@ -1,42 +1,48 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { getEvalResults } from "@/lib/evals";
-import { SCENARIOS } from "@/lib/scenarios";
-import { getScenarioSnapshot } from "@/lib/snapshots";
+import { getSqlInvestigation } from "@/lib/sql-investigation";
+import { getPublicEvalReport } from "@/lib/public-eval-report";
 import HomePage from "./page";
 
 describe("Landing page", () => {
-  it("introduces the use case and a recorded request before the engineering details", () => {
+  it("identifies the users and introduces a sourced failure before technical details", () => {
     render(<HomePage />);
-    expect(screen.getByRole("heading", { level: 1, name: "An AI assistant for e-commerce operations" })).toBeInTheDocument();
     const intro = screen.getByRole("region", { name: "An AI assistant for e-commerce operations" });
-    const scenario = SCENARIOS.find((item) => item.id === "refund-approval")!;
-    const snapshot = getScenarioSnapshot(scenario);
-    expect(within(intro).getByText(`“${scenario.input}”`)).toBeInTheDocument();
-    expect("status" in snapshot && within(intro).getByText(snapshot.status)).toBeInTheDocument();
+    const example = getSqlInvestigation().examples[0];
+    expect(within(intro).getByText(/For support and operations teams/)).toBeInTheDocument();
+    expect(within(intro).getByText(`“${example.request}”`)).toBeInTheDocument();
+    expect(within(intro).getByText(`${example.beforeRate.toFixed(2)}%`)).toBeInTheDocument();
+    expect(within(intro).getByText(`${example.afterRate.toFixed(2)}%`)).toBeInTheDocument();
+    expect(within(intro).getByText("10 refund records / 20 order lines")).toBeInTheDocument();
+    expect(within(intro).getByText("10 approved refunded units / 23 units sold")).toBeInTheDocument();
     expect(within(intro).getByText(/it doesn’t issue refunds/)).toBeInTheDocument();
-    expect(within(intro).getByText(/doesn’t inspect the photos/)).toBeInTheDocument();
-    expect(within(intro).getByText(/sample data, not a live result/)).toBeInTheDocument();
+    expect(within(intro).getByText(/not a live Ask result/)).toBeInTheDocument();
     expect(within(intro).getByRole("link", { name: /start the guided demo/i })).toHaveAttribute("href", "/guided-demo");
-    expect(within(intro).getByRole("link", { name: /see results & evidence/i })).toHaveAttribute("href", "/evaluation-lab");
+    expect(within(intro).getByRole("link", { name: "Read the SQL investigation →" })).toHaveAttribute("href", "/evaluation-lab#sql-investigation");
   });
 
-  it("uses the saved evaluation totals with the historical measurement scope", () => {
+  it("connects ownership and diagnosis to evidence with explicit scope limits", () => {
     render(<HomePage />);
-    const results = getEvalResults();
-    expect(screen.getByText(`Saved evaluation run: ${results.overall.passed}/${results.overall.total} tests passed (${results.overall.pass_rate.toFixed(1)}%)`)).toBeInTheDocument();
-    expect(screen.getByText(/not the current deployment/)).toBeInTheDocument();
-    expect(screen.getByText(/specific damaged-shipment query remained unresolved/)).toBeInTheDocument();
-    expect(screen.getByText(/a later Ask check exposed a separate prompt/)).toBeInTheDocument();
+    const { regression } = getPublicEvalReport();
+    expect(screen.getByText(`${regression[0].passed}/${regression[0].n} → ${regression[1].passed}/${regression[1].n} correct SQL outcomes`)).toBeInTheDocument();
+    expect(screen.getByText(/Several settings changed/)).toHaveTextContent("not proof of the current deployed Ask workflow");
+    expect(screen.getByText(/I scoped the web app and API/)).toBeInTheDocument();
+    expect(screen.getByText(/Ask used a separate prompt/)).toBeInTheDocument();
+    expect(screen.getByText(/policy query remained unresolved/)).toBeInTheDocument();
+    expect(screen.getByText(/I haven’t measured customer adoption or business savings/)).toBeInTheDocument();
+    const sections = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    expect(sections).toEqual([
+      "One question exposed a wrong calculation", "What I built and where I drew the boundary",
+      "How I traced the wrong answer", "What the evidence supports", "Inspect the work",
+    ]);
   });
 
-  it("keeps routes to the demo, investigations, traces, architecture, and source", () => {
+  it("keeps the demo, complete investigation, evaluation report, and implementation accessible", () => {
     render(<HomePage />);
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     for (const href of [
-      "/guided-demo", "/scenarios#refund-approval", "/scenarios#injection-attempt", "/evaluation-lab",
-      "/evaluation-lab#coverage", "/evaluation-lab#sql-investigation",
-      "/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment",
+      "/guided-demo", "/scenarios#injection-attempt", "/evaluation-lab",
+      "/evaluation-lab#sql-investigation", "/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment",
       "/ask", "/activity", "/architecture", "https://github.com/davidhahn/ecom-workflow-agent",
     ]) expect(hrefs).toContain(href);
   });

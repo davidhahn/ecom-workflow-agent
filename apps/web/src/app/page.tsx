@@ -1,139 +1,154 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { GITHUB_REPO_URL } from "@/lib/site";
-import { getEvalResults } from "@/lib/evals";
-import { SCENARIOS } from "@/lib/scenarios";
-import { getScenarioSnapshot, SNAPSHOT_CAPTURED_AT } from "@/lib/snapshots";
-import type { RefundEvaluateResponse } from "@/lib/api";
+import { getPublicEvalReport } from "@/lib/public-eval-report";
+import { getSqlInvestigation } from "@/lib/sql-investigation";
 
 export const metadata: Metadata = {
   description:
-    "An e-commerce operations assistant that answers questions about orders, finds policy rules, and checks refund eligibility. Try the demo and inspect the decisions and evaluation evidence.",
+    "An AI assistant for e-commerce support and operations teams. See what I built, how I caught a wrong refund-rate calculation, and the evidence behind the fix.",
 };
 
-const FINDINGS = [
-  {
-    title: "Safe SQL can still give the wrong answer",
-    description: "The query passed its safety checks, but counted order lines instead of units. I compared the results with independent calculations and clarified the metric instructions. Seven questions improved from 14/21 to 21/21 correct outcomes across three runs. Those tests used the direct SQL path; a later Ask check exposed a separate prompt that needed the same fix.",
-    href: "/evaluation-lab#sql-investigation",
-    link: "Read the SQL investigation →",
-  },
-  {
-    title: "A local retrieval result didn't hold up in production",
-    description: "Changing embedding models pushed the relevant policy passage outside the retrieval cutoff. Separate thresholds helped other queries, but the specific damaged-shipment query remained unresolved. I kept the failure in the report rather than treating local results as proof that production worked.",
-    href: "/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment",
-    link: "Read the retrieval investigation →",
-  },
-  {
-    title: "The model interprets the request; code applies the rules",
-    description: "Claude extracts intent and proposes tools. Code controls database access and applies the refund rules. The model has no path to issue a refund. The demo also includes an embedded instruction that tries to override the customer's reason, so you can inspect how that request was handled.",
-    href: "/scenarios#injection-attempt",
-    link: "Inspect the override attempt →",
-  },
-];
+const linkStyle = "self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline";
 
 export default function HomePage() {
-  const results = getEvalResults();
-  const scenario = SCENARIOS.find((item) => item.id === "refund-approval")!;
-  const snapshot = getScenarioSnapshot(scenario) as RefundEvaluateResponse;
-  const capturedDate = new Date(SNAPSHOT_CAPTURED_AT).toLocaleDateString("en-US", {
-    year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
-  });
+  const { regression } = getPublicEvalReport();
+  const { examples } = getSqlInvestigation();
+  const electronics = examples[0];
 
   return (
     <div className="flex flex-col gap-20">
       <section className="grid items-start gap-8 lg:grid-cols-2 lg:gap-10" aria-labelledby="project-intro">
         <div className="flex flex-col gap-6">
-          <p className="text-sm text-gray-500 dark:text-gray-400">E-commerce operations · AI engineering case study</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">E-commerce operations · Working demo and engineering case study</p>
           <h1 id="project-intro" className="text-3xl leading-tight font-semibold sm:text-5xl">
             An AI assistant for <span className="whitespace-nowrap">e-commerce</span> operations
           </h1>
           <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            A support or operations team needs answers from both order records and policy
-            documents. This agent lets them ask about refund rates, look up return rules, or
-            check whether a customer’s refund request qualifies, in one place.
+            For support and operations teams: ask questions about orders and policies, check
+            refund eligibility, and inspect how each result was reached.
+          </p>
+          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
+            I built the assistant and its evaluation workflow. One refund-rate question exposed
+            a wrong answer that the query’s safety checks had missed. Here’s how I investigated it.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild><Link href="/guided-demo">Start the guided demo →</Link></Button>
-            <Button asChild variant="outline"><Link href="/evaluation-lab">See results &amp; evidence →</Link></Button>
+            <Button asChild variant="outline"><Link href="/evaluation-lab#sql-investigation">Read the SQL investigation →</Link></Button>
           </div>
           <p className="max-w-prose text-sm text-gray-500 dark:text-gray-400">
-            A working demo with sample orders and policies. It evaluates refund eligibility;
+            A demo with sample orders and policies. It evaluates refund eligibility;
             it doesn’t issue refunds.
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 rounded-lg border border-black/10 bg-black/[0.02] p-5 sm:p-6 dark:border-white/10 dark:bg-white/[0.02]" aria-labelledby="example-request">
-          <h2 id="example-request" className="text-lg font-semibold">One request, from message to decision</h2>
+        <div className="flex flex-col gap-5 rounded-lg border border-black/10 bg-black/[0.02] p-5 sm:p-6 dark:border-white/10 dark:bg-white/[0.02]" aria-labelledby="example-request">
+          <h2 id="example-request" className="text-lg font-semibold">One question exposed a wrong calculation</h2>
           <div>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Customer request</p>
-            <blockquote className="mt-2 text-sm leading-relaxed">“{scenario.input}”</blockquote>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">The actual request</p>
+            <blockquote className="mt-2 text-base">“{electronics.request}”</blockquote>
           </div>
-          <div className="border-t border-black/10 pt-4 dark:border-white/10">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Recorded result</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Badge variant="success">{snapshot.status.replaceAll("_", " ")}</Badge>
-              <span className="text-sm">Eligible under rule {snapshot.rule_applied}: shipping damage.</span>
-            </div>
-            <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-              The agent matched the customer and mug to an order, then code checked the refund
-              rules. The message says photos are attached; the agent doesn’t inspect the photos.
+          <div className="space-y-2 border-t border-black/10 pt-4 dark:border-white/10">
+            <p className="text-sm font-medium">The old query returned</p>
+            <p className="text-3xl font-semibold">{electronics.beforeRate.toFixed(2)}%</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {String(electronics.before.rows[0].total_refunds)} refund records / {String(electronics.before.rows[0].total_order_items)} order lines
+            </p>
+          </div>
+          <div className="space-y-2 border-t border-black/10 pt-4 dark:border-white/10">
+            <p className="text-sm font-medium">The independently checked answer</p>
+            <p className="text-3xl font-semibold">{electronics.afterRate.toFixed(2)}%</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {String(electronics.after.rows[0].units_refunded)} approved refunded units / {String(electronics.after.rows[0].units_sold)} units sold
             </p>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Saved demo response · {capturedDate} · sample data, not a live result.
+            Saved local SQL records: baseline calibration and August 22, 2026 run.
+            Sample data, not a live Ask result.
           </p>
-          <Link href="/scenarios#refund-approval" className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline">
-            See the full response or run it again →
-          </Link>
+          <Link href="/evaluation-lab#sql-investigation" className={linkStyle}>See the queries, results, and diagnosis →</Link>
         </div>
       </section>
 
-      <section className="flex flex-col gap-8" aria-labelledby="engineering-findings">
-        <div className="flex flex-col gap-3">
-          <h2 id="engineering-findings" className="text-2xl font-semibold">Getting an answer is only the first part</h2>
-          <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
-            I built this to work through what happens when a model sits in front of business data
-            and rules. Can it calculate the right number? Find the right policy? Stay within what
-            it’s allowed to do? Testing exposed gaps that a convincing demo answer didn’t.
-          </p>
+      <section className="flex flex-col gap-6" aria-labelledby="scope-decisions">
+        <h2 id="scope-decisions" className="text-2xl font-semibold">What I built and where I drew the boundary</h2>
+        <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
+          I scoped the web app and API around three tasks: order analysis, policy lookup, and
+          refund eligibility. E-commerce gave me familiar business questions that still depend
+          on getting calculations, policy rules, and access boundaries right.
+        </p>
+        <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
+          The model interprets a request and proposes tools. Code decides whether a database
+          query can run and applies the refund rules. I kept refund execution out of scope:
+          the assistant returns an eligibility decision and the rule behind it, without moving money.
+        </p>
+        <div className="flex flex-wrap gap-x-6 gap-y-3">
+          <Link href="/architecture" className={linkStyle}>Read the architecture and decisions →</Link>
+          <Link href="/scenarios#injection-attempt" className={linkStyle}>Inspect an attempted rule override →</Link>
         </div>
-        <div className="rounded-lg border border-black/10 p-5 dark:border-white/10">
-          <p className="text-lg font-semibold">Saved evaluation run: {results.overall.passed}/{results.overall.total} tests passed ({results.overall.pass_rate.toFixed(1)}%)</p>
-          <p className="mt-2 max-w-prose text-sm text-gray-500 dark:text-gray-400">
-            August 22, 2026 local run · {results.overall.failed} failures. This measures the cases
-            tested then, not the current deployment. The report includes category results,
-            skipped cases, and measurement limits.
+      </section>
+
+      <section className="flex flex-col gap-8" aria-labelledby="investigation-story">
+        <h2 id="investigation-story" className="text-2xl font-semibold">How I traced the wrong answer</h2>
+        <ol className="max-w-prose list-decimal space-y-8 pl-6">
+          <li className="pl-2">
+            <h3 className="text-lg font-semibold">Establish the business calculation</h3>
+            <p className="mt-3 text-base text-gray-600 dark:text-gray-300">
+              I checked the expected answer independently in Postgres and reviewed the order
+              rows. Some lines contained multiple units. Counting each line once gave the wrong
+              denominator, even though the query was safe to execute.
+            </p>
+          </li>
+          <li className="pl-2">
+            <h3 className="text-lg font-semibold">Fix the calculation and check the result</h3>
+            <p className="mt-3 text-base text-gray-600 dark:text-gray-300">
+              I added assertions against independently calculated values and clarified the metric
+              instructions: use unit quantities and approved refunds. I also fixed a validator
+              bug that sometimes rejected a valid counting expression. The Home case exposed
+              another mistake: counting a denied refund as if it had happened.
+            </p>
+          </li>
+          <li className="pl-2">
+            <h3 className="text-lg font-semibold">Follow the question through the path people use</h3>
+            <p className="mt-3 text-base text-gray-600 dark:text-gray-300">
+              A later deployed Ask check still produced the wrong calculation. Ask used a separate
+              prompt and bypassed the corrected direct-SQL prompt. I moved the metric instructions
+              into a shared module and versioned the Ask prompt and cache key.
+            </p>
+          </li>
+        </ol>
+        <Link href="/evaluation-lab#sql-investigation" className={linkStyle}>Read the full investigation and its evidence →</Link>
+      </section>
+
+      <section className="flex flex-col gap-6" aria-labelledby="evidence-limits">
+        <h2 id="evidence-limits" className="text-2xl font-semibold">What the evidence supports</h2>
+        <div className="rounded-lg border border-black/10 p-6 sm:p-8 dark:border-white/10">
+          <p className="text-xl font-semibold">{regression[0].passed}/{regression[0].n} → {regression[1].passed}/{regression[1].n} correct SQL outcomes</p>
+          <p className="mt-3 max-w-prose text-base text-gray-600 dark:text-gray-300">
+            {regression[0].distinct} questions, each repeated {regression[0].runs} times per configuration.
+            Several settings changed, so I can’t attribute the whole improvement to one prompt edit.
+            These were saved local tests of the direct SQL path, not proof of the current deployed Ask workflow’s accuracy.
           </p>
-          <Link href="/evaluation-lab#coverage" className="mt-3 inline-block text-sm font-medium text-accent underline underline-offset-2 hover:no-underline">
-            Check the results and their scope →
-          </Link>
+          <Link href="/evaluation-lab" className={`${linkStyle} mt-4 inline-block`}>See results, source records, and measurement limits →</Link>
         </div>
-        {FINDINGS.map((finding) => (
-          <Card key={finding.title} className="gap-5 p-6 sm:p-8">
-            <h3 className="text-lg font-semibold">{finding.title}</h3>
-            <p className="max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-300">{finding.description}</p>
-            <Link href={finding.href} className="self-start text-sm font-medium text-accent underline underline-offset-2 hover:no-underline">
-              {finding.link}
-            </Link>
-          </Card>
-        ))}
+        <p className="max-w-prose text-base text-gray-600 dark:text-gray-300">
+          There’s still work to do. A specific damaged-shipment policy query remained unresolved
+          after changing embedding providers. The next calculation check is to repeat the suite
+          through the current Ask workflow against independent answers, with cached responses bypassed.
+        </p>
+        <Link href="/evaluation-lab#findings-finding-5-differences-in-the-deployed-environment" className={linkStyle}>Read the remaining retrieval limitation →</Link>
+        <p className="max-w-prose text-sm text-gray-500 dark:text-gray-400">
+          I haven’t measured customer adoption or business savings. This case study shows the
+          implementation decisions, recorded failures, and checks I can demonstrate today.
+        </p>
       </section>
 
       <section className="flex flex-col gap-4 border-t border-black/10 pt-8 dark:border-white/10" aria-labelledby="keep-exploring">
-        <h2 id="keep-exploring" className="text-xl font-semibold">Follow a request through the system</h2>
-        <p className="max-w-prose text-sm text-gray-600 dark:text-gray-300">
-          I chose e-commerce because the business questions are familiar, but the answers still
-          depend on real calculations, policy rules, and access boundaries. You can try another
-          question, inspect its trace, or read why I put each check where it is.
-        </p>
+        <h2 id="keep-exploring" className="text-xl font-semibold">Inspect the work</h2>
         <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm font-medium text-accent [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:no-underline">
           <Link href="/ask">Ask your own question →</Link>
           <Link href="/activity">Inspect request traces →</Link>
-          <Link href="/architecture">Read the architecture →</Link>
           <a href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer">View the code →</a>
         </div>
       </section>

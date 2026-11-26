@@ -21,6 +21,7 @@ const reportFiles = [
 
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
+    "/": reportFiles,
     "/evaluation-lab": reportFiles,
     "/guided-demo": reportFiles,
   },
